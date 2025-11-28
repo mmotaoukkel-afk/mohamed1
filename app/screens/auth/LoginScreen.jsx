@@ -23,7 +23,10 @@ import { useTheme } from "../../../src/context/ThemeContext";
 
 const { width, height } = Dimensions.get("window");
 
+import { useNavigation } from "@react-navigation/native";
+
 const LoginScreen = () => {
+    const navigation = useNavigation();
     const router = useRouter();
     const { login } = useAuth();
     const { colors } = useTheme();
@@ -46,7 +49,8 @@ const LoginScreen = () => {
             if (!success) {
                 Alert.alert("Login Failed", "Invalid email or password");
             } else {
-                router.replace("/(tabs)");
+                // Navigate to the Home tab
+                navigation.navigate("index");
             }
         } catch (error) {
             Alert.alert("Error", "An error occurred during login");
