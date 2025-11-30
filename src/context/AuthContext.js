@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { hashPassword, verifyPassword, isHashed } from '../utils/passwordHash';
 
 const AuthContext = createContext();
 const USER_KEY = 'app_user';
@@ -7,6 +8,7 @@ const USERS_DB_KEY = 'app_users_db'; // Stores list of all registered users
 
 export function AuthProvider({ children }) {
   const [user, setUserState] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -21,6 +23,8 @@ export function AuthProvider({ children }) {
         }
       } catch (e) {
         console.warn('Failed to load user from SecureStore', e);
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
@@ -44,14 +48,40 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const users = await getUsersDB();
-    const foundUser = users.find(u => u.email === email && u.password === password);
+    const foundUser = users.find(u => u.email === email);
 
     if (foundUser) {
-      // Remove password from session state for security
-      const { password, ...userSession } = foundUser;
-      setUserState(userSession);
-      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(userSession));
-      return true;
+      // Check if password matches (handle both hashed and plain text for migration)
+      let passwordMatches = false;
+
+      if (isHashed(foundUser.password)) {
+        // Password is hashed, verify it
+        passwordMatches = await verifyPassword(password, foundUser.password);
+      } else {
+        // Legacy plain text password, check directly
+        passwordMatches = foundUser.password === password;
+
+        // If match, update to hashed version
+        if (passwordMatches) {
+          const hashedPwd = await hashPassword(password);
+          foundUser.password = hashedPwd;
+          const allUsers = await getUsersDB();
+          const userIndex = allUsers.findIndex(u => u.email === email);
+          if (userIndex !== -1) {
+            allUsers[userIndex] = foundUser;
+            await saveUsersDB(allUsers);
+          }
+        }
+      }
+
+      if (passwordMatches) {
+        // Remove password from session state for security
+        const { password: _, ...userSession } = foundUser;
+        setUserState(userSession);
+        await SecureStore.setItemAsync(USER_KEY, JSON.stringify(userSession));
+        setLoading(false);
+        return true;
+      }
     }
     return false;
   };
@@ -62,7 +92,9 @@ export function AuthProvider({ children }) {
       return false; // User already exists
     }
 
-    const newUser = { name, email, password };
+    // Hash the password before storing
+    const hashedPassword = await hashPassword(password);
+    const newUser = { name, email, password: hashedPassword };
     users.push(newUser);
     await saveUsersDB(users);
 
@@ -99,7 +131,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

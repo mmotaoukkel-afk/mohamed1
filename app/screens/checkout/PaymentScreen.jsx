@@ -19,12 +19,15 @@ import { useTheme } from '../../../src/context/ThemeContext';
 import { useCheckout } from '../../../src/context/CheckoutContext';
 import PremiumBackground from '../../components/PremiumBackground';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import PromoCodeInput from '../../components/PromoCodeInput';
+import { useRouter } from 'expo-router';
 
 const PaymentScreen = () => {
-    const navigation = useNavigation();
+    const router = useRouter();
     const { colors } = useTheme();
-    const { paymentMethod, setPaymentMethod, processOrder } = useCheckout();
+    const { setCurrentPaymentMethod } = useCheckout();
 
+    const [selectedMethod, setSelectedMethod] = useState('cod');
     const [cardDetails, setCardDetails] = useState({
         number: '',
         expiry: '',
@@ -61,44 +64,39 @@ const PaymentScreen = () => {
         return valid;
     };
 
-    const handlePlaceOrder = async () => {
-        if (validateCard()) {
-            const success = await processOrder(cardDetails);
-            if (success) {
-                Alert.alert(
-                    'Order Placed!',
-                    'Your order has been successfully placed.',
-                    [
-                        {
-                            text: 'OK',
-                            onPress: () => navigation.navigate('(tabs)'),
-                        },
-                    ]
-                );
-            } else {
-                Alert.alert('Error', 'Failed to process order. Please try again.');
-            }
+    const handleContinue = () => {
+        if (selectedMethod === 'card' && !validateCard()) {
+            return;
         }
+
+        // Save payment method
+        setCurrentPaymentMethod({
+            type: selectedMethod === 'cod' ? 'Cash on Delivery' : 'Credit Card',
+            number: selectedMethod === 'card' ? cardDetails.number : null,
+        });
+
+        // Navigate to Review Order screen
+        router.push('/screens/checkout/ReviewOrderScreen');
     };
 
     const renderPaymentOption = (id, icon, label, subLabel) => (
         <TouchableOpacity
             style={[
                 styles.paymentOption,
-                paymentMethod === id && styles.activePaymentOption,
+                selectedMethod === id && styles.activePaymentOption,
             ]}
-            onPress={() => setPaymentMethod(id)}
+            onPress={() => setSelectedMethod(id)}
         >
             <View style={styles.paymentOptionHeader}>
                 <View style={styles.paymentIconContainer}>
-                    <FontAwesome name={icon} size={24} color={paymentMethod === id ? '#667eea' : '#fff'} />
+                    <FontAwesome name={icon} size={24} color={selectedMethod === id ? '#667eea' : '#fff'} />
                 </View>
                 <View style={styles.paymentTextContainer}>
                     <Text style={styles.paymentLabel}>{label}</Text>
                     <Text style={styles.paymentSubLabel}>{subLabel}</Text>
                 </View>
-                <View style={[styles.radioButton, paymentMethod === id && styles.activeRadioButton]}>
-                    {paymentMethod === id && <View style={styles.radioInner} />}
+                <View style={[styles.radioButton, selectedMethod === id && styles.activeRadioButton]}>
+                    {selectedMethod === id && <View style={styles.radioInner} />}
                 </View>
             </View>
         </TouchableOpacity>
@@ -111,7 +109,7 @@ const PaymentScreen = () => {
 
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color="#fff" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Payment Method</Text>
@@ -149,7 +147,10 @@ const PaymentScreen = () => {
                         {renderPaymentOption('cod', 'money', 'Cash on Delivery', 'Pay when you receive')}
                         {renderPaymentOption('card', 'credit-card', 'Credit / Debit Card', 'Pay securely now')}
 
-                        {paymentMethod === 'card' && (
+                        {/* Promo Code Input */}
+                        <PromoCodeInput />
+
+                        {selectedMethod === 'card' && (
                             <Animated.View entering={FadeInDown.duration(400)} style={styles.cardForm}>
                                 <View style={styles.inputContainer}>
                                     <Text style={styles.inputLabel}>Card Number</Text>
@@ -211,11 +212,9 @@ const PaymentScreen = () => {
                 </ScrollView>
 
                 <View style={styles.footer}>
-                    <TouchableOpacity style={styles.payButton} onPress={handlePlaceOrder}>
-                        <Text style={styles.payButtonText}>
-                            {paymentMethod === 'cod' ? 'Place Order' : 'Pay Now'}
-                        </Text>
-                        <Ionicons name="checkmark-circle" size={20} color="#667eea" />
+                    <TouchableOpacity style={styles.payButton} onPress={handleContinue}>
+                        <Text style={styles.payButtonText}>Continue to Review</Text>
+                        <Ionicons name="arrow-forward" size={20} color="#667eea" />
                     </TouchableOpacity>
                 </View>
 

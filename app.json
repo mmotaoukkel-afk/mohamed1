@@ -4,7 +4,7 @@
     "slug": "first-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/login.jpeg",
+    "icon": "./assets/images/icon.png",
     "scheme": "firstapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,24 +13,22 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/login.jpeg",
-        "backgroundImage": "./assets/images/login.jpeg",
-        "monochromeImage": "./assets/images/login.jpeg"
+        "backgroundColor": "#6366F1",
+        "foregroundImage": "./assets/images/adaptive-icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/login.jpeg"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/login.jpeg",
+          "image": "./assets/images/splash.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",

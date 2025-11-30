@@ -11,6 +11,32 @@ export const SettingsProvider = ({ children }) => {
     const [sounds, setSounds] = useState(true);
     const [vibration, setVibration] = useState(true);
     const [language, setLanguage] = useState('ar');
+    const [isFirstLaunch, setIsFirstLaunch] = useState(null); // null = loading, true = show onboarding, false = skip
+
+    // Check if first launch (Global, not user specific)
+    useEffect(() => {
+        (async () => {
+            try {
+                const hasLaunched = await AsyncStorage.getItem('app_has_launched');
+                if (hasLaunched === null) {
+                    setIsFirstLaunch(true);
+                } else {
+                    setIsFirstLaunch(false);
+                }
+            } catch (error) {
+                setIsFirstLaunch(false); // Fallback
+            }
+        })();
+    }, []);
+
+    const completeOnboarding = async () => {
+        try {
+            await AsyncStorage.setItem('app_has_launched', 'true');
+            setIsFirstLaunch(false);
+        } catch (error) {
+            console.warn('Failed to save onboarding status', error);
+        }
+    };
 
     // Load saved settings on mount or user change
     useEffect(() => {
@@ -71,6 +97,8 @@ export const SettingsProvider = ({ children }) => {
                 toggleSounds,
                 toggleVibration,
                 changeLanguage,
+                isFirstLaunch,
+                completeOnboarding,
             }}
         >
             {children}

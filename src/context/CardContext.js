@@ -83,11 +83,11 @@ export const CartProvider = ({ children }) => {
 
     // حساب المجموع الكلي بناءً على الكمية
     const totalSum = (carts) => {
-        const totalSum = carts.reduce((amount, item) => {
+        const total = carts.reduce((amount, item) => {
             const quantity = item.quantity || 1;
             return amount + (item.price * quantity);
         }, 0);
-        setTotalPrice(totalSum.toFixed(2));
+        setTotalPrice(total.toFixed(2));
     };
 
     // إتمام عملية الشراء (تقليل الكمية من المخزون)
@@ -100,13 +100,25 @@ export const CartProvider = ({ children }) => {
         return true;
     };
 
+    const clearCart = async () => {
+        setCarts([]);
+        await saveCartItems([]);
+        setTotalPrice(0);
+    };
+
+    const getTotalPrice = () => {
+        return parseFloat(totalPrice) || 0;
+    };
+
     const value = {
         carts,
         addToCart,
         totalPrice,
         deleteItemFromCart,
         updateCartItemQuantity,
-        checkout
+        checkout,
+        clearCart,
+        getTotalPrice,
     };
 
     return (

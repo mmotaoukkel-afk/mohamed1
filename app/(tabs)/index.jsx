@@ -1,4 +1,4 @@
-import { Text, View, FlatList, TouchableOpacity, StyleSheet, Modal, Dimensions, TextInput } from "react-native";
+import { Text, View, FlatList, TouchableOpacity, StyleSheet, Modal, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Feather from 'react-native-vector-icons/Feather';
 import Category from "../components/category";
@@ -13,7 +13,7 @@ import PremiumBackground from "../components/PremiumBackground";
 import { LinearGradient } from 'expo-linear-gradient';
 import SkeletonProduct from "../components/SkeletonProduct";
 import { useRouter } from "expo-router";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import SearchBar from "../components/SearchBar";
 
 const { width } = Dimensions.get('window');
 
@@ -85,7 +85,10 @@ const MyScreen = () => {
                 <TouchableOpacity onPress={() => router.push("/screens/OnboardingScreen")}>
                     <Text style={styles.headerTitle}>FUNNY SHOP</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.iconButton}>
+                <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => router.push("/screens/NotificationsScreen")}
+                >
                     <Feather name="bell" size={22} color="#fff" />
                     <View style={styles.notificationDot} />
                 </TouchableOpacity>
@@ -150,7 +153,7 @@ const MyScreen = () => {
                 {/* Search Modal */}
                 <Modal
                     visible={showSearchModal}
-                    animationType="fade"
+                    animationType="slide"
                     transparent={true}
                     onRequestClose={() => setShowSearchModal(false)}
                 >
@@ -159,21 +162,13 @@ const MyScreen = () => {
                             <SafeAreaView style={{ flex: 1 }}>
                                 {/* Modal Header */}
                                 <View style={styles.searchHeader}>
-                                    <View style={styles.searchInputContainer}>
-                                        <Feather name="search" size={20} color="rgba(255,255,255,0.5)" />
-                                        <TextInput
-                                            style={styles.searchInput}
-                                            placeholder="Search products..."
-                                            placeholderTextColor="rgba(255,255,255,0.5)"
+                                    <View style={{ flex: 1 }}>
+                                        <SearchBar
                                             value={searchQuery}
                                             onChangeText={setSearchQuery}
-                                            autoFocus
+                                            placeholder="Search products..."
+                                            autoFocus={true}
                                         />
-                                        {searchQuery.length > 0 && (
-                                            <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                                <Feather name="x-circle" size={18} color="rgba(255,255,255,0.5)" />
-                                            </TouchableOpacity>
-                                        )}
                                     </View>
                                     <TouchableOpacity
                                         style={styles.closeButton}
@@ -312,6 +307,85 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#fff',
     },
+    bannerWrapper: {
+        marginBottom: 24,
+        borderRadius: 24,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+    },
+    bannerContainer: {
+        flexDirection: 'row',
+        padding: 24,
+        alignItems: 'center',
+    },
+    bannerLeft: {
+        flex: 1,
+    },
+    bannerBadge: {
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+        marginBottom: 12,
+    },
+    bannerBadgeText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    bannerDiscount: {
+        fontSize: 42,
+        fontWeight: '800',
+        color: '#fff',
+        lineHeight: 42,
+    },
+    bannerOffText: {
+        fontSize: 24,
+        fontWeight: '300',
+        color: 'rgba(255,255,255,0.8)',
+        marginBottom: 16,
+        letterSpacing: 4,
+    },
+    bannerButton: {
+        backgroundColor: '#fff',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignSelf: 'flex-start',
+    },
+    bannerButtonText: {
+        color: '#000',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    bannerRight: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    bannerEmoji: {
+        fontSize: 80,
+    },
+    categoriesContainer: {
+        marginBottom: 24,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    sectionTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    viewAll: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.6)',
+        fontWeight: '600',
+    },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.85)',
@@ -325,23 +399,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         gap: 12,
-    },
-    searchInputContainer: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        height: 44,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
-    },
-    searchInput: {
-        flex: 1,
-        color: '#fff',
-        marginLeft: 8,
-        fontSize: 16,
     },
     closeButton: {
         padding: 4,
@@ -381,113 +438,16 @@ const styles = StyleSheet.create({
     },
     resultsHeader: {
         paddingHorizontal: 16,
-        paddingBottom: 12,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.1)',
     },
     resultsCount: {
         color: 'rgba(255,255,255,0.6)',
         fontSize: 14,
     },
     searchResults: {
-        paddingHorizontal: 16,
-        paddingBottom: 20,
-    },
-    bannerWrapper: {
-        borderRadius: BorderRadius.xl,
-        marginBottom: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
-        elevation: 10,
-    },
-    bannerContainer: {
-        borderRadius: BorderRadius.xl,
-        padding: 20,
-        minHeight: 140,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)',
-    },
-    bannerLeft: {
-        flex: 1,
-    },
-    bannerRight: {
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    bannerEmoji: {
-        fontSize: 70,
-    },
-    bannerBadge: {
-        alignSelf: 'flex-start',
-        backgroundColor: 'rgba(255, 255, 255, 0.3)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: BorderRadius.full,
-        marginBottom: 8,
-    },
-    bannerBadgeText: {
-        color: '#FFFFFF',
-        fontSize: 10,
-        fontWeight: '700',
-    },
-    bannerDiscount: {
-        fontSize: 42,
-        fontWeight: '800',
-        color: '#FFFFFF',
-        letterSpacing: -1,
-        lineHeight: 48,
-        textShadowColor: 'rgba(0,0,0,0.1)',
-        textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 4,
-    },
-    bannerOffText: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        marginBottom: 12,
-        letterSpacing: 2,
-    },
-    bannerButton: {
-        backgroundColor: '#fff',
-        paddingVertical: 10,
-        paddingHorizontal: 18,
-        borderRadius: BorderRadius.lg,
-        alignSelf: 'flex-start',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    bannerButtonText: {
-        color: '#667eea',
-        fontWeight: '800',
-        fontSize: 12,
-    },
-    categoriesContainer: {
-        marginBottom: 24,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#fff',
-        textShadowColor: 'rgba(0,0,0,0.1)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 2,
-    },
-    viewAll: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: 'rgba(255,255,255,0.8)',
+        padding: 16,
     },
 });
 

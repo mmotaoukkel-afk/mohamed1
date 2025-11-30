@@ -1,6 +1,6 @@
 import { FlatList, StyleSheet, Text, TouchableOpacity, View, StatusBar, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import CartProduct from "../components/Cardporduct";
+import CartProduct from "../components/CartProduct";
 import { useContext } from "react";
 import { CartContext } from "../../src/context/CardContext";
 import { useTheme } from "../../src/context/ThemeContext";

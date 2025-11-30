@@ -24,7 +24,9 @@ const ProductsDeltScreen = () => {
     const route = useRoute();
     const item = route?.params?.item ?? {};
     const [selectedSize, setSelectedSize] = useState(null);
-    const [selectedColor, setSelectedColor] = useState(null);  const handleAddTOCart = (product) => {
+    const [selectedColor, setSelectedColor] = useState(null);
+
+    const handleAddTOCart = (product) => {
         if (!selectedSize || !selectedColor) {
             Alert.alert(
                 "Selection Required",
@@ -133,6 +135,39 @@ const ProductsDeltScreen = () => {
                         <Text style={styles.descriptionText}>
                             A creatively styled unisex hoodie by BOSS. This hooded sweatshirt is cut to a straight fit in French terry with a drawstring hood.
                         </Text>
+                    </View>
+
+                    {/* Reviews Section */}
+                    <View style={styles.reviewsSection}>
+                        <View style={styles.reviewsHeader}>
+                            <Text style={styles.sectionTitle}>Reviews (4.8)</Text>
+                            <TouchableOpacity>
+                                <Text style={styles.seeAllText}>See All</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Mock Reviews */}
+                        {[
+                            { id: 1, user: 'Alex M.', rating: 5, text: 'Amazing quality! Fits perfectly.', date: '2 days ago' },
+                            { id: 2, user: 'Sarah K.', rating: 4, text: 'Love the color, but shipping was a bit slow.', date: '1 week ago' }
+                        ].map((review) => (
+                            <View key={review.id} style={styles.reviewItem}>
+                                <View style={styles.reviewHeader}>
+                                    <View style={styles.reviewerInfo}>
+                                        <View style={styles.avatarPlaceholder}>
+                                            <Text style={styles.avatarText}>{review.user.charAt(0)}</Text>
+                                        </View>
+                                        <Text style={styles.reviewerName}>{review.user}</Text>
+                                    </View>
+                                    <View style={styles.ratingContainer}>
+                                        <Feather name="star" size={12} color="#FFD700" style={{ marginRight: 2 }} />
+                                        <Text style={styles.ratingText}>{review.rating}.0</Text>
+                                    </View>
+                                </View>
+                                <Text style={styles.reviewText}>{review.text}</Text>
+                                <Text style={styles.reviewDate}>{review.date}</Text>
+                            </View>
+                        ))}
                     </View>
                 </ScrollView>
 
@@ -283,7 +318,7 @@ const styles = StyleSheet.create({
         borderRadius: 17,
     },
     descriptionSection: {
-        marginBottom: 70,
+        marginBottom: 24,
     },
     descriptionText: {
         fontSize: 14,
@@ -323,6 +358,78 @@ const styles = StyleSheet.create({
         fontWeight: "700",
         color: "#FFFFFF",
         letterSpacing: 1,
+    },
+    reviewsSection: {
+        marginBottom: 24,
+    },
+    reviewsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    seeAllText: {
+        fontSize: 14,
+        color: '#667eea',
+        fontWeight: '600',
+    },
+    reviewItem: {
+        backgroundColor: '#F9F9F9',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 12,
+    },
+    reviewHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    reviewerInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    avatarPlaceholder: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#1A1A1A',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
+    },
+    avatarText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    reviewerName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#1A1A1A',
+    },
+    ratingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF9E6',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    ratingText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#1A1A1A',
+    },
+    reviewText: {
+        fontSize: 14,
+        color: '#666666',
+        lineHeight: 20,
+        marginBottom: 8,
+    },
+    reviewDate: {
+        fontSize: 12,
+        color: '#999999',
     },
 });
 

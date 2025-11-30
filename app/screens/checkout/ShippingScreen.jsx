@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
         borderTopColor: 'rgba(255,255,255,0.1)',
     },
     nextButton: {
-        backgroundColor: '#fff',
+        backgroundColor: '#7c3838ff',
         borderRadius: 16,
         paddingVertical: 16,
         flexDirection: 'row',
@@ -369,9 +369,10 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 8,
         elevation: 5,
+        marginBottom:50
     },
     nextButtonText: {
-        color: '#667eea',
+        color: '#ffffffff',
         fontSize: 18,
         fontWeight: '700',
     },

@@ -25,6 +25,7 @@ import PaymentMethods from "../components/PaymentMethods";
 import { useNavigation } from "@react-navigation/native";
 import { sanitizeEmail } from "../../src/utils/helpers";
 import PremiumBackground from "../components/PremiumBackground";
+import { sendNewProductNotification } from "../../src/utils/notifications";
 
 const { width } = Dimensions.get("window");
 
@@ -315,7 +316,16 @@ const Profile = () => {
   );
 
   const renderOrderCard = ({ item }) => (
-    <View style={styles.orderCard}>
+    <TouchableOpacity
+      style={styles.orderCard}
+      onPress={() => navigation.navigate('screens/orders/OrderTrackingScreen', {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        date: item.date,
+        img: item.img
+      })}
+    >
       <Image source={{ uri: item.img }} style={styles.orderImage} />
       <View style={styles.orderInfo}>
         <Text style={styles.orderName}>{item.name}</Text>
@@ -327,7 +337,7 @@ const Profile = () => {
           <Text style={styles.categoryText}>{item.category}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderFavoriteCard = ({ item }) => (
@@ -561,6 +571,23 @@ const Profile = () => {
               {supportOptions.map((item, index) => (
                 <View key={item.id}>{renderSupportOption({ item, index })}</View>
               ))}
+            </Animated.View>
+
+            {/* Developer Tools (For Testing) */}
+            <Animated.View entering={FadeInDown.delay(650).springify()} style={styles.section}>
+              <Text style={styles.sectionTitle}>Developer Tools</Text>
+              <TouchableOpacity
+                style={styles.supportItem}
+                onPress={async () => {
+                  await sendNewProductNotification();
+                  Alert.alert("Notification Sent", "Check your notifications tray!");
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="construct" size={22} color="#fff" />
+                <Text style={styles.supportLabel}>Simulate New Product Alert</Text>
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.5)" />
+              </TouchableOpacity>
             </Animated.View>
 
             {/* Logout Button */}

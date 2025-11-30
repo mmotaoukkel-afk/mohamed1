@@ -21,6 +21,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useAuth } from "../../../src/context/AuthContext";
 import { useTheme } from "../../../src/context/ThemeContext";
+import { sendWelcomeNotification } from "../../../src/utils/notifications";
 
 const { width, height } = Dimensions.get("window");
 
@@ -64,6 +65,7 @@ const RegisterScreen = () => {
         try {
             const success = await register(name.trim(), email.trim(), password);
             if (success) {
+                await sendWelcomeNotification(name.trim());
                 Alert.alert(
                     "Success! 🎉",
                     "Your account has been created successfully",
