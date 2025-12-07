@@ -1,12 +1,13 @@
-import Feather from '@expo/vector-icons/Feather';
-import { useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+```
+import { Text, View, FlatList, TouchableOpacity, StyleSheet, Modal, Dimensions, TextInput, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFavorites } from "../../src/context/FavoritesContext";
+import Feather from '@expo/vector-icons/Feather';
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useTheme } from "../../src/context/ThemeContext";
-import HomeHeader from "../components/HomeHeader";
+import { useFavorites } from "../../src/context/FavoritesContext";
 import PremiumBackground from "../components/PremiumBackground";
+import { useRouter } from "expo-router";
+import HomeHeader from "../components/HomeHeader";
 
 import api from "../services/api";
 
@@ -24,7 +25,7 @@ const MyScreen = () => {
     const [error, setError] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-
+    
     // 🔥 Cache للصفحات المحملة
     const pagesCache = useRef({});
 
@@ -48,9 +49,9 @@ const MyScreen = () => {
         try {
             setIsLoading(true);
             setError(null);
-
+            
             const data = await api.getProducts(page, PRODUCTS_PER_PAGE);
-
+            
             const formattedProducts = data.map(product => ({
                 id: product.id,
                 name: product.name,
@@ -59,18 +60,18 @@ const MyScreen = () => {
                 category: product.categories?.[0]?.name || "غير مصنف",
                 categoryId: product.categories?.[0]?.id || 0,
             }));
-
+            
             // 🔥 حفظ فـ الكاش
             pagesCache.current[page] = formattedProducts;
-
+            
             setProducts(formattedProducts);
             setCurrentPage(page);
-
+            
             // حساب عدد الصفحات (تقريبي)
             if (page === 1 && data.length === PRODUCTS_PER_PAGE) {
                 setTotalPages(Math.ceil(3500 / PRODUCTS_PER_PAGE));
             }
-
+            
         } catch (err) {
             console.error("Error:", err);
             setError("فشل في تحميل المنتجات");
@@ -119,9 +120,9 @@ const MyScreen = () => {
     }, [products, selectedCategory, searchQuery]);
 
     const renderProduct = ({ item }) => (
-        <TouchableOpacity style={styles.productCard} onPress={() => router.push(`/product/${item.id}`)}>
+        <TouchableOpacity style={styles.productCard} onPress={() => router.push(`/ product / ${ item.id } `)}>
             <Image source={{ uri: item.image }} style={styles.productImage} />
-
+            
             <View style={styles.arBadge}>
                 <Feather name="box" size={12} color="#fff" />
                 <Text style={styles.arText}>3D</Text>
@@ -154,7 +155,7 @@ const MyScreen = () => {
         const maxVisible = 5;
         let start = Math.max(1, currentPage - 2);
         let end = Math.min(totalPages, start + maxVisible - 1);
-
+        
         if (end - start < maxVisible - 1) {
             start = Math.max(1, end - maxVisible + 1);
         }
@@ -162,7 +163,7 @@ const MyScreen = () => {
         return (
             <View style={styles.pagination}>
                 {/* زر السابق */}
-                <TouchableOpacity
+                <TouchableOpacity 
                     style={[styles.pageButton, currentPage === 1 && styles.pageButtonDisabled]}
                     onPress={() => goToPage(currentPage - 1)}
                     disabled={currentPage === 1}
@@ -181,7 +182,7 @@ const MyScreen = () => {
                 )}
 
                 {Array.from({ length: end - start + 1 }, (_, i) => start + i).map(page => (
-                    <TouchableOpacity
+                    <TouchableOpacity 
                         key={page}
                         style={[styles.pageButton, currentPage === page && styles.pageButtonActive]}
                         onPress={() => goToPage(page)}
@@ -202,7 +203,7 @@ const MyScreen = () => {
                 )}
 
                 {/* زر التالي */}
-                <TouchableOpacity
+                <TouchableOpacity 
                     style={[styles.pageButton, currentPage === totalPages && styles.pageButtonDisabled]}
                     onPress={() => goToPage(currentPage + 1)}
                     disabled={currentPage === totalPages}
@@ -259,10 +260,19 @@ const MyScreen = () => {
                     <TouchableOpacity style={styles.iconButton} onPress={() => setShowSearchModal(true)}>
                         <Feather name="search" size={22} color="#fff" />
                     </TouchableOpacity>
+                    
                     <Text style={styles.headerTitle}>KATARAA</Text>
-                    <TouchableOpacity style={styles.iconButton} onPress={() => fetchProducts(currentPage)}>
-                        <Feather name="refresh-cw" size={22} color="#fff" />
-                    </TouchableOpacity>
+                    
+                    <View style={{flexDirection: 'row', gap: 8}}>
+                        <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/screens/NotificationsScreen")}>
+                            <Feather name="bell" size={22} color="#fff" />
+                            <View style={styles.notificationDot} />
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity style={styles.iconButton} onPress={() => fetchProducts(currentPage)}>
+                            <Feather name="refresh-cw" size={22} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {isLoading ? (
@@ -320,6 +330,7 @@ const styles = StyleSheet.create({
     headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 16 },
     headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff', letterSpacing: 2 },
     iconButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    notificationDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF6B6B', borderWidth: 1, borderColor: '#fff' },
     categoriesList: { marginBottom: 16, maxHeight: 50, paddingLeft: 8 },
     categoryButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.15)', marginRight: 10 },
     categoryButtonActive: { backgroundColor: '#fff' },
@@ -357,3 +368,4 @@ const styles = StyleSheet.create({
 });
 
 export default MyScreen;
+```

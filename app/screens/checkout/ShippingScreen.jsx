@@ -1,7 +1,23 @@
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
     TextInput, KeyboardAvoidingView, Platform, StatusBar, Modal, FlatList
+=======
+import React, { useState, useRef } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    ScrollView,
+    TextInput,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    StatusBar,
+    ActivityIndicator,
+>>>>>>> origin/main
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import PremiumBackground from '../../components/PremiumBackground';
+<<<<<<< HEAD
 import { useCheckout } from '../../../src/context/CheckoutContext';
 import { useCart } from '../../../src/context/CardContext';
 import { KUWAIT_STATES, KUWAIT_CITIES, calculateShipping } from '../../data/kuwaitLocations';
@@ -24,6 +41,21 @@ const ShippingScreen = () => {
         phone: '',
         state: '',
         stateName: '',
+=======
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { validateName, validatePhone, validateAddress } from '../../../src/utils/validation';
+import { cleanInput, isInputSafe } from '../../../src/utils/security';
+
+const ShippingScreen = () => {
+    const navigation = useNavigation();
+    const { colors } = useTheme();
+    const { currentShippingAddress, setCurrentShippingAddress, savedAddresses } = useCheckout();
+
+    const [form, setForm] = useState(currentShippingAddress || {
+        fullName: '',
+        phoneNumber: '',
+        address: '',
+>>>>>>> origin/main
         city: '',
         cityName: '',
         address: '',
@@ -31,6 +63,7 @@ const ShippingScreen = () => {
     });
 
     const [errors, setErrors] = useState({});
+<<<<<<< HEAD
     const [showStateModal, setShowStateModal] = useState(false);
     const [showCityModal, setShowCityModal] = useState(false);
     const [shippingCost, setShippingCost] = useState({ cost: 0, label: '' });
@@ -49,21 +82,77 @@ const ShippingScreen = () => {
             setShippingCost(shipping);
         }
     }, [form.city, totalPrice]);
+=======
+    const [loading, setLoading] = useState(false);
+
+    // Refs for input navigation
+    const phoneRef = useRef(null);
+    const addressRef = useRef(null);
+    const cityRef = useRef(null);
+    const zipRef = useRef(null);
+    const countryRef = useRef(null);
+>>>>>>> origin/main
 
     const validate = () => {
         let newErrors = {};
+<<<<<<< HEAD
         if (!form.firstName) newErrors.firstName = 'الاسم الأول مطلوب';
         if (!form.lastName) newErrors.lastName = 'الاسم الأخير مطلوب';
         if (!form.phone) newErrors.phone = 'رقم الهاتف مطلوب';
         if (!form.state) newErrors.state = 'المحافظة مطلوبة';
         if (!form.city) newErrors.city = 'المدينة مطلوبة';
         if (!form.address) newErrors.address = 'العنوان مطلوب';
+=======
+
+        // Validate full name
+        const nameResult = validateName(form.fullName);
+        if (!nameResult.isValid) {
+            newErrors.fullName = nameResult.error;
+            valid = false;
+        }
+
+        // Validate phone
+        const phoneResult = validatePhone(form.phoneNumber);
+        if (!phoneResult.isValid) {
+            newErrors.phoneNumber = phoneResult.error;
+            valid = false;
+        }
+
+        // Validate address
+        if (!form.address || form.address.trim().length < 5) {
+            newErrors.address = 'Please enter a valid address';
+            valid = false;
+        }
+
+        // Validate city
+        if (!form.city || form.city.trim().length < 2) {
+            newErrors.city = 'City is required';
+            valid = false;
+        }
+
+        // Validate zip code
+        if (!form.zipCode || !/^[\w\s\-]{3,10}$/.test(form.zipCode.trim())) {
+            newErrors.zipCode = 'Invalid zip code';
+            valid = false;
+        }
+
+        // Check for injection attempts
+        const fieldsToCheck = [form.fullName, form.address, form.city, form.country];
+        for (const field of fieldsToCheck) {
+            if (field && !isInputSafe(field)) {
+                Alert.alert('Security Warning', 'Invalid characters detected in your input.');
+                return false;
+            }
+        }
+
+>>>>>>> origin/main
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
     const handleNext = () => {
         if (validate()) {
+<<<<<<< HEAD
             setShippingAddress({
                 fullName: `${form.firstName} ${form.lastName}`,
                 phoneNumber: form.phone,
@@ -82,6 +171,34 @@ const ShippingScreen = () => {
     const selectState = (state) => {
         setForm({ ...form, state: state.id, stateName: state.name });
         setShowStateModal(false);
+=======
+            setLoading(true);
+            // Sanitize all inputs before saving
+            const sanitizedForm = {
+                fullName: cleanInput(form.fullName),
+                phoneNumber: cleanInput(form.phoneNumber),
+                address: cleanInput(form.address),
+                city: cleanInput(form.city),
+                zipCode: cleanInput(form.zipCode),
+                country: cleanInput(form.country),
+            };
+            setCurrentShippingAddress(sanitizedForm);
+            setLoading(false);
+            navigation.navigate('PaymentScreen');
+        }
+    };
+
+    const handleUseSavedAddress = (address) => {
+        setForm(address);
+        setErrors({});
+    };
+
+    const handleInputChange = (field, text) => {
+        setForm({ ...form, [field]: text });
+        if (errors[field]) {
+            setErrors(prev => ({ ...prev, [field]: null }));
+        }
+>>>>>>> origin/main
     };
 
     const selectCity = (city) => {
@@ -288,6 +405,7 @@ const ShippingScreen = () => {
 };
 
 const styles = StyleSheet.create({
+<<<<<<< HEAD
     container: { flex: 1 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15 },
     backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
@@ -337,6 +455,175 @@ const styles = StyleSheet.create({
     modalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
     modalItemText: { fontSize: 16, color: '#333' },
     specialBadge: { fontSize: 12, color: '#ff6b9d', fontWeight: '600' },
+=======
+    container: {
+        flex: 1,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 15,
+    },
+    backButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    progressContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 20,
+        paddingHorizontal: 40,
+    },
+    progressItem: {
+        alignItems: 'center',
+    },
+    progressCircle: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 5,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    activeProgress: {
+        backgroundColor: '#fff',
+        borderColor: '#fff',
+    },
+    progressText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#667eea',
+    },
+    progressLabel: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.6)',
+    },
+    activeLabel: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    progressLine: {
+        flex: 1,
+        height: 2,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        marginHorizontal: 10,
+        marginBottom: 15,
+    },
+    content: {
+        padding: 20,
+        paddingBottom: 100,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#fff',
+        marginBottom: 15,
+    },
+    savedAddressesSection: {
+        marginBottom: 25,
+    },
+    savedAddressCard: {
+        width: 200,
+        padding: 15,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        marginRight: 15,
+    },
+    savedAddressName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#fff',
+        marginBottom: 5,
+    },
+    savedAddressText: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.8)',
+    },
+    formCard: {
+        padding: 20,
+        borderRadius: 24,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+    },
+    inputContainer: {
+        marginBottom: 15,
+    },
+    inputLabel: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.9)',
+        marginBottom: 8,
+        fontWeight: '500',
+    },
+    input: {
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 12,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+        color: '#fff',
+        fontSize: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    inputError: {
+        borderColor: '#ff6b6b',
+    },
+    errorText: {
+        color: '#ff6b6b',
+        fontSize: 12,
+        marginTop: 5,
+    },
+    row: {
+        flexDirection: 'row',
+    },
+    footer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: 20,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.1)',
+    },
+    nextButton: {
+        backgroundColor: '#7c3838ff',
+        borderRadius: 16,
+        paddingVertical: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 5,
+        marginBottom: 50
+    },
+    nextButtonText: {
+        color: '#ffffffff',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+>>>>>>> origin/main
 });
 
 export default ShippingScreen;

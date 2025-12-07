@@ -190,6 +190,19 @@ export const Typography = {
 };
 
 /**
+ * Font Size shortcuts
+ */
+export const FontSize = {
+    xs: 11,
+    sm: 13,
+    md: 15,
+    lg: 17,
+    xl: 20,
+    xxl: 24,
+    xxxl: 32,
+};
+
+/**
  * Spacing System (8pt grid)
  */
 export const Spacing = {
@@ -213,6 +226,7 @@ export const BorderRadius = {
     xl: 24,
     xxl: 32,
     round: 9999,
+    full: 9999,
 };
 
 /**
@@ -255,3 +269,41 @@ export const Elevation = {
         elevation: 12,
     },
 };
+
+/**
+ * Shadows (Alias for Elevation + extra sizes)
+ */
+export const Shadows = {
+    ...Elevation,
+    sm: Elevation.low,
+    md: Elevation.medium,
+    lg: Elevation.high,
+    xl: Elevation.highest,
+};
+
+/**
+ * Spring Animation Config
+ */
+export const SpringConfig = {
+    light: {
+        damping: 15,
+        stiffness: 300,
+        mass: 0.5,
+    },
+    medium: {
+        damping: 15,
+        stiffness: 200,
+        mass: 1,
+    },
+    heavy: {
+        damping: 20,
+        stiffness: 150,
+        mass: 1.5,
+    },
+    bouncy: {
+        damping: 10,
+        stiffness: 400,
+        mass: 0.5,
+    },
+};
+

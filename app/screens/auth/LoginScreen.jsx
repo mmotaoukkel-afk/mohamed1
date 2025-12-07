@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
     View,
     Text,
@@ -8,51 +8,136 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
-    Dimensions,
+    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-    FadeInDown,
-    FadeInUp,
-} from "react-native-reanimated";
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useAuth } from "../../../src/context/AuthContext";
-import { useTheme } from "../../../src/context/ThemeContext";
-
-const { width, height } = Dimensions.get("window");
+import { validateEmail, validatePassword } from "../../../src/utils/validation";
+import { rateLimiters, sanitizeEmail, cleanInput } from "../../../src/utils/security";
+import { handleError, ERROR_TYPES } from "../../../src/utils/errorHandler";
 
 const LoginScreen = () => {
     const router = useRouter();
-    const { login } = useAuth();
-    const { colors } = useTheme();
+    const { login, clearAllUsers } = useAuth();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [focusedInput, setFocusedInput] = useState(null);
+    const [errors, setErrors] = useState({});
+    const [loginAttempts, setLoginAttempts] = useState(0);
+
+    const passwordRef = useRef(null);
+
+    // Validate inputs before submission
+    const validateInputs = () => {
+        const newErrors = {};
+
+        const emailResult = validateEmail(email);
+        if (!emailResult.isValid) {
+            newErrors.email = emailResult.error;
+        }
+
+        const passwordResult = validatePassword(password);
+        if (!passwordResult.isValid) {
+            newErrors.password = passwordResult.error;
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     const handleLogin = async () => {
-        if (!email.trim() || !password.trim()) {
-            Alert.alert("Error", "Please enter email and password");
+        // Check rate limiting
+        if (!rateLimiters.login.isAllowed('login_attempt')) {
+            const waitTime = Math.ceil(rateLimiters.login.getTimeUntilReset('login_attempt') / 1000);
+            Alert.alert(
+                "Too Many Attempts",
+                `Please wait ${waitTime} seconds before trying again.`
+            );
+            return;
+        }
+
+        // Validate inputs
+        if (!validateInputs()) {
             return;
         }
 
         setLoading(true);
         try {
-            const success = await login(email.trim(), password);
-            if (!success) {
-                Alert.alert("Login Failed", "Invalid email or password");
+            // Sanitize inputs
+            const sanitizedEmail = sanitizeEmail(email);
+            const cleanedPassword = cleanInput(password);
+
+            const success = await login(sanitizedEmail, cleanedPassword);
+
+            if (success) {
+                // Reset rate limiter on successful login
+                rateLimiters.login.reset('login_attempt');
+                setLoginAttempts(0);
+                router.replace('/(tabs)');
             } else {
-                router.replace("/(tabs)");
+                setLoginAttempts(prev => prev + 1);
+
+                if (loginAttempts >= 2) {
+                    Alert.alert(
+                        "Login Failed",
+                        "Invalid email or password. If you have an old account, you may need to reset and create a new one.",
+                        [
+                            { text: "OK", style: "cancel" },
+                            {
+                                text: "Reset & Create New",
+                                style: "destructive",
+                                onPress: handleResetData
+                            }
+                        ]
+                    );
+                } else {
+                    Alert.alert(
+                        "Login Failed",
+                        `Invalid email or password. ${3 - loginAttempts - 1} attempts remaining.`
+                    );
+                }
             }
         } catch (error) {
-            Alert.alert("Error", "An error occurred during login");
+            handleError(error, {
+                context: 'LoginScreen',
+                onAuthError: () => {
+                    Alert.alert("Authentication Error", "Please check your credentials and try again.");
+                },
+                onNetworkError: () => {
+                    Alert.alert("Connection Error", "Please check your internet connection.");
+                },
+                onError: () => {
+                    Alert.alert("Error", "An unexpected error occurred. Please try again.");
+                }
+            });
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleResetData = async () => {
+        Alert.alert(
+            "Reset All Data",
+            "This will delete all accounts. You'll need to create a new account. Continue?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Reset",
+                    style: "destructive",
+                    onPress: async () => {
+                        await clearAllUsers();
+                        Alert.alert("Success", "Data cleared. Please create a new account.");
+                        router.replace("/screens/auth/RegisterScreen");
+                    }
+                }
+            ]
+        );
     };
 
     return (
@@ -68,89 +153,72 @@ const LoginScreen = () => {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={styles.keyboardView}
             >
-                {/* Floating Background Circles */}
-                <Animated.View
-                    entering={FadeInUp.delay(200).springify()}
-                    style={[styles.floatingCircle, styles.circle1]}
-                />
-                <Animated.View
-                    entering={FadeInUp.delay(400).springify()}
-                    style={[styles.floatingCircle, styles.circle2]}
-                />
+                {/* Back Button */}
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => router.back()}
+                >
+                    <Ionicons name="arrow-back" size={28} color="#fff" />
+                </TouchableOpacity>
 
                 {/* Header */}
-                <Animated.View
-                    entering={FadeInDown.delay(100).springify()}
-                    style={styles.header}
-                >
-                    <View style={styles.logoContainer}>
-                        <LinearGradient
-                            colors={['rgba(255,255,255,0.9)', 'rgba(255,255,255,0.6)']}
-                            style={styles.logoCircle}
-                        >
-                            <Ionicons name="storefront" size={50} color="#667eea" />
-                        </LinearGradient>
+                <View style={styles.header}>
+                    <View style={styles.logoCircle}>
+                        <Ionicons name="storefront" size={50} color="#667eea" />
                     </View>
-
                     <Text style={styles.title}>Welcome Back!</Text>
                     <Text style={styles.subtitle}>Sign in to continue</Text>
-                </Animated.View>
+                </View>
 
-                {/* Form Container with Glassmorphism */}
-                <Animated.View
-                    entering={FadeInUp.delay(300).springify()}
-                    style={styles.formContainer}
-                >
+                {/* Form Container */}
+                <Animated.View entering={FadeInUp.duration(600).delay(200)} style={styles.formContainer}>
                     {/* Email Input */}
-                    <Animated.View
-                        entering={FadeInDown.delay(400).springify()}
-                        style={styles.inputGroup}
-                    >
+                    <View style={styles.inputGroup}>
                         <Text style={styles.label}>Email</Text>
-                        <View style={[
-                            styles.inputWrapper,
-                            focusedInput === 'email' && styles.inputFocused
-                        ]}>
+                        <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
                             <Ionicons name="mail-outline" size={22} color="#fff" style={styles.inputIcon} />
                             <TextInput
                                 style={styles.input}
                                 value={email}
-                                onChangeText={setEmail}
+                                onChangeText={(text) => {
+                                    setEmail(text);
+                                    if (errors.email) setErrors(prev => ({ ...prev, email: null }));
+                                }}
                                 placeholder="your.email@example.com"
                                 placeholderTextColor="rgba(255,255,255,0.5)"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
-                                onFocus={() => setFocusedInput('email')}
-                                onBlur={() => setFocusedInput(null)}
+                                returnKeyType="next"
+                                onSubmitEditing={() => passwordRef.current?.focus()}
                             />
                         </View>
-                    </Animated.View>
+                        {errors.email && (
+                            <Animated.Text entering={FadeInDown.duration(300)} style={styles.errorText}>
+                                {errors.email}
+                            </Animated.Text>
+                        )}
+                    </View>
 
                     {/* Password Input */}
-                    <Animated.View
-                        entering={FadeInDown.delay(500).springify()}
-                        style={styles.inputGroup}
-                    >
+                    <View style={styles.inputGroup}>
                         <Text style={styles.label}>Password</Text>
-                        <View style={[
-                            styles.inputWrapper,
-                            focusedInput === 'password' && styles.inputFocused
-                        ]}>
+                        <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
                             <Ionicons name="lock-closed-outline" size={22} color="#fff" style={styles.inputIcon} />
                             <TextInput
+                                ref={passwordRef}
                                 style={styles.input}
                                 value={password}
-                                onChangeText={setPassword}
+                                onChangeText={(text) => {
+                                    setPassword(text);
+                                    if (errors.password) setErrors(prev => ({ ...prev, password: null }));
+                                }}
                                 placeholder="••••••••"
                                 placeholderTextColor="rgba(255,255,255,0.5)"
                                 secureTextEntry={!showPassword}
-                                onFocus={() => setFocusedInput('password')}
-                                onBlur={() => setFocusedInput(null)}
+                                returnKeyType="done"
+                                onSubmitEditing={handleLogin}
                             />
-                            <TouchableOpacity
-                                onPress={() => setShowPassword(!showPassword)}
-                                style={styles.eyeButton}
-                            >
+                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                 <Ionicons
                                     name={showPassword ? "eye-outline" : "eye-off-outline"}
                                     size={22}
@@ -158,75 +226,34 @@ const LoginScreen = () => {
                                 />
                             </TouchableOpacity>
                         </View>
-                    </Animated.View>
-
-                    {/* Forgot Password */}
-                    <Animated.View entering={FadeInDown.delay(600).springify()}>
-                        <TouchableOpacity style={styles.forgotButton}>
-                            <Text style={styles.forgotText}>Forgot Password?</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
+                        {errors.password && (
+                            <Animated.Text entering={FadeInDown.duration(300)} style={styles.errorText}>
+                                {errors.password}
+                            </Animated.Text>
+                        )}
+                    </View>
 
                     {/* Login Button */}
-                    <Animated.View entering={FadeInUp.delay(700).springify()}>
-                        <TouchableOpacity
-                            style={styles.loginButton}
-                            onPress={handleLogin}
-                            disabled={loading}
-                            activeOpacity={0.8}
-                        >
-                            <LinearGradient
-                                colors={['#fff', 'rgba(255,255,255,0.9)']}
-                                style={styles.loginGradient}
-                            >
-                                {loading ? (
-                                    <Text style={styles.loginButtonText}>Loading...</Text>
-                                ) : (
-                                    <>
-                                        <Text style={styles.loginButtonText}>Sign In</Text>
-                                        <Ionicons name="arrow-forward" size={20} color="#667eea" />
-                                    </>
-                                )}
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </Animated.View>
-
-                    {/* Register Link - Moved here to be directly under login button */}
-                    <Animated.View
-                        entering={FadeInDown.delay(750).springify()}
-                        style={styles.registerContainer}
+                    <TouchableOpacity
+                        style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                        onPress={handleLogin}
+                        disabled={loading}
+                        activeOpacity={0.8}
                     >
+                        {loading ? (
+                            <ActivityIndicator size="small" color="#667eea" />
+                        ) : (
+                            <Text style={styles.loginButtonText}>Sign In</Text>
+                        )}
+                    </TouchableOpacity>
+
+                    {/* Register Link */}
+                    <View style={styles.registerContainer}>
                         <Text style={styles.registerText}>Don't have an account? </Text>
                         <TouchableOpacity onPress={() => router.replace("/screens/auth/RegisterScreen")}>
                             <Text style={styles.registerLink}>Create new account</Text>
                         </TouchableOpacity>
-                    </Animated.View>
-
-                    {/* Divider */}
-                    <Animated.View
-                        entering={FadeInDown.delay(800).springify()}
-                        style={styles.divider}
-                    >
-                        <View style={styles.dividerLine} />
-                        <Text style={styles.dividerText}>OR</Text>
-                        <View style={styles.dividerLine} />
-                    </Animated.View>
-
-                    {/* Social Login Buttons */}
-                    <Animated.View
-                        entering={FadeInUp.delay(900).springify()}
-                        style={styles.socialContainer}
-                    >
-                        <TouchableOpacity style={styles.socialButton}>
-                            <Ionicons name="logo-google" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.socialButton}>
-                            <Ionicons name="logo-apple" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.socialButton}>
-                            <Ionicons name="logo-facebook" size={24} color="#fff" />
-                        </TouchableOpacity>
-                    </Animated.View>
+                    </View>
                 </Animated.View>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -240,55 +267,36 @@ const styles = StyleSheet.create({
     keyboardView: {
         flex: 1,
     },
-    floatingCircle: {
+    backButton: {
         position: 'absolute',
-        borderRadius: 1000,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-    },
-    circle1: {
-        width: 300,
-        height: 300,
-        top: -100,
-        right: -100,
-    },
-    circle2: {
-        width: 200,
-        height: 200,
-        bottom: -50,
-        left: -50,
+        top: 20,
+        left: 20,
+        zIndex: 10,
+        padding: 8,
     },
     header: {
-        paddingTop: 20,
+        paddingTop: 80,
         paddingHorizontal: 24,
         alignItems: 'center',
-    },
-
-    logoContainer: {
-        marginBottom: 24,
     },
     logoCircle: {
         width: 100,
         height: 100,
         borderRadius: 50,
+        backgroundColor: 'rgba(255,255,255,0.9)',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
-        elevation: 10,
+        marginBottom: 24,
     },
     title: {
         fontSize: 32,
         fontWeight: '800',
         color: '#fff',
         marginBottom: 8,
-        textAlign: 'center',
     },
     subtitle: {
         fontSize: 16,
         color: 'rgba(255,255,255,0.8)',
-        textAlign: 'center',
         marginBottom: 40,
     },
     formContainer: {
@@ -298,7 +306,6 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 40,
         paddingHorizontal: 24,
         paddingTop: 40,
-        backdropFilter: 'blur(10px)',
     },
     inputGroup: {
         marginBottom: 20,
@@ -308,7 +315,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#fff',
         marginBottom: 8,
-        marginLeft: 4,
     },
     inputWrapper: {
         flexDirection: 'row',
@@ -317,12 +323,6 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         paddingHorizontal: 16,
         height: 56,
-        borderWidth: 2,
-        borderColor: 'transparent',
-    },
-    inputFocused: {
-        borderColor: 'rgba(255,255,255,0.5)',
-        backgroundColor: 'rgba(255,255,255,0.25)',
     },
     inputIcon: {
         marginRight: 12,
@@ -331,78 +331,25 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 16,
         color: '#fff',
-        textAlign: 'left',
-    },
-    eyeButton: {
-        padding: 4,
-    },
-    forgotButton: {
-        alignSelf: 'flex-end',
-        marginBottom: 24,
-    },
-    forgotText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '600',
     },
     loginButton: {
-        marginBottom: 24,
-        borderRadius: 16,
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    loginGradient: {
+        backgroundColor: '#fff',
         height: 56,
-        flexDirection: 'row',
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
+        marginTop: 20,
+        marginBottom: 24,
     },
     loginButtonText: {
         color: '#667eea',
         fontSize: 18,
         fontWeight: '700',
     },
-    divider: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginVertical: 24,
-    },
-    dividerLine: {
-        flex: 1,
-        height: 1,
-        backgroundColor: 'rgba(255,255,255,0.3)',
-    },
-    dividerText: {
-        color: 'rgba(255,255,255,0.7)',
-        paddingHorizontal: 16,
-        fontSize: 14,
-    },
-    socialContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 16,
-        marginBottom: 32,
-    },
-    socialButton: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)',
-    },
     registerContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingBottom: 24,
     },
     registerText: {
         color: 'rgba(255,255,255,0.8)',
@@ -413,6 +360,19 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
         textDecorationLine: 'underline',
+    },
+    inputError: {
+        borderWidth: 1,
+        borderColor: '#ff6b6b',
+    },
+    errorText: {
+        color: '#ff6b6b',
+        fontSize: 12,
+        marginTop: 6,
+        marginLeft: 4,
+    },
+    loginButtonDisabled: {
+        opacity: 0.7,
     },
 });
 

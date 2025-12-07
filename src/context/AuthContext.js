@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { hashPassword, verifyPassword, isHashed } from '../utils/passwordHash';
 
 const AuthContext = createContext();
 const USER_KEY = 'app_user';
@@ -7,6 +8,7 @@ const USERS_DB_KEY = 'app_users_db'; // Stores list of all registered users
 
 export function AuthProvider({ children }) {
   const [user, setUserState] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -14,13 +16,11 @@ export function AuthProvider({ children }) {
         const raw = await SecureStore.getItemAsync(USER_KEY);
         if (raw) {
           setUserState(JSON.parse(raw));
-        } else {
-          // No user logged in. We do NOT set a default user anymore to force login/register
-          // or we can keep a "guest" mode if desired, but user asked for login/register flow.
-          // For now, let's keep it null so we can show login screen.
         }
       } catch (e) {
         console.warn('Failed to load user from SecureStore', e);
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
@@ -44,16 +44,63 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const users = await getUsersDB();
-    const foundUser = users.find(u => u.email === email && u.password === password);
+    const foundUser = users.find(u => u.email === email);
 
     if (foundUser) {
-      // Remove password from session state for security
-      const { password, ...userSession } = foundUser;
-      setUserState(userSession);
-      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(userSession));
-      return true;
+      console.log('Found user:', foundUser.email);
+
+      let passwordMatches = false;
+
+      // Check if password is in new hash format
+      if (isHashed(foundUser.password)) {
+        console.log('Password is hashed (new format), verifying...');
+        passwordMatches = await verifyPassword(password, foundUser.password);
+      } else {
+        // Old format or plain text - try direct comparison first
+        console.log('Trying direct password comparison...');
+        passwordMatches = foundUser.password === password;
+
+        // If direct match, update to new hash format
+        if (passwordMatches) {
+          const hashedPwd = await hashPassword(password);
+          foundUser.password = hashedPwd;
+          const allUsers = await getUsersDB();
+          const userIndex = allUsers.findIndex(u => u.email === email);
+          if (userIndex !== -1) {
+            allUsers[userIndex] = foundUser;
+            await saveUsersDB(allUsers);
+            console.log('Updated password to new hash format');
+          }
+        }
+      }
+
+      if (passwordMatches) {
+        const { password: _, ...userSession } = foundUser;
+        setUserState(userSession);
+        await SecureStore.setItemAsync(USER_KEY, JSON.stringify(userSession));
+        setLoading(false);
+        return true;
+      } else {
+        console.log('Password does not match');
+      }
+    } else {
+      console.log('User not found');
     }
     return false;
+  };
+
+  // Function to clear all users (for fixing old data issues)
+  const clearAllUsers = async () => {
+    try {
+      await SecureStore.deleteItemAsync(USERS_DB_KEY);
+      await SecureStore.deleteItemAsync(USER_KEY);
+      setUserState(null);
+      console.log('All users cleared');
+      return true;
+    } catch (e) {
+      console.warn('Failed to clear users', e);
+      return false;
+    }
   };
 
   const register = async (name, email, password) => {
@@ -62,13 +109,17 @@ export function AuthProvider({ children }) {
       return false; // User already exists
     }
 
-    const newUser = { name, email, password };
+    // Hash the password before storing
+    const hashedPassword = await hashPassword(password);
+    const newUser = { name, email, password: hashedPassword };
     users.push(newUser);
     await saveUsersDB(users);
 
-    // Auto login after register? Or redirect to login? 
-    // User requested "reset settings for new user", which implies clean slate.
-    // Let's NOT auto-login, but return true so UI can navigate to Login.
+    // Auto login after successful registration
+    const { password: _, ...userSession } = newUser;
+    setUserState(userSession);
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(userSession));
+
     return true;
   };
 
@@ -99,7 +150,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser, clearAllUsers, loading }}>
       {children}
     </AuthContext.Provider>
   );

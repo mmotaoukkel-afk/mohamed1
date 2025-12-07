@@ -1,5 +1,5 @@
-import { createContext, useEffect, useState, useContext } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createContext, useContext, useEffect, useState } from "react";
 
 export const CartContext = createContext();
 
@@ -85,13 +85,18 @@ export const CartProvider = ({ children }) => {
         setTotalPrice(0);
     };
 
+    const getTotalPrice = () => {
+        return parseFloat(totalPrice) || 0;
+    };
+
     const value = {
         carts,
         addToCart,
         totalPrice,
         deleteItemFromCart,
         updateCartItemQuantity,
-        clearCart
+        clearCart,
+        getTotalPrice,
     };
 
     return (

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useSettings } from '../../src/context/SettingsContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,6 +34,7 @@ const slides = [
 
 const OnboardingScreen = () => {
     const router = useRouter();
+    const { completeOnboarding } = useSettings();
     const [currentIndex, setCurrentIndex] = useState(0);
     const scrollX = useRef(new Animated.Value(0)).current;
     const slidesRef = useRef(null);
@@ -45,10 +47,11 @@ const OnboardingScreen = () => {
 
     const viewConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
 
-    const scrollTo = () => {
+    const scrollTo = async () => {
         if (currentIndex < slides.length - 1) {
             slidesRef.current.scrollToIndex({ index: currentIndex + 1 });
         } else {
+            await completeOnboarding();
             router.replace('/screens/auth/LoginScreen');
         }
     };
