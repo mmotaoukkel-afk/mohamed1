@@ -13,17 +13,19 @@ import {
     Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { useTheme } from '../../../src/context/ThemeContext';
 import { useCheckout } from '../../../src/context/CheckoutContext';
+import { useCart } from '../../../src/context/CardContext';
 import PremiumBackground from '../../components/PremiumBackground';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const PaymentScreen = () => {
-    const navigation = useNavigation();
+    const router = useRouter();
     const { colors } = useTheme();
     const { paymentMethod, setPaymentMethod, processOrder } = useCheckout();
+    const { carts, clearCart } = useCart();
 
     const [cardDetails, setCardDetails] = useState({
         number: '',
@@ -63,15 +65,15 @@ const PaymentScreen = () => {
 
     const handlePlaceOrder = async () => {
         if (validateCard()) {
-            const success = await processOrder(cardDetails);
-            if (success) {
+            const result = await processOrder(carts, cardDetails);
+            if (result.success) { clearCart();
                 Alert.alert(
                     'Order Placed!',
                     'Your order has been successfully placed.',
                     [
                         {
                             text: 'OK',
-                            onPress: () => navigation.navigate('(tabs)'),
+                            onPress: () => router.push('/(tabs)'),
                         },
                     ]
                 );
@@ -111,7 +113,7 @@ const PaymentScreen = () => {
 
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color="#fff" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Payment Method</Text>

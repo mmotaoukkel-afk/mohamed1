@@ -1,24 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../../app/services/api';
 
 const CheckoutContext = createContext();
 
 const STORAGE_KEYS = {
     ADDRESSES: '@saved_addresses',
-    PAYMENT_METHODS: '@saved_payment_methods',
     ORDERS: '@order_history',
 };
 
 export const CheckoutProvider = ({ children }) => {
     const [savedAddresses, setSavedAddresses] = useState([]);
-    const [savedPaymentMethods, setSavedPaymentMethods] = useState([]);
-    const [currentShippingAddress, setCurrentShippingAddress] = useState(null);
-    const [currentPaymentMethod, setCurrentPaymentMethod] = useState(null);
-    const [promoCode, setPromoCode] = useState('');
-    const [discount, setDiscount] = useState(0);
+    const [shippingAddress, setShippingAddress] = useState(null);
+    const [paymentMethod, setPaymentMethod] = useState('cod');
     const [orders, setOrders] = useState([]);
+    const [isProcessing, setIsProcessing] = useState(false);
 
-    // Load saved data on mount
     useEffect(() => {
         loadSavedData();
     }, []);
@@ -26,18 +23,14 @@ export const CheckoutProvider = ({ children }) => {
     const loadSavedData = async () => {
         try {
             const addresses = await AsyncStorage.getItem(STORAGE_KEYS.ADDRESSES);
-            const payments = await AsyncStorage.getItem(STORAGE_KEYS.PAYMENT_METHODS);
             const orderHistory = await AsyncStorage.getItem(STORAGE_KEYS.ORDERS);
-
             if (addresses) setSavedAddresses(JSON.parse(addresses));
-            if (payments) setSavedPaymentMethods(JSON.parse(payments));
             if (orderHistory) setOrders(JSON.parse(orderHistory));
         } catch (error) {
             console.warn('Failed to load checkout data:', error);
         }
     };
 
-    // Address Management
     const saveAddress = async (address) => {
         try {
             const newAddress = {
@@ -45,147 +38,98 @@ export const CheckoutProvider = ({ children }) => {
                 ...address,
                 isDefault: savedAddresses.length === 0,
             };
-
             const updatedAddresses = [...savedAddresses, newAddress];
             setSavedAddresses(updatedAddresses);
             await AsyncStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(updatedAddresses));
-
             return newAddress;
         } catch (error) {
             console.warn('Failed to save address:', error);
         }
     };
 
-    const deleteAddress = async (addressId) => {
-        try {
-            const updatedAddresses = savedAddresses.filter(addr => addr.id !== addressId);
-            setSavedAddresses(updatedAddresses);
-            await AsyncStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(updatedAddresses));
-        } catch (error) {
-            console.warn('Failed to delete address:', error);
+    // 🔥 إرسال الطلب لـ WooCommerce API
+    const processOrder = async (cartItems, cardDetails = null) => {
+        if (!shippingAddress) {
+            return { success: false, message: 'يرجى إدخال عنوان الشحن' };
         }
-    };
 
-    const setDefaultAddress = async (addressId) => {
-        try {
-            const updatedAddresses = savedAddresses.map(addr => ({
-                ...addr,
-                isDefault: addr.id === addressId,
-            }));
-            setSavedAddresses(updatedAddresses);
-            await AsyncStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(updatedAddresses));
-        } catch (error) {
-            console.warn('Failed to set default address:', error);
-        }
-    };
+        setIsProcessing(true);
 
-    // Payment Method Management
-    const savePaymentMethod = async (payment) => {
         try {
-            const newPayment = {
-                id: Date.now().toString(),
-                ...payment,
-                isDefault: savedPaymentMethods.length === 0,
+            // تجهيز بيانات الطلب لـ WooCommerce
+            const orderData = {
+                payment_method: paymentMethod === 'cod' ? 'cod' : 'bacs',
+                payment_method_title: paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'بطاقة ائتمان',
+                set_paid: paymentMethod !== 'cod',
+                billing: {
+                    first_name: shippingAddress.fullName?.split(' ')[0] || '',
+                    last_name: shippingAddress.fullName?.split(' ').slice(1).join(' ') || '',
+                    address_1: shippingAddress.address || '',
+                    city: shippingAddress.city || '',
+                    postcode: shippingAddress.zipCode || '',
+                    country: shippingAddress.country || 'KW',
+                    phone: shippingAddress.phoneNumber || '',
+                },
+                shipping: {
+                    first_name: shippingAddress.fullName?.split(' ')[0] || '',
+                    last_name: shippingAddress.fullName?.split(' ').slice(1).join(' ') || '',
+                    address_1: shippingAddress.address || '',
+                    city: shippingAddress.city || '',
+                    postcode: shippingAddress.zipCode || '',
+                    country: shippingAddress.country || 'KW',
+                },
+                line_items: cartItems.map(item => ({
+                    product_id: item.id,
+                    quantity: item.quantity || 1,
+                })),
             };
 
-            const updatedPayments = [...savedPaymentMethods, newPayment];
-            setSavedPaymentMethods(updatedPayments);
-            await AsyncStorage.setItem(STORAGE_KEYS.PAYMENT_METHODS, JSON.stringify(updatedPayments));
+            // إرسال الطلب لـ WooCommerce
+            const response = await api.createOrder(orderData);
 
-            return newPayment;
+            if (response && response.id) {
+                // حفظ الطلب محلياً
+                const newOrder = {
+                    orderNumber: response.number || `ORD-${response.id}`,
+                    wooOrderId: response.id,
+                    date: new Date().toISOString(),
+                    status: response.status || 'processing',
+                    total: response.total,
+                    items: cartItems,
+                };
+
+                const updatedOrders = [newOrder, ...orders];
+                setOrders(updatedOrders);
+                await AsyncStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+
+                setIsProcessing(false);
+                return { success: true, order: newOrder };
+            } else {
+                setIsProcessing(false);
+                return { success: false, message: 'فشل في إنشاء الطلب' };
+            }
         } catch (error) {
-            console.warn('Failed to save payment method:', error);
-        }
-    };
-
-    const deletePaymentMethod = async (paymentId) => {
-        try {
-            const updatedPayments = savedPaymentMethods.filter(pm => pm.id !== paymentId);
-            setSavedPaymentMethods(updatedPayments);
-            await AsyncStorage.setItem(STORAGE_KEYS.PAYMENT_METHODS, JSON.stringify(updatedPayments));
-        } catch (error) {
-            console.warn('Failed to delete payment method:', error);
-        }
-    };
-
-    // Promo Code
-    const applyPromoCode = (code) => {
-        // Mock promo codes
-        const promoCodes = {
-            'SAVE10': 10,
-            'SAVE20': 20,
-            'WELCOME': 15,
-            'FIRST': 25,
-        };
-
-        const discountPercent = promoCodes[code.toUpperCase()];
-
-        if (discountPercent) {
-            setPromoCode(code);
-            setDiscount(discountPercent);
-            return { success: true, discount: discountPercent };
-        } else {
-            return { success: false, message: 'Invalid promo code' };
-        }
-    };
-
-    const removePromoCode = () => {
-        setPromoCode('');
-        setDiscount(0);
-    };
-
-    // Order Management
-    const createOrder = async (orderData) => {
-        try {
-            const newOrder = {
-                orderNumber: `ORD-${Date.now()}`,
-                date: new Date().toISOString(),
-                status: 'pending',
-                ...orderData,
-            };
-
-            const updatedOrders = [newOrder, ...orders];
-            setOrders(updatedOrders);
-            await AsyncStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
-
-            return newOrder;
-        } catch (error) {
-            console.warn('Failed to create order:', error);
+            console.error('Order error:', error);
+            setIsProcessing(false);
+            return { success: false, message: 'حدث خطأ في الاتصال' };
         }
     };
 
     const resetCheckout = () => {
-        setCurrentShippingAddress(null);
-        setCurrentPaymentMethod(null);
-        setPromoCode('');
-        setDiscount(0);
+        setShippingAddress(null);
+        setPaymentMethod('cod');
     };
 
     const value = {
-        // Addresses
         savedAddresses,
-        currentShippingAddress,
-        setCurrentShippingAddress,
+        shippingAddress,
+        setShippingAddress,
         saveAddress,
-        deleteAddress,
-        setDefaultAddress,
-
-        // Payment Methods
-        savedPaymentMethods,
-        currentPaymentMethod,
-        setCurrentPaymentMethod,
-        savePaymentMethod,
-        deletePaymentMethod,
-
-        // Promo Codes
-        promoCode,
-        discount,
-        applyPromoCode,
-        removePromoCode,
-
-        // Orders
+        paymentMethod,
+        setPaymentMethod,
         orders,
-        createOrder,
+        processOrder,
+        isProcessing,
         resetCheckout,
     };
 

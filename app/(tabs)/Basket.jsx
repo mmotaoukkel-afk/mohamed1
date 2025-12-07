@@ -4,7 +4,7 @@ import CartProduct from "../components/Cardporduct";
 import { useContext } from "react";
 import { CartContext } from "../../src/context/CardContext";
 import { useTheme } from "../../src/context/ThemeContext";
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Feather from 'react-native-vector-icons/Feather';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -15,7 +15,7 @@ const { width } = Dimensions.get('window');
 
 const Basket = () => {
   const { colors, theme } = useTheme();
-  const navigation = useNavigation();
+  const router = useRouter();
   const { carts, totalPrice, deleteItemFromCart } = useContext(CartContext);
 
   const shippingCost = 0;
@@ -23,7 +23,7 @@ const Basket = () => {
   const finalTotal = (parseFloat(totalPrice) + parseFloat(tax) + shippingCost).toFixed(2);
 
   const handleCheckout = () => {
-    navigation.navigate('ShippingScreen');
+    router.push('/screens/checkout/ShippingScreen');
   };
 
   return (

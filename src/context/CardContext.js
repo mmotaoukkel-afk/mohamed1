@@ -1,30 +1,19 @@
 import { createContext, useEffect, useState, useContext } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAuth } from './AuthContext';
-import { sanitizeEmail } from '../utils/helpers';
 
 export const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-    const { user } = useAuth();
     const [carts, setCarts] = useState([]);
     const [totalPrice, setTotalPrice] = useState(0);
 
     useEffect(() => {
         loadCartItems();
-    }, [user]);
+    }, []);
 
     const loadCartItems = async () => {
-        if (!user) {
-            setCarts([]);
-            setTotalPrice(0);
-            return;
-        }
-
         try {
-            const safeEmail = sanitizeEmail(user.email);
-            const key = `carts_${safeEmail}`;
-            let storedCarts = await AsyncStorage.getItem(key);
+            let storedCarts = await AsyncStorage.getItem('guest_cart');
             storedCarts = storedCarts ? JSON.parse(storedCarts) : [];
             setCarts(storedCarts);
             totalSum(storedCarts);
@@ -34,27 +23,32 @@ export const CartProvider = ({ children }) => {
     };
 
     const saveCartItems = async (items) => {
-        if (!user) return;
         try {
-            const safeEmail = sanitizeEmail(user.email);
-            const key = `carts_${safeEmail}`;
-            await AsyncStorage.setItem(key, JSON.stringify(items));
+            await AsyncStorage.setItem('guest_cart', JSON.stringify(items));
         } catch (error) {
             console.warn('Failed to save cart:', error);
         }
     };
 
     const addToCart = async (item) => {
-        if (!user) return; // Should prompt login in UI
-
         const itemExist = carts.findIndex((cart) => cart.id === item.id);
         if (itemExist === -1) {
-            // إضافة المنتج مع كمية ابتدائية = 1
-            const newItem = { ...item, quantity: 1 };
+            const newItem = { ...item, quantity: item.quantity || 1 };
             const newCartItems = [...carts, newItem];
             await saveCartItems(newCartItems);
             setCarts(newCartItems);
             totalSum(newCartItems);
+        } else {
+            // إذا موجود، زيد الكمية
+            const updatedCarts = carts.map((cart, index) => {
+                if (index === itemExist) {
+                    return { ...cart, quantity: cart.quantity + (item.quantity || 1) };
+                }
+                return cart;
+            });
+            await saveCartItems(updatedCarts);
+            setCarts(updatedCarts);
+            totalSum(updatedCarts);
         }
     };
 
@@ -65,14 +59,10 @@ export const CartProvider = ({ children }) => {
         totalSum(newItems);
     };
 
-    // تحديث كمية المنتج في السلة
     const updateCartItemQuantity = async (itemId, newQuantity) => {
         const updatedCarts = carts.map((cart) => {
             if (cart.id === itemId) {
-                // التحقق من عدم تجاوز الكمية المتوفرة
-                const maxQuantity = cart.stock || 999;
-                const validQuantity = Math.min(Math.max(1, newQuantity), maxQuantity);
-                return { ...cart, quantity: validQuantity };
+                return { ...cart, quantity: Math.max(1, newQuantity) };
             }
             return cart;
         });
@@ -81,23 +71,18 @@ export const CartProvider = ({ children }) => {
         totalSum(updatedCarts);
     };
 
-    // حساب المجموع الكلي بناءً على الكمية
     const totalSum = (carts) => {
-        const totalSum = carts.reduce((amount, item) => {
+        const total = carts.reduce((amount, item) => {
             const quantity = item.quantity || 1;
-            return amount + (item.price * quantity);
+            return amount + (parseFloat(item.price) * quantity);
         }, 0);
-        setTotalPrice(totalSum.toFixed(2));
+        setTotalPrice(total.toFixed(2));
     };
 
-    // إتمام عملية الشراء (تقليل الكمية من المخزون)
-    const checkout = async () => {
-        // هنا يمكنك إضافة منطق تحديث المخزون في قاعدة البيانات
-        // حالياً سنقوم فقط بمسح السلة
+    const clearCart = async () => {
         setCarts([]);
         await saveCartItems([]);
         setTotalPrice(0);
-        return true;
     };
 
     const value = {
@@ -106,7 +91,7 @@ export const CartProvider = ({ children }) => {
         totalPrice,
         deleteItemFromCart,
         updateCartItemQuantity,
-        checkout
+        clearCart
     };
 
     return (
@@ -114,4 +99,12 @@ export const CartProvider = ({ children }) => {
             {children}
         </CartContext.Provider>
     );
+};
+
+export const useCart = () => {
+    const context = useContext(CartContext);
+    if (!context) {
+        throw new Error("useCart must be used within CartProvider");
+    }
+    return context;
 };

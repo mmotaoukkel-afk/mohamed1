@@ -1,25 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
 import Feather from "@expo/vector-icons/Feather";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
-import index from "../(tabs)/index";
-import save from "../(tabs)/Save";
-import profile from "./profile";
-import SaveTabIcon from "../components/SaveTabIcon";
-import ProductsDeltScreen from "../components/ProductsDeltScreen";
-import ShippingScreen from "../screens/checkout/ShippingScreen";
-import PaymentScreen from "../screens/checkout/PaymentScreen";
-import EditProfile from "../components/EditProfile";
-import LoginScreen from "../screens/auth/LoginScreen";
-import RegisterScreen from "../screens/auth/RegisterScreen";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { CartContext, CartProvider } from "../../src/context/CardContext";
-import { AuthProvider } from "../../src/context/AuthContext";
-import { ThemeProvider } from "../../src/context/ThemeContext";
-import { SettingsProvider } from "../../src/context/SettingsContext";
 import { useContext } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import Basket from "../(tabs)/Basket";
+import index from "../(tabs)/index";
+import save from "../(tabs)/Save";
+import { AuthProvider } from "../../src/context/AuthContext";
+import { CartContext, CartProvider } from "../../src/context/CardContext";
+import { SettingsProvider } from "../../src/context/SettingsContext";
+import { ThemeProvider } from "../../src/context/ThemeContext";
+import EditProfile from "../components/EditProfile";
+import ProductsDeltScreen from "../components/ProductsDeltScreen";
+import SaveTabIcon from "../components/SaveTabIcon";
+import LoginScreen from "../screens/auth/LoginScreen";
+import RegisterScreen from "../screens/auth/RegisterScreen";
+import PaymentScreen from "../screens/checkout/PaymentScreen";
+import ShippingScreen from "../screens/checkout/ShippingScreen";
+import profile from "./profile";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -55,17 +54,24 @@ const App = () => (
                 <CartProvider>
                     <Tab.Navigator
                         screenOptions={{
-                            tabBarActiveTintColor: "#1e1d1dff",
+                            tabBarActiveTintColor: "#667eea",
+                            tabBarInactiveTintColor: "#888",
                             tabBarShowLabel: false,
                             tabBarStyle: {
-                                backgroundColor: "#e3e3e3ff",
+                                backgroundColor: "rgba(20, 20, 20, 0.95)",
                                 borderRadius: 50,
                                 marginHorizontal: 15,
                                 marginBottom: 15,
-                                height: 50,
+                                height: 60,
                                 position: "absolute",
                                 overflow: "hidden",
-                                borderWidth: 1,
+                                borderWidth: 0,
+                                borderTopWidth: 0,
+                                elevation: 5,
+                                shadowColor: "#000",
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.3,
+                                shadowRadius: 4,
                             },
                         }}
                     >
