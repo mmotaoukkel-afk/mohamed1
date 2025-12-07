@@ -1,13 +1,7 @@
 import { Redirect } from "expo-router";
-<<<<<<< HEAD
-
-export default function Index() {
-    // دخول مباشر للصفحة الرئيسية بدون تسجيل
-    return <Redirect href="/(tabs)" />;
-=======
+import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../src/context/AuthContext";
 import { useSettings } from "../src/context/SettingsContext";
-import { View, ActivityIndicator } from "react-native";
 
 export default function Index() {
     const { user, loading: authLoading } = useAuth();
@@ -27,7 +21,6 @@ export default function Index() {
         return <Redirect href="/screens/OnboardingScreen" />;
     }
 
-    // Go to tabs (profile will show guest view if not logged in)
-    return <Redirect href="/(tabs)/profile" />;
->>>>>>> origin/main
+    // Go to tabs (Home page)
+    return <Redirect href="/(tabs)" />;
 }
