@@ -1,45 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import { FontAwesome, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    TextInput,
+    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
+    ScrollView,
     StatusBar,
-    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-<<<<<<< HEAD
-import { useRouter } from 'expo-router';
-import { Ionicons, FontAwesome } from '@expo/vector-icons';
-=======
-import { Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
->>>>>>> origin/main
-import { useTheme } from '../../../src/context/ThemeContext';
-import { useCheckout } from '../../../src/context/CheckoutContext';
-import { useCart } from '../../../src/context/CardContext';
-import PremiumBackground from '../../components/PremiumBackground';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import PromoCodeInput from '../../components/PromoCodeInput';
-import { useRouter } from 'expo-router';
-import { validateCardNumber, validateCVV, validateExpiry, validateName } from '../../../src/utils/validation';
-import { cleanInput, rateLimiters } from '../../../src/utils/security';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCart } from '../../../src/context/CardContext';
+import { useCheckout } from '../../../src/context/CheckoutContext';
+import { useTheme } from '../../../src/context/ThemeContext';
+import { getCardType } from '../../../src/services/paymentService';
 import { handleError } from '../../../src/utils/errorHandler';
-import { getCardType, maskCardNumber, formatCardNumber } from '../../../src/services/paymentService';
+import { cleanInput, rateLimiters } from '../../../src/utils/security';
+import { validateCardNumber, validateCVV, validateExpiry, validateName } from '../../../src/utils/validation';
+import PremiumBackground from '../../components/PremiumBackground';
+import PromoCodeInput from '../../components/PromoCodeInput';
 
 const PaymentScreen = () => {
     const router = useRouter();
     const { colors } = useTheme();
-<<<<<<< HEAD
-    const { paymentMethod, setPaymentMethod, processOrder } = useCheckout();
-    const { carts, clearCart } = useCart();
-=======
     const { setCurrentPaymentMethod, currentShippingAddress } = useCheckout();
->>>>>>> origin/main
+    const { carts, clearCart } = useCart();
 
     const [selectedMethod, setSelectedMethod] = useState('cod');
     const [cardDetails, setCardDetails] = useState({
@@ -130,28 +121,9 @@ const PaymentScreen = () => {
         return valid;
     };
 
-<<<<<<< HEAD
-    const handlePlaceOrder = async () => {
-        if (validateCard()) {
-            const result = await processOrder(carts, cardDetails);
-            if (result.success) { clearCart();
-                Alert.alert(
-                    'Order Placed!',
-                    'Your order has been successfully placed.',
-                    [
-                        {
-                            text: 'OK',
-                            onPress: () => router.push('/(tabs)'),
-                        },
-                    ]
-                );
-            } else {
-                Alert.alert('Error', 'Failed to process order. Please try again.');
-            }
-=======
     const handleContinue = async () => {
         // Rate limiting check
-        if (!rateLimiters.payment.isAllowed('payment_attempt')) {
+        if (rateLimiters && rateLimiters.payment && !rateLimiters.payment.isAllowed('payment_attempt')) {
             const waitTime = Math.ceil(rateLimiters.payment.getTimeUntilReset('payment_attempt') / 1000);
             Alert.alert(
                 'Too Many Attempts',
@@ -180,6 +152,7 @@ const PaymentScreen = () => {
             // Small delay for UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
+            // Use router.push for navigation
             router.push('/screens/checkout/ReviewOrderScreen');
         } catch (error) {
             handleError(error, {
@@ -190,7 +163,6 @@ const PaymentScreen = () => {
             });
         } finally {
             setLoading(false);
->>>>>>> origin/main
         }
     };
 
