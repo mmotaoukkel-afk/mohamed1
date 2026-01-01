@@ -1,35 +1,38 @@
 /**
- * Cart Screen - Kataraa SOKO Style
- * Redesigned with new design system
- * Dark Mode Supported 🌙
+ * Cart Screen - Kataraa Comic Luxury
+ * Next-Gen Design System
  */
 
 import React from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
-  // Image,
-  TouchableOpacity,
   Dimensions,
+  TouchableOpacity,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
+
 import { useCart } from '../../src/context/CartContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { Text, Button, Surface, IconButton } from '../../src/components/ui';
+
+const { width } = Dimensions.get('window');
 
 export default function CartScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart } = useCart();
-  const { theme, isDark } = useTheme();
+  const { tokens, isDark } = useTheme(); // Use tokens
   const { t } = useTranslation();
-  const styles = getStyles(theme, isDark);
+  const styles = getStyles(tokens, isDark, insets);
 
   const formatPrice = (price) => {
     return `${parseFloat(price || 0).toFixed(3)} ${t('currency')}`;
@@ -39,395 +42,264 @@ export default function CartScreen() {
   const shippingFee = cartTotal >= 25 ? 0 : 2;
   const finalTotal = cartTotal + shippingFee;
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item, index }) => (
     <Animated.View
-      entering={FadeInDown.springify()}
-      style={styles.cartItem}
+      entering={FadeInDown.delay(index * 100).springify()}
+      style={styles.cartItemContainer}
     >
-      <Image
-        source={item.image}
-        style={styles.itemImage}
-        contentFit="cover"
-        transition={200}
-      />
+      <Surface variant="glass" style={styles.cartItemSurface} padding="sm">
+        <View style={styles.cartItemRow}>
+          <View style={styles.imageContainer}>
+            <Image
+              source={item.image ? { uri: item.image } : require('../../assets/images/placeholder.png')}
+              style={styles.itemImage}
+              contentFit="cover"
+              transition={200}
+            />
+          </View>
 
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
-        <Text style={styles.itemPrice}>{formatPrice(item.price)}</Text>
+          <View style={styles.itemInfo}>
+            <View style={styles.itemHeader}>
+              <Text variant="body" weight="bold" numberOfLines={2} style={{ flex: 1, marginRight: 8 }}>
+                {item.name}
+              </Text>
+              <TouchableOpacity onPress={() => removeFromCart(item.id)}>
+                <Ionicons name="trash-outline" size={20} color={tokens.colors.error} />
+              </TouchableOpacity>
+            </View>
 
-        {/* Quantity Controls */}
-        <View style={styles.quantityContainer}>
-          <TouchableOpacity
-            style={styles.qtyBtn}
-            onPress={() => updateQuantity(item.id, item.quantity - 1)}
-          >
-            <Feather name="minus" size={16} color={theme.primary} />
-          </TouchableOpacity>
-          <Text style={styles.qtyText}>{item.quantity}</Text>
-          <TouchableOpacity
-            style={styles.qtyBtn}
-            onPress={() => updateQuantity(item.id, item.quantity + 1)}
-          >
-            <Feather name="plus" size={16} color={theme.primary} />
-          </TouchableOpacity>
+            <Text variant="title" style={{ color: tokens.colors.primary, marginVertical: 4 }}>
+              {formatPrice(item.price)}
+            </Text>
+
+            <View style={styles.controlsRow}>
+              <View style={[styles.quantityControl, { backgroundColor: tokens.colors.background }]}>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => updateQuantity(item.id, item.quantity - 1)}
+                >
+                  <Ionicons name="remove" size={16} color={tokens.colors.text} />
+                </TouchableOpacity>
+
+                <Text variant="body" weight="bold" style={styles.qtyText}>{item.quantity}</Text>
+
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => updateQuantity(item.id, item.quantity + 1)}
+                >
+                  <Ionicons name="add" size={16} color={tokens.colors.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </View>
-      </View>
-
-      {/* Remove Button */}
-      <TouchableOpacity
-        style={styles.removeBtn}
-        onPress={() => removeFromCart(item.id)}
-      >
-        <Ionicons name="trash-outline" size={20} color={theme.error} />
-      </TouchableOpacity>
+      </Surface>
     </Animated.View>
   );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
-        <SafeAreaView edges={['top']}>
-          <View style={styles.headerRow}>
-            <TouchableOpacity
-              style={styles.backBtn}
-              onPress={() => router.back()}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>{t('cartTitle')}</Text>
-            {cartItems.length > 0 && (
-              <TouchableOpacity onPress={clearCart}>
-                <Text style={styles.clearBtn}>{t('clearAll')}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+      {/* Background Orbs */}
+      <View style={[styles.orb, { backgroundColor: tokens.colors.primary + '10', top: -50, right: -50 }]} />
+      <View style={[styles.orb, { backgroundColor: tokens.colors.accent + '10', bottom: 100, left: -50 }]} />
 
-      {cartItems.length === 0 ? (
-        <Animated.View
-          entering={FadeInUp.delay(200).springify()}
-          style={styles.emptyContainer}
-        >
-          <View style={[styles.bgCircle, { backgroundColor: theme.primary + '10', top: -40, right: -40 }]} />
-
-          <View style={styles.emptyIconBg}>
-            <LinearGradient
-              colors={[theme.primary + '20', theme.primary + '05']}
-              style={StyleSheet.absoluteFill}
-              borderRadius={60}
-            />
-            <Ionicons name="cart-outline" size={60} color={theme.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>{t('emptyCartTitle')}</Text>
-          <Text style={styles.emptySubtitle}>{t('emptyCartSubtitle')}</Text>
-
-          <TouchableOpacity
-            style={styles.browseBtn}
-            onPress={() => router.push('/')}
-          >
-            <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.browseBtnGrad}>
-              <Ionicons name="storefront-outline" size={20} color="#fff" />
-              <Text style={styles.browseBtnText}>{t('shopNow')}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-      ) : (
-        <>
-          <FlatList
-            data={cartItems}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.listContent}
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.header}>
+          <IconButton
+            icon="arrow-back"
+            variant="ghost"
+            onPress={() => router.back()}
           />
+          <Text variant="title" style={{ flex: 1, textAlign: 'center' }}>{t('cartTitle')}</Text>
+          {cartItems.length > 0 && (
+            <TouchableOpacity onPress={clearCart}>
+              <Text variant="label" style={{ color: tokens.colors.error }}>{t('clearAll')}</Text>
+            </TouchableOpacity>
+          )}
+          {cartItems.length === 0 && <View style={{ width: 40 }} />}
+        </View>
 
-          {/* Summary */}
-          <View style={styles.summary}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryValue}>{formatPrice(cartTotal)}</Text>
-              <Text style={styles.summaryLabel}>{t('subtotal')}</Text>
+        {cartItems.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={[styles.emptyIconCircle, { backgroundColor: tokens.colors.primary + '15' }]}>
+              <Ionicons name="cart-outline" size={64} color={tokens.colors.primary} />
             </View>
+            <Text variant="title" style={{ marginTop: 24, marginBottom: 8 }}>{t('emptyCartTitle')}</Text>
+            <Text variant="body" style={{ color: tokens.colors.textSecondary, marginBottom: 32 }}>{t('emptyCartSubtitle')}</Text>
+            <Button
+              title={t('shopNow')}
+              onPress={() => router.push('/')}
+              style={{ width: 200 }}
+              icon={<Ionicons name="bag-handle-outline" size={20} color="#FFF" />}
+            />
+          </View>
+        ) : (
+          <>
+            <FlatList
+              data={cartItems}
+              renderItem={renderItem}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
 
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryValue, styles.shippingNote]}>
-                {t('shippingCalculated')}
-              </Text>
-              <Text style={styles.summaryLabel}>{t('shipping')}</Text>
-            </View>
-
-            {cartTotal >= 25 ? (
-              <View style={styles.freeShippingBanner}>
-                <Ionicons name="gift" size={18} color={theme.success} />
-                <Text style={styles.freeShippingText}>{t('freeShippingEligible')}</Text>
+            <Surface variant="glass" style={styles.summaryFooter} padding="md" intensity={isDark ? 60 : 80}>
+              <View style={styles.summaryRow}>
+                <Text variant="body" style={{ color: tokens.colors.textSecondary }}>{t('subtotal')}</Text>
+                <Text variant="body" weight="bold">{formatPrice(cartTotal)}</Text>
               </View>
-            ) : (
-              <View style={styles.shippingHintBanner}>
-                <Ionicons name="car" size={18} color={theme.warning} />
-                <Text style={styles.shippingHintText}>
-                  {t('addForFreeShipping', { amount: formatPrice(25 - cartTotal) })}
+
+              <View style={styles.summaryRow}>
+                <Text variant="body" style={{ color: tokens.colors.textSecondary }}>{t('shipping')}</Text>
+                <Text variant="body" weight="bold" style={{ color: shippingFee === 0 ? tokens.colors.success : tokens.colors.text }}>
+                  {shippingFee === 0 ? t('free') : formatPrice(shippingFee)}
                 </Text>
               </View>
-            )}
 
-            <View style={styles.divider} />
+              {shippingFee > 0 && (
+                <View style={[styles.shippingAlert, { backgroundColor: tokens.colors.warning + '15' }]}>
+                  <Ionicons name="alert-circle-outline" size={16} color={tokens.colors.warning} />
+                  <Text variant="caption" style={{ color: tokens.colors.warning, marginLeft: 6 }}>
+                    {t('addForFreeShipping', { amount: formatPrice(25 - cartTotal) })}
+                  </Text>
+                </View>
+              )}
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.totalValue}>{formatPrice(cartTotal)}</Text>
-              <Text style={styles.totalLabel}>{t('total')}</Text>
-            </View>
+              <View style={[styles.divider, { backgroundColor: tokens.colors.border }]} />
 
-            <TouchableOpacity
-              style={styles.checkoutBtn}
-              onPress={() => router.push('/checkout')}
-            >
-              <LinearGradient colors={[theme.primary, theme.primaryDark]}
-                style={styles.checkoutGradient}>
-                <Text style={styles.checkoutBtnText}>{t('checkout')}</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" />
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+              <View style={styles.summaryRow}>
+                <Text variant="title">{t('total')}</Text>
+                <Text variant="title" style={{ color: tokens.colors.primary }}>{formatPrice(finalTotal)}</Text>
+              </View>
+
+              <Button
+                title={t('checkout')}
+                onPress={() => router.push('/checkout')}
+                style={{ marginTop: 16 }}
+                variant="primary"
+                icon={<Ionicons name="card-outline" size={20} color="#FFF" />}
+              />
+            </Surface>
+          </>
+        )}
+      </SafeAreaView>
     </View>
   );
 }
 
-const getStyles = (theme, isDark) => StyleSheet.create({
+const getStyles = (tokens, isDark, insets) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: tokens.colors.background,
+  },
+  orb: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
   },
   header: {
-    paddingBottom: 24,
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-  },
-  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  clearBtn: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 220,
+    padding: 20,
+    paddingBottom: 250,
   },
-  cartItem: {
-    backgroundColor: isDark ? 'rgba(30,30,40,0.6)' : 'rgba(255,255,255,0.8)',
+  cartItemContainer: {
+    marginBottom: 16,
+  },
+  cartItemSurface: {
     borderRadius: 16,
-    padding: 12,
-    marginBottom: 12,
+  },
+  cartItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: theme.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: isDark ? 0.2 : 0.05,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  itemImage: {
+  imageContainer: {
     width: 80,
     height: 80,
     borderRadius: 12,
-    backgroundColor: 'transparent',
+    overflow: 'hidden',
+    backgroundColor: tokens.colors.background,
+  },
+  itemImage: {
+    width: '100%',
+    height: '100%',
   },
   itemInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 16,
   },
-  itemName: {
-    fontSize: 14,
-    color: theme.text,
-    textAlign: 'right',
-    marginBottom: 4,
+  itemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  itemPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.primary,
-    textAlign: 'right',
-    marginBottom: 8,
+  controlsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 4,
   },
-  quantityContainer: {
+  quantityControl: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 12,
+    borderRadius: 12,
+    padding: 4,
   },
   qtyBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: theme.primary + '15',
+    width: 28,
+    height: 28,
     justifyContent: 'center',
     alignItems: 'center',
   },
   qtyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.text,
-    minWidth: 30,
-    textAlign: 'center',
-  },
-  removeBtn: {
-    padding: 8,
+    paddingHorizontal: 12,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
   },
-  emptyIconBg: {
+  emptyIconCircle: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: theme.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
   },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: theme.text,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    marginTop: 8,
-  },
-  browseBtn: {
-    marginTop: 32,
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  browseBtnGrad: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    gap: 8,
-  },
-  browseBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  summary: {
+  summaryFooter: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: isDark ? 'rgba(26,21,32,0.95)' : 'rgba(255,255,255,0.95)',
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    padding: 24,
-    paddingBottom: 95, // Increased padding to raise the button above nav bar
-    shadowColor: theme.shadow,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: isDark ? 0.3 : 0.1,
-    shadowRadius: 16,
-    elevation: 20,
+    bottom: insets.bottom + 90, // Position above the Custom Tab Bar
+    left: 20,
+    right: 20,
+    borderRadius: 24, // Full rounded card
+    padding: 20,
+    // paddingBottom: 40, // Not needed as it's floating
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.5)',
+    shadowColor: tokens.colors.shadow,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  summaryLabel: {
-    fontSize: 14,
-    color: theme.textSecondary,
-  },
-  summaryValue: {
-    fontSize: 14,
-    color: theme.text,
-    fontWeight: '500',
-  },
-  shippingNote: {
-    color: theme.primary,
-    fontStyle: 'italic',
-  },
-  freeShippingBanner: {
+  shippingAlert: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.success + '15',
-    padding: 12,
-    borderRadius: 12,
-    gap: 8,
-    marginVertical: 12,
-  },
-  freeShippingText: {
-    color: theme.success,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  shippingHintBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.warning + '15',
-    padding: 12,
-    borderRadius: 12,
-    gap: 8,
-    marginVertical: 12,
-  },
-  shippingHintText: {
-    color: theme.warning,
-    fontSize: 13,
-    fontWeight: '500',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 12,
   },
   divider: {
     height: 1,
-    backgroundColor: theme.border,
-    marginVertical: 16,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.text,
-  },
-  totalValue: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: theme.primary,
-  },
-  checkoutBtn: {
-    marginTop: 20,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  checkoutGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 8,
-  },
-  checkoutBtnText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    marginVertical: 12,
   },
 });

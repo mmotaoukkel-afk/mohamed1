@@ -1,30 +1,24 @@
 /**
  * Search Header Component - Kataraa
- * Purple gradient header with logo, search bar, and cart icon
+ * Cosmic Luxury Minimal Style
  * Dark Mode Supported 🌙
  */
 
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    Text,
     StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    Dimensions,
     Image,
+    TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, Feather } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { storage } from '../utils/storage';
 import { useRouter } from 'expo-router';
 import { useNotifications } from '../context/NotificationContext';
 import { useTranslation } from '../hooks/useTranslation';
-
-const { width } = Dimensions.get('window');
+import { IconButton, Input, Text } from './ui'; // Import from UI Kit
 
 export default function SearchHeader({
     onSearch,
@@ -35,20 +29,19 @@ export default function SearchHeader({
     notificationCount = 2,
     showSearch = false,
     title = 'KATARAA',
-    placeholder = null, // Will use default if null
+    placeholder = null,
 }) {
-    const { theme, isDark } = useTheme();
+    const { tokens, isDark } = useTheme();
     const { user } = useAuth();
     const { unreadCount } = useNotifications();
     const { t } = useTranslation();
     const router = useRouter();
-    const styles = getStyles(theme, isDark);
+    const styles = getStyles(tokens, isDark);
     const [searchQuery, setSearchQuery] = useState('');
     const [profileImage, setProfileImage] = useState(null);
 
     const activePlaceholder = placeholder || t('searchPlaceholder');
 
-    // Load user profile image
     useEffect(() => {
         const loadProfileImage = async () => {
             if (!user) {
@@ -74,39 +67,28 @@ export default function SearchHeader({
         onSearch?.(searchQuery);
     };
 
-    const handleClear = () => {
-        setSearchQuery('');
-        onSearch?.('');
-    };
-
     return (
-        <LinearGradient
-            colors={['#ffffff', '#ffffff']}
-            style={styles.container}
-        >
+        <View style={styles.container}>
             <SafeAreaView edges={['top']}>
                 {/* Top Bar */}
                 <View style={styles.topBar}>
                     {/* Left Icons */}
                     <View style={styles.leftIcons}>
-                        {/* Search Button */}
-                        <TouchableOpacity
-                            style={styles.iconBtn}
+                        <IconButton
+                            icon="search"
+                            size="md"
+                            variant="ghost"
                             onPress={() => router.push('/search')}
-                        >
-                            <Ionicons name="search" size={24} color={theme.primaryDark} />
-                        </TouchableOpacity>
-
-                        {/* Voice Search Button */}
-                        <TouchableOpacity
-                            style={styles.iconBtn}
+                        />
+                        <IconButton
+                            icon="mic"
+                            size="md"
+                            variant="ghost"
                             onPress={() => router.push('/voice-search')}
-                        >
-                            <Ionicons name="mic" size={24} color={theme.primaryDark} />
-                        </TouchableOpacity>
+                        />
                     </View>
 
-                    {/* Logo/Title */}
+                    {/* Logo */}
                     <Image
                         source={require('../../assets/images/logo_premium.jpg')}
                         style={styles.logoImage}
@@ -115,23 +97,19 @@ export default function SearchHeader({
 
                     {/* Right Side Actions */}
                     <View style={styles.rightActions}>
-                        {/* Notification Button */}
-                        <TouchableOpacity
-                            style={styles.iconBtn}
+                        <IconButton
+                            icon="notifications-outline"
+                            size="md"
+                            variant="ghost"
                             onPress={onNotificationPress}
-                        >
-                            <Ionicons name="notifications-outline" size={24} color={theme.primaryDark} />
-                            {unreadCount > 0 && (
-                                <View style={styles.notificationBadge}>
-                                    <Text style={styles.badgeText}>{unreadCount}</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
+                            badge={unreadCount > 0 ? unreadCount : undefined}
+                        />
 
                         {/* Profile Avatar */}
                         <TouchableOpacity
                             style={styles.profileBtn}
                             onPress={onMenuPress}
+                            activeOpacity={0.8}
                         >
                             {profileImage ? (
                                 <Image
@@ -140,7 +118,7 @@ export default function SearchHeader({
                                 />
                             ) : (
                                 <View style={styles.avatarPlaceholder}>
-                                    <Text style={styles.avatarText}>
+                                    <Text variant="label" style={{ color: tokens.colors.primary }}>
                                         {user?.displayName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
                                     </Text>
                                 </View>
@@ -149,129 +127,83 @@ export default function SearchHeader({
                     </View>
                 </View>
 
-                {/* Search Bar */}
+                {/* Search Bar - only shown if showSearch prop is true */}
                 {showSearch && (
                     <View style={styles.searchContainer}>
-                        <Feather name="search" size={18} color={theme.textMuted} />
-                        <TextInput
-                            style={styles.searchInput}
+                        <Input
+                            variant="search"
                             placeholder={activePlaceholder}
-                            placeholderTextColor={theme.textMuted}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                             onSubmitEditing={handleSearch}
                             returnKeyType="search"
+                            size="md"
+                            style={{ flex: 1 }}
                         />
-                        {searchQuery.length > 0 && (
-                            <TouchableOpacity onPress={handleClear}>
-                                <Ionicons name="close-circle" size={18} color={theme.textMuted} />
-                            </TouchableOpacity>
-                        )}
                     </View>
                 )}
             </SafeAreaView>
-        </LinearGradient>
+        </View>
     );
 }
 
-const getStyles = (theme, isDark) => StyleSheet.create({
+const getStyles = (tokens, isDark) => StyleSheet.create({
     container: {
-        paddingBottom: 16,
+        backgroundColor: tokens.colors.background,
+        paddingBottom: tokens.spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: isDark ? 'transparent' : tokens.colors.borderLight,
     },
     topBar: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingHorizontal: tokens.spacing.md,
+        paddingVertical: tokens.spacing.sm,
+        height: 56,
     },
     leftIcons: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-    },
-    iconBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
+        gap: tokens.spacing.xs,
+        width: 80, // Fixed width for center alignment of logo
     },
     logoImage: {
-        width: 120,
-        height: 60,
+        width: 110,
+        height: 48,
+        // tintColor removed - maintaining original logo colors
     },
     rightActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: tokens.spacing.xs,
+        width: 80, // Fixed width for balance
+        justifyContent: 'flex-end',
     },
     profileBtn: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: '#fff',
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.2)',
+        borderWidth: 1.5,
+        borderColor: tokens.colors.border,
         overflow: 'hidden',
+        marginLeft: 4,
     },
     avatarImage: {
         width: '100%',
         height: '100%',
-        borderRadius: 18,
     },
     avatarPlaceholder: {
         width: '100%',
         height: '100%',
-        backgroundColor: theme.primaryLight || '#E0E0E0',
+        backgroundColor: tokens.colors.primarySoft,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    avatarText: {
-        color: theme.primary,
-        fontWeight: 'bold',
-        fontSize: 16,
-    },
-    notificationBadge: {
-        position: 'absolute',
-        top: -4,
-        right: -4,
-        backgroundColor: '#FFB300',
-        minWidth: 16,
-        height: 16,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: '#fff',
-    },
-    badgeText: {
-        color: '#fff',
-        fontSize: 9,
-        fontWeight: 'bold',
     },
     searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: theme.backgroundCard,
-        marginHorizontal: 16,
-        marginTop: 8,
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        height: 44,
-        shadowColor: theme.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: isDark ? 0.3 : 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 14,
-        color: theme.text,
-        marginLeft: 8,
-        paddingVertical: 0,
+        paddingHorizontal: tokens.spacing.md,
+        marginTop: tokens.spacing.sm,
     },
 });

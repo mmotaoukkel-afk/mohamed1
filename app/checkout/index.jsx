@@ -1,15 +1,13 @@
 /**
- * Single Page Checkout - Kataraa
- * Combining Shipping + Payment in one page (matching reference)
+ * Single Page Checkout - Kataraa Cosmic Luxury
+ * Unified Shipping & Payment Flow with Premium UI
  */
 
 import React, { useState } from 'react';
 import {
     View,
-    Text,
     StyleSheet,
     ScrollView,
-    TextInput,
     TouchableOpacity,
     Image,
     KeyboardAvoidingView,
@@ -20,18 +18,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
+
 import { useCheckout } from '../../src/context/CheckoutContext';
 import { useCart } from '../../src/context/CartContext';
-import { kuwaitGovernorates, getCitiesByGovernorate, calculateShipping } from '../../src/data/kuwaitLocations';
-import { COLORS, SPACING, RADIUS, GRADIENTS, SHADOWS } from '../../src/theme/colors';
+import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import api from '../../src/services/api';
 import PaymentService from '../../src/services/PaymentService';
-import { useAuth } from '../../src/context/AuthContext';
-import * as Linking from 'expo-linking';
+import { kuwaitGovernorates, getCitiesByGovernorate, calculateShipping } from '../../src/data/kuwaitLocations';
+
+// UI Kit
+import { Text, Input, Button, Surface, IconButton } from '../../src/components/ui';
 
 export default function CheckoutScreen() {
     const router = useRouter();
+    const { tokens, isDark } = useTheme();
+    const { t } = useTranslation();
+    const styles = getStyles(tokens, isDark);
+
     const {
         shippingInfo, setShippingInfo, setShippingFee, addOrder,
         savedAddresses, saveAddress, savedPaymentMethods, savePaymentMethod,
@@ -39,7 +45,6 @@ export default function CheckoutScreen() {
     } = useCheckout();
     const { cartItems, getCartTotal, clearCart } = useCart();
     const { user } = useAuth();
-    const { t } = useTranslation();
 
     const [step, setStep] = useState(1); // 1 = shipping, 2 = payment
     const [showGovDropdown, setShowGovDropdown] = useState(false);
@@ -58,9 +63,12 @@ export default function CheckoutScreen() {
     const cartTotal = getCartTotal();
     const cities = getCitiesByGovernorate(shippingInfo.governorate);
     const shipping = calculateShipping(shippingInfo.governorate, cartTotal, shippingInfo.city);
-    const finalTotal = cartTotal + (shipping?.fee || 0);
+    // Ensure shipping fee is updated in context for consistency
+    // However, calculateShipping returns the fee object.
+    const currentShippingFee = shipping?.fee || 0;
+    const finalTotal = cartTotal + currentShippingFee;
 
-    const formatPrice = (price) => `${parseFloat(price || 0).toFixed(3)} KWD`;
+    const formatPrice = (price) => `${parseFloat(price || 0).toFixed(3)} ${t('currency')}`;
 
     const updateField = (field, value) => {
         setShippingInfo(prev => ({ ...prev, [field]: value }));
@@ -97,17 +105,18 @@ export default function CheckoutScreen() {
 
     const getGovName = () => {
         const gov = kuwaitGovernorates.find(g => g.id === shippingInfo.governorate);
-        return gov ? gov.name : 'اختر المحافظة';
+        return gov ? gov.name : t('selectGovernorate');
     };
 
     const validateShipping = () => {
         const e = {};
-        if (!shippingInfo.fullName?.trim()) e.fullName = 'مطلوب';
-        if (!shippingInfo.phone?.trim()) e.phone = 'مطلوب';
-        if (!shippingInfo.governorate) e.governorate = 'مطلوب';
-        if (!shippingInfo.city) e.city = 'مطلوب';
-        if (!shippingInfo.block?.trim()) e.block = 'مطلوب';
-        if (!shippingInfo.street?.trim()) e.street = 'مطلوب';
+        if (!shippingInfo.fullName?.trim()) e.fullName = t('required');
+        // Simple regex for phone validation (min 8 digits)
+        if (!shippingInfo.phone?.trim() || shippingInfo.phone.length < 8) e.phone = t('invalidPhone');
+        if (!shippingInfo.governorate) e.governorate = t('required');
+        if (!shippingInfo.city) e.city = t('required');
+        if (!shippingInfo.block?.trim()) e.block = t('required');
+        if (!shippingInfo.street?.trim()) e.street = t('required');
         setErrors(e);
         return Object.keys(e).length === 0;
     };
@@ -125,7 +134,7 @@ export default function CheckoutScreen() {
 
             if (outOfStockItems.length > 0) {
                 const itemNames = outOfStockItems.map(p => p?.name || 'Unknown Item').join(', ');
-                Alert.alert(t('outOfStock') || 'Out of Stock', `${itemNames}. ${t('pleaseUpdateCart') || 'Please remove from cart and try again.'}`);
+                Alert.alert(t('outOfStock'), `${itemNames}. ${t('pleaseUpdateCart')}`);
                 return false;
             }
             return true;
@@ -215,303 +224,327 @@ export default function CheckoutScreen() {
                         Linking.openURL(paymentResponse.paymentUrl);
                     }
                 } else {
-                    Alert.alert(t('error') || 'Error', paymentResponse.error || 'Payment failed to initiate');
+                    Alert.alert(t('error'), paymentResponse.error || 'Payment failed to initiate');
                     setIsProcessing(false);
                 }
             }
         } catch (error) {
             console.error('Order failed:', error);
-            Alert.alert(t('error') || 'Error', t('failedToPlaceOrder') || 'Failed to place order. Please try again.');
+            Alert.alert(t('error'), t('failedToPlaceOrder'));
             setIsProcessing(false);
         }
     };
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <LinearGradient colors={GRADIENTS.header} style={styles.header}>
-                <SafeAreaView edges={['top']}>
-                    <View style={styles.headerRow}>
-                        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{t('checkout')}</Text>
-                        <View style={{ width: 40 }} />
-                    </View>
+            {/* Background */}
+            <View style={[styles.orb, { backgroundColor: tokens.colors.primary + '08', top: -100, right: -100 }]} />
 
-                    {/* Progress Steps */}
-                    <View style={styles.progressRow}>
-                        <View style={styles.stepItem}>
-                            <View style={[styles.stepCircle, step >= 1 && styles.stepCircleActive]}>
-                                <Text style={styles.stepNumber}>1</Text>
-                            </View>
-                            <Text style={styles.stepLabel}>{t('shipping')}</Text>
-                        </View>
-                        <View style={[styles.stepLine, step >= 2 && styles.stepLineActive]} />
-                        <View style={styles.stepItem}>
-                            <View style={[styles.stepCircle, step >= 2 && styles.stepCircleActive]}>
-                                <Text style={styles.stepNumber}>2</Text>
-                            </View>
-                            <Text style={styles.stepLabel}>{t('payment')}</Text>
-                        </View>
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <SafeAreaView style={{ flex: 1 }}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <IconButton
+                        icon="arrow-back"
+                        variant="ghost"
+                        onPress={() => router.back()}
+                    />
+                    <Text variant="title" style={{ flex: 1, textAlign: 'center' }}>{t('checkout')}</Text>
+                    <View style={{ width: 40 }} />
+                </View>
 
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
-                <ScrollView
-                    style={styles.content}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={false}
+                {/* Progress Steps */}
+                <View style={styles.progressRow}>
+                    <View style={styles.stepItem}>
+                        <Surface
+                            variant={step >= 1 ? "glass" : "flat"}
+                            style={[styles.stepCircle, step >= 1 && { borderColor: tokens.colors.primary, borderWidth: 1 }]}
+                            padding="none"
+                        >
+                            <Text style={{ color: step >= 1 ? tokens.colors.primary : tokens.colors.textMuted, fontWeight: 'bold' }}>1</Text>
+                        </Surface>
+                        <Text variant="caption" style={{ marginTop: 4, color: step >= 1 ? tokens.colors.primary : tokens.colors.textMuted }}>{t('shipping')}</Text>
+                    </View>
+                    <View style={[styles.stepLine, { backgroundColor: step >= 2 ? tokens.colors.primary : tokens.colors.border }]} />
+                    <View style={styles.stepItem}>
+                        <Surface
+                            variant={step >= 2 ? "glass" : "flat"}
+                            style={[styles.stepCircle, step >= 2 && { borderColor: tokens.colors.primary, borderWidth: 1 }]}
+                            padding="none"
+                        >
+                            <Text style={{ color: step >= 2 ? tokens.colors.primary : tokens.colors.textMuted, fontWeight: 'bold' }}>2</Text>
+                        </Surface>
+                        <Text variant="caption" style={{ marginTop: 4, color: step >= 2 ? tokens.colors.primary : tokens.colors.textMuted }}>{t('payment')}</Text>
+                    </View>
+                </View>
+
+                <KeyboardAvoidingView
+                    style={{ flex: 1 }}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
-                    {step === 1 ? (
-                        /* STEP 1: Shipping */
-                        <View style={styles.formCard}>
-                            <Text style={styles.formTitle}>{t('shippingAddress')}</Text>
+                    <ScrollView
+                        style={styles.content}
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingBottom: 150 }}
+                    >
+                        {step === 1 ? (
+                            /* STEP 1: Shipping Form */
+                            <View style={styles.formContainer}>
+                                <Text variant="subtitle" style={{ marginBottom: 16 }}>{t('shippingAddress')}</Text>
 
-                            {/* Saved Addresses Picker */}
-                            {savedAddresses.length > 0 && (
-                                <View style={styles.savedSection}>
-                                    <Text style={styles.label}>{t('useSavedAddress')}</Text>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.savedList}>
-                                        {savedAddresses.map((addr) => (
-                                            <TouchableOpacity
-                                                key={addr.id}
-                                                style={styles.savedChip}
-                                                onPress={() => useSavedAddress(addr)}
-                                            >
-                                                <Ionicons name="location-outline" size={14} color={COLORS.primary} />
-                                                <Text style={styles.chipText}>{addr.title}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </View>
-                            )}
-
-                            {/* Name */}
-                            <Text style={styles.label}>{t('fullName')} *</Text>
-                            <TextInput
-                                style={[styles.input, errors.fullName && styles.inputError]}
-                                placeholder={t('enterName')}
-                                placeholderTextColor={COLORS.textMuted}
-                                value={shippingInfo.fullName}
-                                onChangeText={v => updateField('fullName', v)}
-                                textAlign="right"
-                            />
-
-                            {/* Phone */}
-                            <Text style={styles.label}>{t('phone')} *</Text>
-                            <TextInput
-                                style={[styles.input, errors.phone && styles.inputError]}
-                                placeholder={t('enterPhone')}
-                                placeholderTextColor={COLORS.textMuted}
-                                value={shippingInfo.phone}
-                                onChangeText={v => updateField('phone', v)}
-                                keyboardType="phone-pad"
-                                textAlign="right"
-                            />
-
-                            {/* Governorate */}
-                            <Text style={styles.label}>{t('governorate')} *</Text>
-                            <TouchableOpacity
-                                style={[styles.select, errors.governorate && styles.inputError]}
-                                onPress={() => setShowGovDropdown(!showGovDropdown)}
-                            >
-                                <Ionicons name="chevron-down" size={18} color={COLORS.primary} />
-                                <Text style={[styles.selectText, !shippingInfo.governorate && styles.placeholder]}>
-                                    {getGovName()}
-                                </Text>
-                            </TouchableOpacity>
-
-                            {showGovDropdown && (
-                                <View style={styles.dropdown}>
-                                    {kuwaitGovernorates.map(gov => (
-                                        <TouchableOpacity
-                                            key={gov.id}
-                                            style={styles.dropdownItem}
-                                            onPress={() => selectGovernorate(gov)}
-                                        >
-                                            <Text style={styles.dropdownText}>{gov.name}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* City */}
-                            <Text style={styles.label}>{t('city')} *</Text>
-                            <TouchableOpacity
-                                style={[styles.select, !shippingInfo.governorate && styles.selectDisabled]}
-                                onPress={() => shippingInfo.governorate && setShowCityDropdown(!showCityDropdown)}
-                            >
-                                <Ionicons name="chevron-down" size={18} color={COLORS.primary} />
-                                <Text style={[styles.selectText, !shippingInfo.city && styles.placeholder]}>
-                                    {shippingInfo.city || 'اختر المنطقة'}
-                                </Text>
-                            </TouchableOpacity>
-
-                            {showCityDropdown && cities.length > 0 && (
-                                <View style={styles.dropdown}>
-                                    {cities.map((city, i) => (
-                                        <TouchableOpacity
-                                            key={i}
-                                            style={styles.dropdownItem}
-                                            onPress={() => selectCity(city)}
-                                        >
-                                            <Text style={styles.dropdownText}>{city}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* Block & Street */}
-                            <View style={styles.row}>
-                                <View style={styles.halfInput}>
-                                    <Text style={styles.label}>{t('block')} *</Text>
-                                    <TextInput
-                                        style={[styles.input, errors.block && styles.inputError]}
-                                        placeholder={t('enterBlock')}
-                                        placeholderTextColor={COLORS.textMuted}
-                                        value={shippingInfo.block}
-                                        onChangeText={v => updateField('block', v)}
-                                        textAlign="right"
-                                    />
-                                </View>
-                                <View style={styles.halfInput}>
-                                    <Text style={styles.label}>{t('street')} *</Text>
-                                    <TextInput
-                                        style={[styles.input, errors.street && styles.inputError]}
-                                        placeholder={t('enterStreet')}
-                                        placeholderTextColor={COLORS.textMuted}
-                                        value={shippingInfo.street}
-                                        onChangeText={v => updateField('street', v)}
-                                        textAlign="right"
-                                    />
-                                </View>
-                            </View>
-
-                            {/* Notes */}
-                            <Text style={styles.label}>{t('notes')}</Text>
-                            <TextInput
-                                style={[styles.input, styles.textArea]}
-                                placeholder={t('enterNotes')}
-                                placeholderTextColor={COLORS.textMuted}
-                                value={shippingInfo.notes}
-                                onChangeText={v => updateField('notes', v)}
-                                multiline
-                                textAlign="right"
-                            />
-
-                            {/* Save for later checkbox */}
-                            <TouchableOpacity
-                                style={styles.checkboxRow}
-                                onPress={() => setSaveAddressChecked(!saveAddressChecked)}
-                            >
-                                <View style={[styles.checkbox, saveAddressChecked && styles.checkboxActive]}>
-                                    {saveAddressChecked && <Ionicons name="checkmark" size={12} color="#fff" />}
-                                </View>
-                                <Text style={styles.checkboxLabel}>{t('saveForLater')}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        /* STEP 2: Payment */
-                        <View>
-                            {/* Order Summary */}
-                            <View style={styles.formCard}>
-                                <Text style={styles.formTitle}>{t('orderSummary')}</Text>
-
-                                {cartItems.map(item => (
-                                    <View key={item.id} style={styles.orderItem}>
-                                        <Image source={{ uri: item.image }} style={styles.orderItemImage} />
-                                        <View style={styles.orderItemInfo}>
-                                            <Text style={styles.orderItemName} numberOfLines={1}>{item.name}</Text>
-                                            <Text style={styles.orderItemQty}>x{item.quantity}</Text>
+                                {/* Saved Addresses */}
+                                {/* Saved Addresses */}
+                                {savedAddresses.length > 0 && (
+                                    <View style={styles.savedSection}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                                            <Ionicons name="bookmark" size={18} color={tokens.colors.primary} style={{ marginRight: 8 }} />
+                                            <Text variant="label">{t('useSavedAddress')}</Text>
                                         </View>
-                                        <Text style={styles.orderItemPrice}>{formatPrice(item.price * item.quantity)}</Text>
+
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.savedList}>
+                                            {savedAddresses.map((addr) => (
+                                                <TouchableOpacity
+                                                    key={addr.id}
+                                                    style={[
+                                                        styles.savedChip,
+                                                        {
+                                                            backgroundColor: tokens.colors.card,
+                                                            borderColor: tokens.colors.border,
+                                                            borderWidth: 1
+                                                        }
+                                                    ]}
+                                                    onPress={() => useSavedAddress(addr)}
+                                                >
+                                                    <View style={{
+                                                        width: 32, height: 32, borderRadius: 16,
+                                                        backgroundColor: tokens.colors.primary + '15',
+                                                        alignItems: 'center', justifyContent: 'center',
+                                                        marginRight: 8
+                                                    }}>
+                                                        <Ionicons name="location" size={16} color={tokens.colors.primary} />
+                                                    </View>
+                                                    <View>
+                                                        <Text variant="body" weight="bold">{addr.title}</Text>
+                                                        <Text variant="caption" style={{ color: tokens.colors.textMuted }}>
+                                                            {addr.data.city}, {addr.data.block}
+                                                        </Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
                                     </View>
-                                ))}
+                                )}
 
-                                <View style={styles.divider} />
+                                <Input
+                                    label={t('fullName')}
+                                    placeholder={t('enterName')}
+                                    value={shippingInfo.fullName}
+                                    onChangeText={v => updateField('fullName', v)}
+                                    error={errors.fullName}
+                                />
+                                <Input
+                                    label={t('phone')}
+                                    placeholder={t('enterPhone')}
+                                    value={shippingInfo.phone}
+                                    onChangeText={v => updateField('phone', v)}
+                                    keyboardType="phone-pad"
+                                    error={errors.phone}
+                                />
 
-                                <View style={styles.totalRow}>
-                                    <Text style={styles.totalValue}>{formatPrice(cartTotal)}</Text>
-                                    <Text style={styles.totalLabel}>{t('subtotal')}</Text>
+                                {/* Governorate Select - Custom UI */}
+                                <View style={{ marginBottom: 16 }}>
+                                    <Text variant="label" style={{ marginBottom: 8 }}>{t('governorate')}</Text>
+                                    <TouchableOpacity
+                                        style={[styles.selectBox, { borderColor: errors.governorate ? tokens.colors.error : tokens.colors.border }]}
+                                        onPress={() => setShowGovDropdown(!showGovDropdown)}
+                                    >
+                                        <Text style={{ color: shippingInfo.governorate ? tokens.colors.text : tokens.colors.textMuted }}>
+                                            {getGovName()}
+                                        </Text>
+                                        <Ionicons name="chevron-down" size={18} color={tokens.colors.primary} />
+                                    </TouchableOpacity>
+                                    {errors.governorate && <Text variant="caption" style={{ color: tokens.colors.error, marginTop: 4 }}>{errors.governorate}</Text>}
+
+                                    {showGovDropdown && (
+                                        <Surface style={styles.dropdownList} elevation={4}>
+                                            {kuwaitGovernorates.map(gov => (
+                                                <TouchableOpacity
+                                                    key={gov.id}
+                                                    style={styles.dropdownItem}
+                                                    onPress={() => selectGovernorate(gov)}
+                                                >
+                                                    <Text>{gov.name}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </Surface>
+                                    )}
                                 </View>
-                                <View style={styles.totalRow}>
-                                    <Text style={styles.totalValue}>{formatPrice(shipping?.fee || 0)}</Text>
-                                    <Text style={styles.totalLabel}>{t('shipping')}</Text>
+
+                                {/* City Select */}
+                                <View style={{ marginBottom: 16 }}>
+                                    <Text variant="label" style={{ marginBottom: 8 }}>{t('city')}</Text>
+                                    <TouchableOpacity
+                                        style={[styles.selectBox, { borderColor: errors.city ? tokens.colors.error : tokens.colors.border, opacity: shippingInfo.governorate ? 1 : 0.6 }]}
+                                        onPress={() => shippingInfo.governorate && setShowCityDropdown(!showCityDropdown)}
+                                        disabled={!shippingInfo.governorate}
+                                    >
+                                        <Text style={{ color: shippingInfo.city ? tokens.colors.text : tokens.colors.textMuted }}>
+                                            {shippingInfo.city || t('selectCity')}
+                                        </Text>
+                                        <Ionicons name="chevron-down" size={18} color={tokens.colors.primary} />
+                                    </TouchableOpacity>
+                                    {errors.city && <Text variant="caption" style={{ color: tokens.colors.error, marginTop: 4 }}>{errors.city}</Text>}
+
+                                    {showCityDropdown && (cities.length > 0) && (
+                                        <Surface style={styles.dropdownList} elevation={4}>
+                                            <ScrollView style={{ maxHeight: 200 }}>
+                                                {cities.map((city, i) => (
+                                                    <TouchableOpacity
+                                                        key={i}
+                                                        style={styles.dropdownItem}
+                                                        onPress={() => selectCity(city)}
+                                                    >
+                                                        <Text>{city}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </ScrollView>
+                                        </Surface>
+                                    )}
                                 </View>
-                                <View style={styles.divider} />
-                                <View style={styles.totalRow}>
-                                    <Text style={styles.grandTotal}>{formatPrice(finalTotal)}</Text>
-                                    <Text style={styles.grandTotalLabel}>{t('total')}</Text>
+
+                                <View style={styles.row}>
+                                    <View style={[styles.halfInput, { marginRight: 8 }]}>
+                                        <Input
+                                            label={t('block')}
+                                            placeholder="1"
+                                            value={shippingInfo.block}
+                                            onChangeText={v => updateField('block', v)}
+                                            error={errors.block}
+                                        />
+                                    </View>
+                                    <View style={[styles.halfInput, { marginLeft: 8 }]}>
+                                        <Input
+                                            label={t('street')}
+                                            placeholder="Street Name"
+                                            value={shippingInfo.street}
+                                            onChangeText={v => updateField('street', v)}
+                                            error={errors.street}
+                                        />
+                                    </View>
                                 </View>
+
+                                <Input
+                                    label={t('notes')}
+                                    placeholder={t('enterNotes')}
+                                    value={shippingInfo.notes}
+                                    onChangeText={v => updateField('notes', v)}
+                                    multiline
+                                    numberOfLines={3}
+                                />
+
+                                <TouchableOpacity
+                                    style={styles.checkboxRow}
+                                    onPress={() => setSaveAddressChecked(!saveAddressChecked)}
+                                >
+                                    <View style={[styles.checkbox, saveAddressChecked && { backgroundColor: tokens.colors.primary, borderColor: tokens.colors.primary }]}>
+                                        {saveAddressChecked && <Ionicons name="checkmark" size={12} color="#fff" />}
+                                    </View>
+                                    <Text variant="body">{t('saveForLater')}</Text>
+                                </TouchableOpacity>
                             </View>
+                        ) : (
+                            /* STEP 2: Payment & Summary */
+                            <View style={styles.formContainer}>
+                                <Text variant="subtitle" style={{ marginBottom: 16 }}>{t('orderSummary')}</Text>
 
-                            {/* Payment Methods */}
-                            <View style={styles.formCard}>
-                                <Text style={styles.formTitle}>{t('paymentMethod')}</Text>
-
-                                <TouchableOpacity
-                                    style={[styles.paymentOption, paymentMethod === 'cod' && styles.paymentOptionActive]}
-                                    onPress={() => setPaymentMethod('cod')}
-                                >
-                                    <View style={styles.paymentRadio}>
-                                        {paymentMethod === 'cod' && <View style={styles.paymentRadioInner} />}
+                                <Surface variant="glass" padding="md" style={{ marginBottom: 24 }}>
+                                    {cartItems.map(item => (
+                                        <View key={item.id} style={styles.orderItem}>
+                                            <Image source={{ uri: item.image }} style={styles.orderItemImage} />
+                                            <View style={styles.orderItemInfo}>
+                                                <Text variant="body" weight="bold">{item.name}</Text>
+                                                <Text variant="caption">x{item.quantity}</Text>
+                                            </View>
+                                            <Text variant="body" weight="bold">{formatPrice(item.price * item.quantity)}</Text>
+                                        </View>
+                                    ))}
+                                    <View style={styles.divider} />
+                                    <View style={styles.summaryRow}>
+                                        <Text variant="body">{t('subtotal')}</Text>
+                                        <Text variant="body">{formatPrice(cartTotal)}</Text>
                                     </View>
-                                    <Ionicons name="cash-outline" size={24} color={COLORS.text} />
-                                    <Text style={styles.paymentLabel}>{t('cod')}</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={[styles.paymentOption, paymentMethod === 'knet' && styles.paymentOptionActive]}
-                                    onPress={() => setPaymentMethod('knet')}
-                                >
-                                    <View style={styles.paymentRadio}>
-                                        {paymentMethod === 'knet' && <View style={styles.paymentRadioInner} />}
+                                    <View style={styles.summaryRow}>
+                                        <Text variant="body">{t('shipping')}</Text>
+                                        <Text variant="body" style={{ color: currentShippingFee === 0 ? tokens.colors.success : tokens.colors.text }}>
+                                            {currentShippingFee === 0 ? t('free') : formatPrice(currentShippingFee)}
+                                        </Text>
                                     </View>
-                                    <Ionicons name="card-outline" size={24} color={COLORS.text} />
-                                    <Text style={styles.paymentLabel}>{t('knet')}</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={[styles.paymentOption, paymentMethod === 'card' && styles.paymentOptionActive]}
-                                    onPress={() => setPaymentMethod('card')}
-                                >
-                                    <View style={styles.paymentRadio}>
-                                        {paymentMethod === 'card' && <View style={styles.paymentRadioInner} />}
+                                    <View style={styles.divider} />
+                                    <View style={styles.summaryRow}>
+                                        <Text variant="title">{t('total')}</Text>
+                                        <Text variant="title" style={{ color: tokens.colors.primary }}>{formatPrice(finalTotal)}</Text>
                                     </View>
-                                    <Ionicons name="card" size={24} color={COLORS.text} />
-                                    <Text style={styles.paymentLabel}>{t('creditCard')}</Text>
-                                </TouchableOpacity>
+                                </Surface>
 
-                                {/* Credit Card Details if selected */}
+                                <Text variant="subtitle" style={{ marginBottom: 16 }}>{t('paymentMethod')}</Text>
+
+                                <View style={styles.paymentMethods}>
+                                    {['cod', 'knet', 'card'].map(method => (
+                                        <TouchableOpacity
+                                            key={method}
+                                            style={[
+                                                styles.paymentOption,
+                                                paymentMethod === method && { borderColor: tokens.colors.primary, backgroundColor: tokens.colors.primary + '10' }
+                                            ]}
+                                            onPress={() => setPaymentMethod(method)}
+                                        >
+                                            <View style={[styles.radio, paymentMethod === method && { borderColor: tokens.colors.primary }]}>
+                                                {paymentMethod === method && <View style={[styles.radioInner, { backgroundColor: tokens.colors.primary }]} />}
+                                            </View>
+                                            <Ionicons
+                                                name={method === 'cod' ? 'cash-outline' : 'card-outline'}
+                                                size={24}
+                                                color={tokens.colors.text}
+                                                style={{ marginRight: 12 }}
+                                            />
+                                            <Text variant="body" weight="bold">{t(method)}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
                                 {paymentMethod === 'card' && (
-                                    <View style={styles.cardDetails}>
-                                        {/* Saved Cards Picker */}
+                                    <View style={styles.cardForm}>
+                                        {/* Saved Cards */}
                                         {savedPaymentMethods.length > 0 && (
-                                            <View style={styles.savedSection}>
-                                                <Text style={styles.label}>{t('useSavedCard')}</Text>
-                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.savedList}>
+                                            <View style={{ marginBottom: 16 }}>
+                                                <Text variant="label" style={{ marginBottom: 8 }}>{t('useSavedCard')}</Text>
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                                     {savedPaymentMethods.map((card) => (
                                                         <TouchableOpacity
-                                                            key={card.id}
-                                                            style={styles.savedChip}
+                                                            key={card.id || Math.random()}
+                                                            style={[
+                                                                styles.savedChip,
+                                                                {
+                                                                    backgroundColor: tokens.colors.card,
+                                                                    borderColor: tokens.colors.border,
+                                                                    borderWidth: 1,
+                                                                    minWidth: 140
+                                                                }
+                                                            ]}
                                                             onPress={() => useSavedCard(card)}
                                                         >
-                                                            <Ionicons name="card-outline" size={14} color={COLORS.primary} />
-                                                            <Text style={styles.chipText}>{card.number}</Text>
+                                                            <Ionicons name="card" size={20} color={tokens.colors.primary} style={{ marginRight: 8 }} />
+                                                            <View>
+                                                                <Text variant="body">•••• {card.number?.slice(-4) || '????'}</Text>
+                                                                <Text variant="caption" style={{ color: tokens.colors.textMuted }}>{card.expiry}</Text>
+                                                            </View>
                                                         </TouchableOpacity>
                                                     ))}
                                                 </ScrollView>
                                             </View>
                                         )}
-
-                                        <Text style={styles.label}>{t('cardNumber')}</Text>
-                                        <TextInput
-                                            style={styles.input}
+                                        <Input
+                                            label={t('cardNumber')}
                                             placeholder="XXXX XXXX XXXX XXXX"
                                             value={cardInfo.number}
                                             onChangeText={v => setCardInfo({ ...cardInfo, number: v })}
@@ -519,10 +552,18 @@ export default function CheckoutScreen() {
                                             maxLength={16}
                                         />
                                         <View style={styles.row}>
-                                            <View style={styles.halfInput}>
-                                                <Text style={styles.label}>{t('cvv')}</Text>
-                                                <TextInput
-                                                    style={styles.input}
+                                            <View style={[styles.halfInput, { marginRight: 8 }]}>
+                                                <Input
+                                                    label={t('expiryDate')}
+                                                    placeholder="MM/YY"
+                                                    value={cardInfo.expiry}
+                                                    onChangeText={v => setCardInfo({ ...cardInfo, expiry: v })}
+                                                    maxLength={5}
+                                                />
+                                            </View>
+                                            <View style={[styles.halfInput, { marginLeft: 8 }]}>
+                                                <Input
+                                                    label={t('cvv')}
                                                     placeholder="123"
                                                     value={cardInfo.cvv}
                                                     onChangeText={v => setCardInfo({ ...cardInfo, cvv: v })}
@@ -530,105 +571,60 @@ export default function CheckoutScreen() {
                                                     maxLength={3}
                                                 />
                                             </View>
-                                            <View style={styles.halfInput}>
-                                                <Text style={styles.label}>{t('expiryDate')}</Text>
-                                                <TextInput
-                                                    style={styles.input}
-                                                    placeholder="MM/YY"
-                                                    value={cardInfo.expiry}
-                                                    onChangeText={v => setCardInfo({ ...cardInfo, expiry: v })}
-                                                    maxLength={5}
-                                                />
-                                            </View>
                                         </View>
-
-                                        {/* Save Card Checkbox */}
-                                        <TouchableOpacity
-                                            style={styles.checkboxRow}
-                                            onPress={() => setSaveCardChecked(!saveCardChecked)}
-                                        >
-                                            <View style={[styles.checkbox, saveCardChecked && styles.checkboxActive]}>
-                                                {saveCardChecked && <Ionicons name="checkmark" size={12} color="#fff" />}
-                                            </View>
-                                            <Text style={styles.checkboxLabel}>{t('saveForLater')}</Text>
-                                        </TouchableOpacity>
                                     </View>
                                 )}
                             </View>
-                        </View>
+                        )}
+                    </ScrollView>
+                </KeyboardAvoidingView>
+
+                {/* Bottom Action Bar */}
+                <Surface variant="glass" style={styles.bottomBar} padding="lg">
+                    {step === 1 ? (
+                        <Button
+                            title={t('continuePayment')}
+                            onPress={handleNextStep}
+                            variant="primary"
+                            icon={<Ionicons name="arrow-forward" size={20} color="#FFF" />}
+                        />
+                    ) : (
+                        <Button
+                            title={isProcessing ? t('processing') : `${t('confirmOrder')} - ${formatPrice(finalTotal)}`}
+                            onPress={handlePlaceOrder}
+                            variant="primary"
+                            disabled={isProcessing}
+                            icon={!isProcessing ? <Ionicons name="checkmark-circle" size={20} color="#FFF" /> : undefined}
+                        />
                     )}
-
-                    <View style={{ height: 120 }} />
-                </ScrollView>
-            </KeyboardAvoidingView>
-
-            {/* Bottom Button */}
-            <View style={styles.bottom}>
-                {step === 1 ? (
-                    <TouchableOpacity style={styles.continueBtn} onPress={handleNextStep}>
-                        <LinearGradient colors={GRADIENTS.button} style={styles.continueBtnGrad}>
-                            <Text style={styles.continueBtnText}>{t('continuePayment')}</Text>
-                            <Ionicons name="arrow-forward" size={20} color="#fff" />
-                        </LinearGradient>
-                    </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity
-                        style={styles.continueBtn}
-                        onPress={handlePlaceOrder}
-                        disabled={isProcessing}
-                    >
-                        <LinearGradient colors={GRADIENTS.button} style={styles.continueBtnGrad}>
-                            {isProcessing ? (
-                                <Text style={styles.continueBtnText}>{t('processing')}</Text>
-                            ) : (
-                                <>
-                                    <Text style={styles.continueBtnText}>{t('confirmOrder')} - {formatPrice(finalTotal)}</Text>
-                                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                                </>
-                            )}
-                        </LinearGradient>
-                    </TouchableOpacity>
-                )}
-            </View>
+                </Surface>
+            </SafeAreaView>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (tokens, isDark) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: tokens.colors.background,
+    },
+    orb: {
+        position: 'absolute',
+        width: 300,
+        height: 300,
+        borderRadius: 150,
     },
     header: {
-        paddingBottom: SPACING.md,
-        borderBottomLeftRadius: RADIUS.xxl,
-        borderBottomRightRadius: RADIUS.xxl,
-    },
-    headerRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: SPACING.md,
-        paddingTop: SPACING.sm,
-    },
-    backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
     },
     progressRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: SPACING.md,
+        paddingVertical: 16,
     },
     stepItem: {
         alignItems: 'center',
@@ -636,286 +632,136 @@ const styles = StyleSheet.create({
     stepCircle: {
         width: 32,
         height: 32,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.3)',
-        justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 4,
-    },
-    stepCircleActive: {
-        backgroundColor: '#fff',
-    },
-    stepNumber: {
-        color: COLORS.primary,
-        fontWeight: 'bold',
-    },
-    stepLabel: {
-        color: '#fff',
-        fontSize: 11,
+        justifyContent: 'center',
+        borderRadius: 16,
     },
     stepLine: {
         width: 60,
         height: 2,
-        backgroundColor: 'rgba(255,255,255,0.3)',
-        marginHorizontal: SPACING.sm,
-    },
-    stepLineActive: {
-        backgroundColor: '#fff',
+        marginHorizontal: 10,
+        marginBottom: 14,
     },
     content: {
         flex: 1,
-        padding: SPACING.md,
+        paddingHorizontal: 20,
     },
-    formCard: {
-        backgroundColor: COLORS.card,
-        borderRadius: RADIUS.lg,
-        padding: SPACING.md,
-        marginBottom: SPACING.md,
-        ...SHADOWS.md,
-    },
-    formTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: COLORS.text,
-        textAlign: 'right',
-        marginBottom: SPACING.md,
-    },
-    label: {
-        fontSize: 13,
-        color: COLORS.textSecondary,
-        textAlign: 'right',
-        marginTop: SPACING.sm,
-        marginBottom: 6,
-    },
-    input: {
-        backgroundColor: COLORS.background,
-        borderRadius: RADIUS.md,
-        padding: SPACING.sm,
-        fontSize: 14,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    inputError: {
-        borderColor: COLORS.error,
-        borderWidth: 2,
-    },
-    textArea: {
-        height: 70,
-        textAlignVertical: 'top',
-    },
-    select: {
-        backgroundColor: COLORS.background,
-        borderRadius: RADIUS.md,
-        padding: SPACING.sm,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    selectDisabled: {
-        opacity: 0.5,
-    },
-    selectText: {
-        fontSize: 14,
-        color: COLORS.text,
-        flex: 1,
-        textAlign: 'right',
-    },
-    placeholder: {
-        color: COLORS.textMuted,
-    },
-    dropdown: {
-        backgroundColor: COLORS.card,
-        borderRadius: RADIUS.md,
-        marginTop: 4,
-        maxHeight: 180,
-        ...SHADOWS.sm,
-    },
-    dropdownItem: {
-        padding: SPACING.sm,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-    },
-    dropdownText: {
-        fontSize: 14,
-        textAlign: 'right',
+    formContainer: {
+        paddingBottom: 20,
     },
     row: {
         flexDirection: 'row',
-        gap: SPACING.sm,
     },
     halfInput: {
         flex: 1,
     },
-    orderItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: SPACING.sm,
-    },
-    orderItemImage: {
-        width: 50,
-        height: 50,
-        borderRadius: RADIUS.sm,
-        marginRight: SPACING.sm,
-    },
-    orderItemInfo: {
-        flex: 1,
-    },
-    orderItemName: {
-        fontSize: 13,
-        color: COLORS.text,
-    },
-    orderItemQty: {
-        fontSize: 12,
-        color: COLORS.textMuted,
-    },
-    orderItemPrice: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: COLORS.text,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: COLORS.border,
-        marginVertical: SPACING.sm,
-    },
-    totalRow: {
+    selectBox: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 4,
-    },
-    totalLabel: {
-        fontSize: 13,
-        color: COLORS.textSecondary,
-    },
-    totalValue: {
-        fontSize: 13,
-        color: COLORS.text,
-    },
-    grandTotalLabel: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: COLORS.text,
-    },
-    grandTotal: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: COLORS.primary,
-    },
-    paymentOption: {
-        flexDirection: 'row',
         alignItems: 'center',
-        padding: SPACING.md,
-        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        marginBottom: SPACING.sm,
-        gap: SPACING.sm,
+        borderRadius: 12,
+        padding: 14,
+        backgroundColor: tokens.colors.inputBackground,
     },
-    paymentOptionActive: {
-        borderColor: COLORS.primary,
-        backgroundColor: `${COLORS.primary}10`,
-    },
-    paymentRadio: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        borderWidth: 2,
-        borderColor: COLORS.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    paymentRadioInner: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: COLORS.primary,
-    },
-    paymentLabel: {
-        fontSize: 14,
-        color: COLORS.text,
-        flex: 1,
-        textAlign: 'right',
-    },
-    bottom: {
+    dropdownList: {
         position: 'absolute',
-        bottom: 0,
+        top: '100%',
         left: 0,
         right: 0,
-        padding: SPACING.md,
-        paddingBottom: SPACING.xl,
-        backgroundColor: COLORS.card,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-        ...SHADOWS.lg,
+        zIndex: 100,
+        marginTop: 4,
+        borderRadius: 12,
+        backgroundColor: tokens.colors.card,
     },
-    continueBtn: {
-        borderRadius: RADIUS.lg,
-        overflow: 'hidden',
-    },
-    continueBtnGrad: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: SPACING.md,
-        gap: SPACING.sm,
-    },
-    continueBtnText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    savedSection: {
-        marginBottom: SPACING.md,
-    },
-    savedList: {
-        flexDirection: 'row',
-        marginTop: 8,
-    },
-    savedChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 15,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: COLORS.background,
-        borderWidth: 1,
-        borderColor: COLORS.primary + '30',
-        marginRight: 10,
-        gap: 6,
-    },
-    chipText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: COLORS.text,
+    dropdownItem: {
+        padding: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: tokens.colors.border,
     },
     checkboxRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 15,
-        gap: 10,
+        marginTop: 16,
     },
     checkbox: {
         width: 20,
         height: 20,
         borderRadius: 6,
-        borderWidth: 2,
-        borderColor: COLORS.primary,
-        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: tokens.colors.border,
+        marginRight: 10,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    checkboxActive: {
-        backgroundColor: COLORS.primary,
+    savedSection: {
+        marginBottom: 24,
     },
-    checkboxLabel: {
-        fontSize: 14,
-        color: COLORS.text,
+    savedList: {
+        flexDirection: 'row',
     },
-    cardDetails: {
-        marginTop: 10,
-        padding: 15,
-        backgroundColor: COLORS.background,
-        borderRadius: RADIUS.md,
+    savedChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 16,
+        marginRight: 10,
+    },
+    orderItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    orderItemImage: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        marginRight: 12,
+    },
+    orderItemInfo: {
+        flex: 1,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: tokens.colors.border,
+        marginVertical: 12,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    paymentMethods: {
+        gap: 12,
+        marginBottom: 24,
+    },
+    paymentOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: tokens.colors.border,
+        backgroundColor: tokens.colors.card,
+    },
+    radio: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: tokens.colors.border,
+        marginRight: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    radioInner: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    bottomBar: {
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
     },
 });

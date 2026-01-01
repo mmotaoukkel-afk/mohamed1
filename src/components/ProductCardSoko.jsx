@@ -1,13 +1,12 @@
 /**
  * Product Card SOKO Style - Kataraa
- * Matches reference design: Add to Cart button, sale badge, heart icon
+ * Cosmic Luxury Minimal Style
  * Dark Mode Supported 🌙
  */
 
 import React from 'react';
 import {
     View,
-    Text,
     StyleSheet,
     TouchableOpacity,
     Image,
@@ -17,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
+import { Surface, Text } from './ui'; // Import from UI Kit
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -29,9 +29,9 @@ const ProductCardSoko = React.memo(({
     isFavorite = false,
     showBrand = false,
 }) => {
-    const { theme, isDark } = useTheme();
+    const { tokens, isDark } = useTheme();
     const { t } = useTranslation();
-    const styles = getStyles(theme, isDark, t);
+    const styles = getStyles(tokens, isDark, t);
 
     const imageSource = item?.images?.[0]?.src
         ? { uri: item.images[0].src }
@@ -51,118 +51,123 @@ const ProductCardSoko = React.memo(({
 
     return (
         <TouchableOpacity
-            style={styles.card}
             onPress={() => onPress?.(item)}
             activeOpacity={0.9}
         >
-            {/* Image Container */}
-            <View style={styles.imageContainer}>
-                <Image
-                    source={imageSource}
-                    style={styles.image}
-                    resizeMode="cover"
-                />
-
-                {/* Favorite Button */}
-                <TouchableOpacity
-                    style={styles.favoriteBtn}
-                    onPress={() => onFavorite?.(item)}
-                >
-                    <Ionicons
-                        name={isFavorite ? 'heart' : 'heart-outline'}
-                        size={18}
-                        color={isFavorite ? '#EF4444' : theme.textMuted}
+            <Surface
+                style={styles.card}
+                padding="none"
+                radius="lg"
+                variant={isDark ? 'elevated' : 'default'}
+            >
+                {/* Image Container */}
+                <View style={styles.imageContainer}>
+                    <Image
+                        source={imageSource}
+                        style={styles.image}
+                        resizeMode="cover"
                     />
-                </TouchableOpacity>
 
-                {/* Sale Badge */}
-                {isOnSale && (
-                    <View style={styles.saleBadge}>
-                        <Text style={styles.saleText}>-{getDiscountPercent()}%</Text>
-                    </View>
-                )}
-
-                {/* Sold Out Overlay */}
-                {isOutOfStock && (
-                    <View style={styles.soldOutOverlay}>
-                        <View style={styles.soldOutBadge}>
-                            <Text style={styles.soldOutText}>{t('outOfStock')}</Text>
-                        </View>
-                    </View>
-                )}
-
-                {/* Add to Cart Button */}
-                {!isOutOfStock && (
+                    {/* Favorite Button */}
                     <TouchableOpacity
-                        style={styles.addToCartBtn}
-                        onPress={() => onAddToCart?.(item)}
+                        style={styles.favoriteBtn}
+                        onPress={() => onFavorite?.(item)}
                     >
-                        <LinearGradient
-                            colors={[theme.primary, theme.primaryDark]}
-                            style={styles.addToCartGradient}
-                        >
-                            <Ionicons name="add" size={16} color="#fff" />
-                            <Text style={styles.addToCartText}>{t('addToCart')}</Text>
-                        </LinearGradient>
+                        <Ionicons
+                            name={isFavorite ? 'heart' : 'heart-outline'}
+                            size={18}
+                            color={isFavorite ? tokens.colors.error : tokens.colors.textMuted}
+                        />
                     </TouchableOpacity>
-                )}
-            </View>
 
-            {/* Product Info */}
-            <View style={styles.infoContainer}>
-                {/* Product Name */}
-                <Text style={styles.productName} numberOfLines={2}>
-                    {item?.name}
-                </Text>
+                    {/* Sale Badge */}
+                    {isOnSale && (
+                        <View style={styles.saleBadge}>
+                            <Text variant="caption" weight="bold" style={{ color: '#fff', fontSize: 10 }}>
+                                -{getDiscountPercent()}%
+                            </Text>
+                        </View>
+                    )}
 
-                {/* Price Row */}
-                <View style={styles.priceRow}>
-                    {isOnSale ? (
-                        <>
-                            <Text style={styles.salePrice}>
-                                {formatPrice(item.sale_price)} {t('currency')}
-                            </Text>
-                            <Text style={styles.originalPrice}>
-                                {formatPrice(item.regular_price)} {t('currency')}
-                            </Text>
-                        </>
-                    ) : (
-                        <Text style={styles.price}>
-                            {formatPrice(item.price)} {t('currency')}
-                        </Text>
+                    {/* Sold Out Overlay */}
+                    {isOutOfStock && (
+                        <View style={styles.soldOutOverlay}>
+                            <View style={styles.soldOutBadge}>
+                                <Text variant="caption" weight="semibold" style={{ color: '#fff' }}>
+                                    {t('outOfStock')}
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Add to Cart Button - kept custom for specific sizing */}
+                    {!isOutOfStock && (
+                        <TouchableOpacity
+                            style={styles.addToCartBtn}
+                            onPress={() => onAddToCart?.(item)}
+                        >
+                            <LinearGradient
+                                colors={[tokens.colors.primary, tokens.colors.primaryDark]}
+                                style={styles.addToCartGradient}
+                            >
+                                <Ionicons name="add" size={16} color="#fff" />
+                                <Text variant="caption" weight="semibold" style={styles.addToCartText}>
+                                    {t('addToCart')}
+                                </Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
                     )}
                 </View>
-            </View>
+
+                {/* Product Info */}
+                <View style={styles.infoContainer}>
+                    {/* Product Name */}
+                    <Text variant="bodySmall" numberOfLines={2} style={styles.productName}>
+                        {item?.name}
+                    </Text>
+
+                    {/* Price Row */}
+                    <View style={styles.priceRow}>
+                        {isOnSale ? (
+                            <>
+                                <Text variant="body" weight="bold" color="accent">
+                                    {formatPrice(item.sale_price)} {t('currency')}
+                                </Text>
+                                <Text variant="caption" style={styles.originalPrice}>
+                                    {formatPrice(item.regular_price)} {t('currency')}
+                                </Text>
+                            </>
+                        ) : (
+                            <Text variant="body" weight="bold" color="primary">
+                                {formatPrice(item.price)} {t('currency')}
+                            </Text>
+                        )}
+                    </View>
+                </View>
+            </Surface>
         </TouchableOpacity>
     );
 });
 
 export default ProductCardSoko;
 
-const getStyles = (theme, isDark, t) => StyleSheet.create({
+const getStyles = (tokens, isDark, t) => StyleSheet.create({
     card: {
         width: CARD_WIDTH,
-        backgroundColor: isDark ? 'rgba(30,30,40,0.6)' : 'rgba(255,255,255,0.8)',
-        borderRadius: 16,
         marginHorizontal: 4,
-        marginBottom: 16,
+        marginBottom: tokens.spacing.md,
         overflow: 'hidden',
-        shadowColor: theme.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: isDark ? 0.3 : 0.1,
-        shadowRadius: 8,
-        elevation: 3,
+        borderWidth: 0, // Surface handles border, but we want clean look
     },
     imageContainer: {
         position: 'relative',
         width: '100%',
         aspectRatio: 1,
-        backgroundColor: 'transparent',
+        backgroundColor: tokens.colors.backgroundSecondary,
     },
     image: {
         width: '100%',
         height: '100%',
-        backgroundColor: 'transparent',
     },
     favoriteBtn: {
         position: 'absolute',
@@ -171,10 +176,10 @@ const getStyles = (theme, isDark, t) => StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: isDark ? 'rgba(30,30,50,0.9)' : 'rgba(255,255,255,0.9)',
+        backgroundColor: tokens.colors.surfaceGlass,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
+        shadowColor: tokens.colors.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -184,32 +189,22 @@ const getStyles = (theme, isDark, t) => StyleSheet.create({
         position: 'absolute',
         top: 8,
         left: 8,
-        backgroundColor: theme.error,
+        backgroundColor: tokens.colors.error,
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 8,
     },
-    saleText: {
-        color: '#fff',
-        fontSize: 10,
-        fontWeight: 'bold',
-    },
     soldOutOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     soldOutBadge: {
-        backgroundColor: theme.textMuted,
+        backgroundColor: tokens.colors.textMuted,
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
-    },
-    soldOutText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
     },
     addToCartBtn: {
         position: 'absolute',
@@ -228,17 +223,12 @@ const getStyles = (theme, isDark, t) => StyleSheet.create({
     },
     addToCartText: {
         color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
     },
     infoContainer: {
-        padding: 8,
+        padding: tokens.spacing.sm,
     },
     productName: {
-        fontSize: 12,
-        color: theme.text,
-        lineHeight: 16,
-        height: 32,
+        height: 36, // Fixed height for 2 lines
         textAlign: t('locale') === 'ar' ? 'right' : 'left',
     },
     priceRow: {
@@ -247,19 +237,8 @@ const getStyles = (theme, isDark, t) => StyleSheet.create({
         gap: 8,
         marginTop: 4,
     },
-    price: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: theme.primary,
-    },
-    salePrice: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: theme.accent, // Using theme accent (pink/red)
-    },
     originalPrice: {
-        fontSize: 12,
-        color: theme.textMuted,
+        color: tokens.colors.textMuted,
         textDecorationLine: 'line-through',
     },
 });

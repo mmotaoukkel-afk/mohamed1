@@ -23,6 +23,7 @@ import { useCart } from '../../src/context/CartContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { useSettings } from '../../src/context/SettingsContext';
+import { Surface } from '../../src/components/ui';
 import { BlurView } from 'expo-blur';
 import Animated, {
   FadeInDown,
@@ -72,7 +73,12 @@ export default function FavoritesScreen() {
       entering={FadeInDown.delay(index * 100).springify()}
       style={styles.cardContainer}
     >
-      <BlurView intensity={isDark ? 25 : 50} tint={isDark ? "dark" : "light"} style={styles.card}>
+      <Surface
+        variant="glass"
+        padding="none" // Remove internal padding
+        style={[styles.card, { borderWidth: 0, shadowOpacity: 0, backgroundColor: 'transparent' }]} // Ensure transparent bg
+        intensity={isDark ? 20 : 40}
+      >
         <TouchableOpacity
           style={styles.cardContent}
           onPress={() => handleItemPress(item.id)}
@@ -92,7 +98,7 @@ export default function FavoritesScreen() {
 
           <View style={styles.info}>
             <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
-            <View style={styles.priceBadge}>
+            <View style={styles.priceContainer}>
               <Text style={styles.price}>{formatPrice(item.price)}</Text>
             </View>
           </View>
@@ -118,11 +124,11 @@ export default function FavoritesScreen() {
               colors={['#D4A5A5' + '30', '#D4A5A5' + '20']}
               style={styles.actionBtnGradient}
             >
-              <Ionicons name="heart-dislike" size={20} color="#D4A5A5" />
+              <Ionicons name="trash-outline" size={20} color="#D4A5A5" />
             </LinearGradient>
           </TouchableOpacity>
         </View>
-      </BlurView>
+      </Surface>
     </Animated.View>
   ), [isDark, styles, theme, handleItemPress, handleAddToCart, handleToggleFavorite, formatPrice]);
 
@@ -182,6 +188,8 @@ export default function FavoritesScreen() {
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          numColumns={2}
+          columnWrapperStyle={{ gap: 16 }}
         />
       )}
     </View>
@@ -259,34 +267,29 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     paddingBottom: 100,
   },
   cardContainer: {
-    marginBottom: 18,
+    flex: 1,
+    marginBottom: 16,
     borderRadius: 24,
     overflow: 'hidden',
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
+    maxWidth: (width - 40 - 16) / 2, // Account for padding and gap
   },
   card: {
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(184,159,204,0.15)' : 'rgba(212,184,224,0.25)',
-    borderRadius: 24,
+    flexDirection: 'column', // Vertical layout
+    alignItems: 'stretch',
+    padding: 0,
+    height: 260, // Fixed height for grid
   },
   cardContent: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   imageContainer: {
-    width: 88,
-    height: 88,
+    width: '100%',
+    height: 140, // Taller image for vertical card
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: isDark ? '#1A1520' : '#FEFBFF',
+    marginBottom: 12,
   },
   image: {
     width: '100%',
@@ -297,23 +300,20 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   },
   info: {
     flex: 1,
-    marginLeft: 16,
-    paddingRight: 8,
+    marginLeft: 0,
+    paddingHorizontal: 12,
   },
   name: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
     color: theme.text,
-    textAlign: 'right',
-    marginBottom: 10,
-    lineHeight: 21,
+    textAlign: 'center', // Center text for grid
+    marginBottom: 6,
+    lineHeight: 20,
   },
-  priceBadge: {
-    alignSelf: 'flex-end',
-    backgroundColor: theme.primary + '15',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 14,
+  priceContainer: {
+    alignSelf: 'center',
+    marginBottom: 12,
   },
   price: {
     fontSize: 15,
@@ -321,19 +321,23 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     color: theme.primary,
   },
   actions: {
-    marginLeft: 12,
-    gap: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 0,
+    marginBottom: 12,
+    gap: 12,
+    marginLeft: 0,
   },
   actionBtn: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   actionBtnGradient: {
-    width: 46,
-    height: 46,
+    width: 36,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: 14,
   },
   emptyContainer: {
     flex: 1,

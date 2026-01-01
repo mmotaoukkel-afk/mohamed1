@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
   Image,
@@ -24,12 +23,8 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
   withSequence,
-  withTiming,
-  withRepeat,
-  Easing,
   FadeInDown,
 } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
 import { useTheme } from '../../src/context/ThemeContext';
 import api from '../../src/services/api';
 import { useCart } from '../../src/context/CartContext';
@@ -39,17 +34,18 @@ import AddToCartSuccess from '../../src/components/AddToCartSuccess';
 import ReviewSection from '../../src/components/ReviewSection';
 import socialService from '../../src/services/socialService';
 import { useTranslation } from '../../src/hooks/useTranslation';
+import { Surface, Text, Button, IconButton } from '../../src/components/ui'; // UI Kit
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { addToCart, cartItems } = useCart();
+  const { addToCart } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
   const { user } = useAuth();
   const { t } = useTranslation();
-  const { theme, isDark } = useTheme();
+  const { tokens, isDark } = useTheme(); // Use tokens
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -63,18 +59,12 @@ export default function ProductDetailsScreen() {
 
   useEffect(() => {
     fetchProduct();
-
-    fetchProduct();
-
     // Subscribe to public likes
     const unsubscribeLikes = socialService.subscribeToProductStats(id, (count) => {
       setPublicLikes(count);
     });
-
     return () => unsubscribeLikes();
   }, [id]);
-
-
 
   const fetchProduct = async () => {
     try {
@@ -146,13 +136,13 @@ export default function ProductDetailsScreen() {
     transform: [{ scale: heartScale.value }],
   }));
 
-  const styles = getStyles(theme, isDark);
+  const styles = getStyles(tokens, isDark);
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingGlow} />
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={tokens.colors.primary} />
         <Text style={styles.loadingText}>{t('loading')}</Text>
       </View>
     );
@@ -161,11 +151,13 @@ export default function ProductDetailsScreen() {
   if (!product) {
     return (
       <View style={styles.loadingContainer}>
-        <Ionicons name="alert-circle" size={60} color={theme.primary} />
+        <Ionicons name="alert-circle" size={60} color={tokens.colors.primary} />
         <Text style={styles.loadingText}>{t('productNotFound')}</Text>
-        <TouchableOpacity style={styles.backBtnError} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
-          <Text style={styles.backBtnText}>{t('back')}</Text>
-        </TouchableOpacity>
+        <Button
+          title={t('back')}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
+          variant="ghost"
+        />
       </View>
     );
   }
@@ -185,113 +177,122 @@ export default function ProductDetailsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Header Actions */}
         <SafeAreaView style={styles.headerRow}>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
-            <BlurView intensity={isDark ? 40 : 60} tint={isDark ? "dark" : "light"} style={styles.btnBlur}>
-              <Ionicons name="arrow-back" size={22} color={theme.text} />
-            </BlurView>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn} onPress={handleHeartPress}>
-            <BlurView intensity={isDark ? 40 : 60} tint={isDark ? "dark" : "light"} style={styles.btnBlur}>
-              <Animated.View style={heartStyle}>
-                <Ionicons
-                  name={isLiked ? 'heart' : 'heart-outline'}
-                  size={22}
-                  color={isLiked ? '#D4A5A5' : theme.text}
-                />
-              </Animated.View>
-              {publicLikes > 0 && (
-                <View style={styles.likeBadge}>
-                  <Text style={styles.likeBadgeText}>{publicLikes}</Text>
-                </View>
-              )}
-            </BlurView>
-          </TouchableOpacity>
+          <IconButton
+            icon="arrow-back"
+            size="md"
+            variant="glass"
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
+          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Animated.View style={heartStyle}>
+              <IconButton
+                icon={isLiked ? 'heart' : 'heart-outline'}
+                size="md"
+                variant="glass"
+                onPress={handleHeartPress}
+                iconColor={isLiked ? tokens.colors.error : tokens.colors.text}
+              />
+            </Animated.View>
+            {publicLikes > 0 && (
+              <View style={[styles.likeBadge, { backgroundColor: tokens.colors.primary }]}>
+                <Text style={styles.likeBadgeText}>{publicLikes}</Text>
+              </View>
+            )}
+          </View>
         </SafeAreaView>
 
         {/* Hero Image - Museum Gallery Style */}
         <Animated.View entering={FadeInDown.duration(800)} style={styles.heroSection}>
-          <View style={styles.imageFrame}>
-            <BlurView intensity={isDark ? 20 : 40} tint={isDark ? "dark" : "light"} style={styles.imageFrameBlur}>
+          <Surface variant="glass" radius="xxl" style={styles.imageFrame} padding="none">
+            {/* Inner padding applied via wrapper View or style overrides if needed, here Surface glass handles background */}
+            <View style={{ padding: 20 }}>
               <Image
                 source={images[selectedImage]?.src ? { uri: images[selectedImage].src } : require('../../assets/images/placeholder.png')}
                 style={styles.mainImage}
                 resizeMode="contain"
               />
-            </BlurView>
-            {onSale && (
-              <View style={styles.saleBadge}>
-                <BlurView intensity={50} tint="dark" style={styles.saleBadgeBlur}>
-                  <Text style={styles.saleText}>✦ {t('discountOff', { percent: discount })}</Text>
-                </BlurView>
-              </View>
-            )}
-          </View>
+            </View>
+          </Surface>
 
-          {/* Thumbnails - Floating Pills */}
+          {onSale && (
+            <Surface variant="glass" style={styles.saleBadge} padding="sm" intensity={80}>
+              <Text variant="caption" weight="bold" style={{ color: '#FFF' }}>
+                ✦ {t('discountOff', { percent: discount })}
+              </Text>
+            </Surface>
+          )}
+
+          {/* Thumbnails */}
           {images.length > 1 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbList}>
               {images.map((img, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={[styles.thumb, selectedImage === index && styles.thumbActive]}
                   onPress={() => setSelectedImage(index)}
                 >
-                  <BlurView intensity={isDark ? 25 : 45} tint={isDark ? "dark" : "light"} style={styles.thumbBlur}>
+                  <Surface
+                    variant={isDark ? "glass" : "elevated"}
+                    padding="xs"
+                    radius="lg"
+                    style={[styles.thumb, selectedImage === index && { borderColor: tokens.colors.primary, borderWidth: 2 }]}
+                  >
                     <Image source={{ uri: img.src }} style={styles.thumbImage} />
-                  </BlurView>
+                  </Surface>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           )}
         </Animated.View>
 
-        {/* Content Section - Glass Panels */}
+        {/* Content Section */}
         <View style={styles.contentSection}>
           {/* Title Panel */}
           <Animated.View entering={FadeInDown.delay(200).springify()}>
             <View style={styles.titleTop}>
               <View style={[styles.stockIndicator, { backgroundColor: isInStock ? '#7BB4A3' : '#D4A5A5' }]} />
-              <Text style={[styles.stockLabel, { color: isInStock ? '#7BB4A3' : '#D4A5A5' }]}>
+              <Text variant="label" style={{ color: isInStock ? '#7BB4A3' : '#D4A5A5', letterSpacing: 1.5 }}>
                 {isInStock ? t('inStock') : t('outOfStock')}
               </Text>
             </View>
-            <Text style={styles.productName}>{product.name}</Text>
+            <Text variant="display" weight="light" style={{ lineHeight: 38 }}>{product.name}</Text>
           </Animated.View>
 
-          {/* Price Panel - Glass Card */}
-          <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.pricePanel}>
-            <BlurView intensity={isDark ? 30 : 50} tint={isDark ? "dark" : "light"} style={styles.glassPanel}>
+          {/* Price Panel */}
+          <Animated.View entering={FadeInDown.delay(300).springify()} style={{ marginVertical: 10 }}>
+            <Surface variant="glass" radius="xl">
               <View style={styles.priceRow}>
                 {onSale ? (
                   <View style={styles.salePriceContainer}>
-                    <Text style={styles.salePriceVal}>{formatPrice(product.sale_price)}</Text>
-                    <Text style={styles.oldPriceVal}>{formatPrice(product.regular_price)}</Text>
+                    <Text variant="title" style={{ color: '#7BB4A3' }}>{formatPrice(product.sale_price)}</Text>
+                    <Text variant="body" style={styles.oldPriceVal}>{formatPrice(product.regular_price)}</Text>
                   </View>
                 ) : (
-                  <Text style={[styles.priceVal, { color: theme.primary }]}>{formatPrice(product.price)}</Text>
+                  <Text variant="title" style={{ color: tokens.colors.primary }}>{formatPrice(product.price)}</Text>
                 )}
-                <View style={styles.quantityWidget}>
-                  <TouchableOpacity onPress={() => setQuantity(Math.max(1, quantity - 1))} style={styles.qBtn}>
-                    <Ionicons name="remove" size={18} color={theme.primary} />
+
+                {/* Quantity */}
+                <View style={[styles.quantityWidget, { backgroundColor: tokens.colors.primary + '15' }]}>
+                  <TouchableOpacity onPress={() => setQuantity(Math.max(1, quantity - 1))} style={[styles.qBtn, { backgroundColor: tokens.colors.backgroundCard }]}>
+                    <Ionicons name="remove" size={18} color={tokens.colors.primary} />
                   </TouchableOpacity>
-                  <Text style={styles.qText}>{quantity}</Text>
-                  <TouchableOpacity onPress={() => setQuantity(quantity + 1)} style={styles.qBtn}>
-                    <Ionicons name="add" size={18} color={theme.primary} />
+                  <Text variant="title" style={{ minWidth: 24, textAlign: 'center' }}>{quantity}</Text>
+                  <TouchableOpacity onPress={() => setQuantity(quantity + 1)} style={[styles.qBtn, { backgroundColor: tokens.colors.backgroundCard }]}>
+                    <Ionicons name="add" size={18} color={tokens.colors.primary} />
                   </TouchableOpacity>
                 </View>
               </View>
-            </BlurView>
+            </Surface>
           </Animated.View>
 
           {/* Description Panel */}
           {product.short_description && (
             <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.descPanel}>
-              <Text style={styles.descTitle}>{t('description')}</Text>
-              <BlurView intensity={isDark ? 20 : 40} tint={isDark ? "dark" : "light"} style={styles.glassPanelDesc}>
-                <Text style={styles.descText}>
+              <Text variant="label" style={{ color: tokens.colors.textMuted }}>{t('description')}</Text>
+              <Surface variant="glass" radius="lg">
+                <Text variant="body" style={{ color: tokens.colors.textSecondary, lineHeight: 24 }}>
                   {product.short_description.replace(/<[^>]*>/g, '')}
                 </Text>
-              </BlurView>
+              </Surface>
             </Animated.View>
           )}
 
@@ -299,7 +300,7 @@ export default function ProductDetailsScreen() {
           <ReviewSection
             productId={id}
             user={user}
-            theme={theme}
+            theme={tokens.colors} // Pass colors object
             isDark={isDark}
             t={t}
           />
@@ -308,45 +309,37 @@ export default function ProductDetailsScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating Bottom Bar - Glass */}
+      {/* Floating Bottom Bar */}
       <View style={styles.floatingBottomBar}>
-        <BlurView intensity={isDark ? 50 : 70} tint={isDark ? "dark" : "light"} style={styles.bottomBarBlur}>
+        <Surface variant="glass" radius="xxl" style={styles.bottomBarBlur} intensity={isDark ? 50 : 80}>
           <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.cartBtn}
+            <Button
+              title={t('addToCart')}
+              variant="secondary"
+              icon={<Ionicons name="cart-outline" size={20} color={tokens.colors.primary} />}
               onPress={handleAddToCart}
               disabled={!isInStock}
-            >
-              <Ionicons name="cart-outline" size={22} color={theme.primary} />
-              <Text style={[styles.cartBtnText, { color: theme.primary }]}>{t('addToCart')}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.buyBtn}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title={t('buyNow')}
+              variant="primary"
+              icon={<Ionicons name="flash" size={20} color="#FFF" />}
               onPress={handleBuyNow}
               disabled={!isInStock}
-            >
-              <LinearGradient
-                colors={[theme.primary, theme.primaryDark]}
-                style={styles.buyGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Text style={styles.buyBtnText}>{t('buyNow')}</Text>
-                <Ionicons name="flash" size={18} color="#FFF" />
-              </LinearGradient>
-            </TouchableOpacity>
+              style={{ flex: 1.2 }}
+            />
           </View>
 
           <TouchableOpacity style={styles.whatsappFloat} onPress={handleWhatsAppOrder}>
             <LinearGradient colors={['#25D366', '#128C7E']} style={styles.waGradient}>
               <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
-              <Text style={styles.waText}>
+              <Text variant="label" style={{ color: '#FFF' }}>
                 {t('orderViaWhatsapp', { price: (parseFloat(product.sale_price || product.price) * quantity).toFixed(3) + ' ' + t('currency') })}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
-        </BlurView>
+        </Surface>
       </View>
 
       {/* Success Modal */}
@@ -358,10 +351,10 @@ export default function ProductDetailsScreen() {
   );
 }
 
-const getStyles = (theme, isDark) => StyleSheet.create({
+const getStyles = (tokens, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: tokens.colors.background,
   },
   bgOrb1: {
     position: 'absolute',
@@ -370,7 +363,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     width: 250,
     height: 250,
     borderRadius: 125,
-    backgroundColor: theme.primary + '15',
+    backgroundColor: tokens.colors.primary + '15',
     zIndex: -1,
   },
   bgOrb2: {
@@ -380,7 +373,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: theme.accent + '10',
+    backgroundColor: tokens.colors.accent + '10',
     zIndex: -1,
   },
   scrollContent: { paddingBottom: 240 },
@@ -388,31 +381,20 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.background,
+    backgroundColor: tokens.colors.background,
   },
   loadingGlow: {
     position: 'absolute',
     width: 150,
     height: 150,
     borderRadius: 75,
-    backgroundColor: theme.primary,
+    backgroundColor: tokens.colors.primary + '20', // Opacity
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: theme.textMuted,
+    marginBottom: 16,
+    color: tokens.colors.textMuted,
     letterSpacing: 0.5,
-  },
-  backBtnError: {
-    marginTop: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: theme.primary + '20',
-    borderRadius: 20,
-  },
-  backBtnText: {
-    color: theme.primary,
-    fontWeight: '600',
   },
 
   // Header
@@ -423,24 +405,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     paddingTop: 10,
     zIndex: 10,
   },
-  headerBtn: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  btnBlur: {
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(184,159,204,0.15)' : 'rgba(212,184,224,0.3)',
-    borderRadius: 24,
-  },
   likeBadge: {
     position: 'absolute',
     top: -4,
@@ -448,7 +412,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: theme.primary,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
@@ -467,19 +430,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   },
   imageFrame: {
     width: width * 0.88,
-    borderRadius: 32,
     overflow: 'hidden',
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  imageFrameBlur: {
-    padding: 20,
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(184,159,204,0.15)' : 'rgba(212,184,224,0.3)',
-    borderRadius: 32,
   },
   mainImage: {
     width: '100%',
@@ -490,17 +441,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     top: 16,
     left: 16,
     borderRadius: 16,
-    overflow: 'hidden',
-  },
-  saleBadgeBlur: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  saleText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    backgroundColor: tokens.colors.error, // or just glass with text
   },
   thumbList: {
     paddingHorizontal: 24,
@@ -510,15 +451,10 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   thumb: {
     borderRadius: 18,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  thumbActive: {
-    borderColor: theme.primary,
-  },
-  thumbBlur: {
-    padding: 4,
-    borderRadius: 16,
+    width: 68,
+    height: 68,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   thumbImage: {
     width: 60,
@@ -542,34 +478,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  stockLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  },
-  productName: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: theme.text,
-    lineHeight: 38,
-    letterSpacing: -0.3,
-  },
-  pricePanel: {
-    borderRadius: 28,
-    overflow: 'hidden',
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 6,
-  },
-  glassPanel: {
-    padding: 20,
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(184,159,204,0.15)' : 'rgba(212,184,224,0.25)',
-    borderRadius: 28,
-  },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -580,24 +488,13 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  salePriceVal: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#7BB4A3',
-  },
   oldPriceVal: {
-    fontSize: 16,
-    color: theme.textMuted,
+    color: tokens.colors.textMuted,
     textDecorationLine: 'line-through',
-  },
-  priceVal: {
-    fontSize: 28,
-    fontWeight: '600',
   },
   quantityWidget: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.primary + '15',
     padding: 6,
     borderRadius: 20,
     gap: 14,
@@ -606,38 +503,11 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: theme.backgroundCard,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.text,
-    minWidth: 24,
-    textAlign: 'center',
-  },
   descPanel: {
     gap: 12,
-  },
-  descTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 2,
-    color: theme.textMuted,
-    marginLeft: 4,
-  },
-  glassPanelDesc: {
-    padding: 20,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(184,159,204,0.1)' : 'rgba(212,184,224,0.2)',
-  },
-  descText: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: theme.textSecondary,
   },
   extraSpacing: {
     height: 40,
@@ -649,55 +519,15 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     bottom: 24,
     left: 20,
     right: 20,
-    borderRadius: 32,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 15,
+    elevation: 0, // Surface handles elevation
   },
   bottomBarBlur: {
     padding: 16,
     gap: 14,
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(184,159,204,0.15)' : 'rgba(212,184,224,0.3)',
-    borderRadius: 32,
   },
   actionsRow: {
     flexDirection: 'row',
     gap: 12,
-  },
-  cartBtn: {
-    flex: 0.4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 20,
-    backgroundColor: theme.primary + '15',
-    gap: 8,
-  },
-  cartBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  buyBtn: {
-    flex: 0.6,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  buyGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    gap: 8,
-  },
-  buyBtnText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '700',
   },
   whatsappFloat: {
     borderRadius: 18,
@@ -709,10 +539,5 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     gap: 10,
-  },
-  waText: {
-    color: '#FFF',
-    fontSize: 13,
-    fontWeight: '600',
   },
 });

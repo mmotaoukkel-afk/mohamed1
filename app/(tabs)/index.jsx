@@ -1,18 +1,14 @@
 /**
  * 🌙 COSMIC LUXURY HOME SCREEN - Kataraa
  * Next-Generation Beauty App - Ethereal, Floating, Cinematic
- * 
- * الهدف: تجربة فاخرة كونية تحس المستخدمة أنها داخلة لعالم نادر وراقي
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
   FlatList,
-  ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
   Dimensions,
@@ -22,17 +18,14 @@ import {
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withRepeat,
   withTiming,
-  withSpring,
   Easing,
   FadeInDown,
-  FadeIn,
 } from 'react-native-reanimated';
 
 // Services & Context
@@ -46,20 +39,17 @@ import { useTranslation } from '../../src/hooks/useTranslation';
 
 // Components
 import SearchHeader from '../../src/components/SearchHeader';
-import ProductCardSwipeable from '../../src/components/ProductCardSwipeable';
+import ProductCardSoko from '../../src/components/ProductCardSoko'; // Use Standardized Card
 import DrawerMenu from '../../src/components/DrawerMenu';
-import VoiceSearchButton from '../../src/components/VoiceSearchButton';
 import { ProductSkeleton, CategorySkeleton, BannerSkeleton } from '../../src/components/SkeletonLoader';
-
-// Theme
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../src/theme/colors';
+import { Text, Surface } from '../../src/components/ui'; // UI Kit
 
 const { width, height } = Dimensions.get('window');
 
 // ============================================
 // 🌙 COSMIC HERO SECTION
 // ============================================
-const CosmicHero = ({ onShopNow, theme, styles, t, isDark }) => {
+const CosmicHero = ({ onShopNow, tokens, styles, t, isDark }) => {
   const fadeAnim = useSharedValue(0);
   const slideAnim = useSharedValue(40);
 
@@ -94,21 +84,21 @@ const CosmicHero = ({ onShopNow, theme, styles, t, isDark }) => {
           {/* Ethereal Badge */}
           <View style={styles.heroBadgeContainer}>
             <View style={[styles.heroBadge, { backgroundColor: isDark ? 'rgba(26,21,32,0.7)' : 'rgba(255,255,255,0.8)' }]}>
-              <Text style={[styles.heroBadgeText, { color: theme.primary }]}>
+              <Text variant="label" style={{ color: tokens.colors.primary, letterSpacing: 1 }}>
                 ✦ {t('heroSubtitle')}
               </Text>
             </View>
           </View>
 
-          {/* Main Title - Elegant Typography */}
-          <Text style={[styles.heroTitle, { color: theme.text }]}>
+          {/* Main Title */}
+          <Text style={[styles.heroTitle, { color: tokens.colors.text }]}>
             {t('heroTitle')}
           </Text>
 
-          {/* Glass CTA Button */}
+          {/* CTA Button */}
           <TouchableOpacity style={styles.heroButton} onPress={onShopNow}>
             <LinearGradient
-              colors={[theme.primary, theme.primaryDark]}
+              colors={[tokens.colors.primary, tokens.colors.primaryDark]}
               style={styles.heroButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -126,7 +116,7 @@ const CosmicHero = ({ onShopNow, theme, styles, t, isDark }) => {
 // ============================================
 // 💎 FLOATING SKIN TYPE SELECTOR
 // ============================================
-const SkinTypeSection = ({ onSelect, theme, styles, t, isDark }) => {
+const SkinTypeSection = ({ onSelect, tokens, styles, t, isDark }) => {
   const skinTypes = [
     { id: 'oily', name: t('oily'), icon: '💧', color: '#A8D8EA' },
     { id: 'dry', name: t('dry'), icon: '🍃', color: '#C9E4CA' },
@@ -138,10 +128,10 @@ const SkinTypeSection = ({ onSelect, theme, styles, t, isDark }) => {
     <View style={styles.skinTypeSection}>
       <View style={styles.sectionHeader}>
         <TouchableOpacity style={styles.viewAllBtn}>
-          <Text style={[styles.viewAllText, { color: theme.primary }]}>{t('viewAll')}</Text>
-          <Ionicons name="arrow-back" size={14} color={theme.primary} />
+          <Text style={{ color: tokens.colors.primary, fontWeight: '600' }}>{t('viewAll')}</Text>
+          <Ionicons name="arrow-back" size={14} color={tokens.colors.primary} />
         </TouchableOpacity>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+        <Text variant="title" style={{ color: tokens.colors.text }}>
           {t('shopBySkin')} ✨
         </Text>
       </View>
@@ -168,7 +158,7 @@ const SkinTypeSection = ({ onSelect, theme, styles, t, isDark }) => {
                 <View style={[styles.skinTypeIcon, { backgroundColor: type.color + '40' }]}>
                   <Text style={styles.skinTypeEmoji}>{type.icon}</Text>
                 </View>
-                <Text style={[styles.skinTypeName, { color: theme.text }]}>{type.name}</Text>
+                <Text variant="label" style={{ color: tokens.colors.text }}>{type.name}</Text>
               </BlurView>
             </TouchableOpacity>
           </Animated.View>
@@ -181,15 +171,15 @@ const SkinTypeSection = ({ onSelect, theme, styles, t, isDark }) => {
 // ============================================
 // 🎯 ELEGANT SECTION HEADER
 // ============================================
-const ElegantSectionHeader = ({ title, subtitle, onViewAll, theme, styles, t }) => (
+const ElegantSectionHeader = ({ title, subtitle, onViewAll, tokens, styles, t }) => (
   <View style={styles.elegantHeader}>
     <TouchableOpacity style={styles.viewAllBtn} onPress={onViewAll}>
-      <Text style={[styles.viewAllText, { color: theme.primary }]}>{t('viewAll')}</Text>
-      <Ionicons name="arrow-back" size={14} color={theme.primary} />
+      <Text style={{ color: tokens.colors.primary, fontWeight: '600' }}>{t('viewAll')}</Text>
+      <Ionicons name="arrow-back" size={14} color={tokens.colors.primary} />
     </TouchableOpacity>
     <View style={styles.elegantTitleContainer}>
-      <Text style={[styles.elegantTitle, { color: theme.text }]}>{title}</Text>
-      {subtitle && <Text style={[styles.elegantSubtitle, { color: theme.textMuted }]}>{subtitle}</Text>}
+      <Text variant="title" style={{ color: tokens.colors.text }}>{title}</Text>
+      {subtitle && <Text variant="caption" style={{ color: tokens.colors.textMuted }}>{subtitle}</Text>}
     </View>
   </View>
 );
@@ -197,11 +187,11 @@ const ElegantSectionHeader = ({ title, subtitle, onViewAll, theme, styles, t }) 
 // ============================================
 // ✨ COSMIC PROMO BANNER
 // ============================================
-const CosmicPromoBanner = ({ onPress, styles, theme, t, isDark }) => (
+const CosmicPromoBanner = ({ onPress, styles, tokens, t, isDark }) => (
   <TouchableOpacity style={styles.promoBanner} onPress={onPress}>
     <BlurView intensity={isDark ? 40 : 60} tint={isDark ? "dark" : "light"} style={styles.promoBlur}>
       <LinearGradient
-        colors={[theme.primary + '20', theme.primaryDark + '30']}
+        colors={[tokens.colors.primary + '20', tokens.colors.primaryDark + '30']}
         style={styles.promoGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -209,14 +199,14 @@ const CosmicPromoBanner = ({ onPress, styles, theme, t, isDark }) => (
         <View style={styles.promoLeft}>
           <Text style={styles.promoEmoji}>✨</Text>
           <View>
-            <Text style={[styles.promoTitle, { color: theme.text }]}>{t('flashSale')}</Text>
-            <Text style={[styles.promoSubtitle, { color: theme.textSecondary }]}>
+            <Text variant="subtitle" style={{ color: tokens.colors.text }}>{t('flashSale')}</Text>
+            <Text variant="caption" style={{ color: tokens.colors.textSecondary }}>
               {t('flashSaleSubtitle')}
             </Text>
           </View>
         </View>
-        <View style={[styles.promoBtn, { backgroundColor: theme.primary + '30' }]}>
-          <Text style={[styles.promoBtnText, { color: theme.primary }]}>
+        <View style={[styles.promoBtn, { backgroundColor: tokens.colors.primary + '30' }]}>
+          <Text style={{ color: tokens.colors.primary, fontWeight: 'bold' }}>
             {t('shopNow')} ←
           </Text>
         </View>
@@ -240,7 +230,7 @@ const ProductCarousel = React.memo(({ products, onProductPress, onAddToCart, onF
     windowSize={5}
     removeClippedSubviews={Platform.OS === 'android'}
     renderItem={({ item }) => (
-      <ProductCardSwipeable
+      <ProductCardSoko
         item={item}
         onPress={onProductPress}
         onAddToCart={onAddToCart}
@@ -254,7 +244,7 @@ const ProductCarousel = React.memo(({ products, onProductPress, onAddToCart, onF
 // ============================================
 // 📦 FLOATING CATEGORY GRID
 // ============================================
-const CategoryGrid = ({ categories, onSelect, styles, theme, t, isDark }) => {
+const CategoryGrid = ({ categories, onSelect, styles, tokens, t, isDark }) => {
   const categoryData = [
     { id: 'acne', name: t('acne'), icon: '🎯', color: '#D4B8E0' },
     { id: 'makeup', name: t('makeup'), icon: '💄', color: '#F0D8E6' },
@@ -272,7 +262,7 @@ const CategoryGrid = ({ categories, onSelect, styles, theme, t, isDark }) => {
         title={t('shopByCategory')}
         onViewAll={() => { }}
         styles={styles}
-        theme={theme}
+        tokens={tokens}
         t={t}
       />
       <View style={styles.categoryGrid}>
@@ -293,7 +283,7 @@ const CategoryGrid = ({ categories, onSelect, styles, theme, t, isDark }) => {
                 <View style={[styles.categoryIcon, { backgroundColor: cat.color + '50' }]}>
                   <Text style={styles.categoryEmoji}>{cat.icon}</Text>
                 </View>
-                <Text style={[styles.categoryName, { color: theme.text }]}>{cat.name}</Text>
+                <Text variant="label" style={{ color: tokens.colors.text, textAlign: 'center' }}>{cat.name}</Text>
               </BlurView>
             </TouchableOpacity>
           </Animated.View>
@@ -304,9 +294,9 @@ const CategoryGrid = ({ categories, onSelect, styles, theme, t, isDark }) => {
 };
 
 // ============================================
-// 🌟 WHY SHOP WITH US - Glass Cards
+// 🌟 WHY SHOP WITH US
 // ============================================
-const WhyShopWithUs = ({ theme, styles, t, isDark }) => {
+const WhyShopWithUs = ({ tokens, styles, t, isDark }) => {
   const features = [
     { icon: 'shield-checkmark', title: t('guaranteed'), desc: t('guaranteedDesc') },
     { icon: 'cube', title: t('variety'), desc: t('varietyDesc') },
@@ -316,7 +306,9 @@ const WhyShopWithUs = ({ theme, styles, t, isDark }) => {
 
   return (
     <View style={styles.whySection}>
-      <Text style={[styles.whyTitle, { color: theme.text }]}>{t('whyShop')} ✨</Text>
+      <Text variant="title" style={{ color: tokens.colors.text, textAlign: 'center', marginBottom: 20 }}>
+        {t('whyShop')} ✨
+      </Text>
       <View style={styles.whyGrid}>
         {features.map((f, i) => (
           <Animated.View
@@ -325,11 +317,11 @@ const WhyShopWithUs = ({ theme, styles, t, isDark }) => {
             entering={FadeInDown.delay(i * 100).springify()}
           >
             <BlurView intensity={isDark ? 25 : 45} tint={isDark ? "dark" : "light"} style={styles.whyCard}>
-              <View style={[styles.whyIconContainer, { backgroundColor: theme.primary + '20' }]}>
-                <Ionicons name={f.icon} size={22} color={theme.primary} />
+              <View style={[styles.whyIconContainer, { backgroundColor: tokens.colors.primary + '20' }]}>
+                <Ionicons name={f.icon} size={22} color={tokens.colors.primary} />
               </View>
-              <Text style={[styles.whyCardTitle, { color: theme.text }]}>{f.title}</Text>
-              <Text style={[styles.whyCardDesc, { color: theme.textMuted }]}>{f.desc}</Text>
+              <Text variant="body" weight="bold" style={{ color: tokens.colors.text, marginBottom: 4, textAlign: 'center' }}>{f.title}</Text>
+              <Text variant="caption" style={{ color: tokens.colors.textMuted, textAlign: 'center' }}>{f.desc}</Text>
             </BlurView>
           </Animated.View>
         ))}
@@ -347,11 +339,11 @@ export default function HomeScreen() {
   const { cartItems } = useCart();
   const { triggerAddToCart } = useCartAnimation();
   const { toggleFavorite, isFavorite } = useFavorites();
-  const { theme, isDark } = useTheme();
+  const { tokens, isDark } = useTheme(); // Use tokens
   const { t } = useTranslation();
   const { addNotification, notifications } = useNotifications();
 
-  const styles = getStyles(theme, isDark);
+  const styles = getStyles(tokens, isDark);
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -430,7 +422,6 @@ export default function HomeScreen() {
   // Memoized Filter functions
   const saleProducts = useMemo(() => products.filter(p => p.on_sale).slice(0, 12), [products]);
   const newArrivals = useMemo(() => products.slice(0, 12), [products]);
-  const featuredProducts = useMemo(() => products.filter(p => p.featured).slice(0, 12), [products]);
   const popularProducts = useMemo(() => [...products].sort((a, b) => (b.total_sales || 0) - (a.total_sales || 0)).slice(0, 12), [products]);
 
   return (
@@ -438,8 +429,8 @@ export default function HomeScreen() {
       <StatusBar style={isDark ? "light" : "dark"} />
 
       {/* Cosmic Background Orbs */}
-      <View style={[styles.bgOrb1, { backgroundColor: theme.primary + '10' }]} />
-      <View style={[styles.bgOrb2, { backgroundColor: theme.accent + '08' }]} />
+      <View style={[styles.bgOrb1, { backgroundColor: tokens.colors.primary + '10' }]} />
+      <View style={[styles.bgOrb2, { backgroundColor: tokens.colors.accent + '08' }]} />
 
       {/* Drawer Menu */}
       <DrawerMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -457,17 +448,17 @@ export default function HomeScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={tokens.colors.primary} />
         }
       >
         {/* 🌙 Cosmic Hero */}
-        {loading ? <BannerSkeleton /> : <CosmicHero onShopNow={() => router.push('/products')} theme={theme} styles={styles} t={t} isDark={isDark} />}
+        {loading ? <BannerSkeleton /> : <CosmicHero onShopNow={() => router.push('/products')} tokens={tokens} styles={styles} t={t} isDark={isDark} />}
 
         {/* 💎 Shop by Skin Type */}
-        <SkinTypeSection onSelect={(type) => router.push(`/products?skin=${type.id}`)} theme={theme} styles={styles} t={t} isDark={isDark} />
+        <SkinTypeSection onSelect={(type) => router.push(`/products?skin=${type.id}`)} tokens={tokens} styles={styles} t={t} isDark={isDark} />
 
         {/* ✨ Promo Banner */}
-        {loading ? <BannerSkeleton /> : <CosmicPromoBanner onPress={() => router.push('/products?sale=true')} styles={styles} theme={theme} t={t} isDark={isDark} />}
+        {loading ? <BannerSkeleton /> : <CosmicPromoBanner onPress={() => router.push('/products?sale=true')} styles={styles} tokens={tokens} t={t} isDark={isDark} />}
 
         {/* 🆕 New Arrivals */}
         <View style={styles.section}>
@@ -475,7 +466,7 @@ export default function HomeScreen() {
             title={t('newArrivals')}
             subtitle={t('newArrivalsSub')}
             onViewAll={() => router.push('/products')}
-            theme={theme}
+            tokens={tokens}
             styles={styles}
             t={t}
           />
@@ -501,7 +492,7 @@ export default function HomeScreen() {
             title={t('onSale')}
             subtitle={t('onSaleSub')}
             onViewAll={() => router.push('/products?sale=true')}
-            theme={theme}
+            tokens={tokens}
             styles={styles}
             t={t}
           />
@@ -533,7 +524,7 @@ export default function HomeScreen() {
             categories={categories}
             onSelect={(cat) => router.push(`/products?category=${cat.id}`)}
             styles={styles}
-            theme={theme}
+            tokens={tokens}
             t={t}
             isDark={isDark}
           />
@@ -545,7 +536,7 @@ export default function HomeScreen() {
             title={t('bestSellers')}
             subtitle={t('bestSellersSub')}
             onViewAll={() => router.push('/products')}
-            theme={theme}
+            tokens={tokens}
             styles={styles}
             t={t}
           />
@@ -566,7 +557,7 @@ export default function HomeScreen() {
         </View>
 
         {/* 🌟 Why Shop With Us */}
-        <WhyShopWithUs theme={theme} styles={styles} t={t} isDark={isDark} />
+        <WhyShopWithUs tokens={tokens} styles={styles} t={t} isDark={isDark} />
 
         {/* 💜 More Products */}
         <View style={styles.section}>
@@ -574,7 +565,7 @@ export default function HomeScreen() {
             title={t('discoverMore')}
             subtitle={t('discoverMoreSub')}
             onViewAll={() => router.push('/products')}
-            theme={theme}
+            tokens={tokens}
             styles={styles}
             t={t}
           />
@@ -598,15 +589,15 @@ export default function HomeScreen() {
         <View style={styles.newsletterSection}>
           <BlurView intensity={isDark ? 40 : 60} tint={isDark ? "dark" : "light"} style={styles.newsletterBlur}>
             <LinearGradient
-              colors={[theme.primary + '20', theme.primaryDark + '30']}
+              colors={[tokens.colors.primary + '20', tokens.colors.primaryDark + '30']}
               style={styles.newsletterGradient}
             >
               <Text style={styles.newsletterEmoji}>💌</Text>
-              <Text style={[styles.newsletterTitle, { color: theme.text }]}>{t('joinFamily')}</Text>
-              <Text style={[styles.newsletterSubtitle, { color: theme.textSecondary }]}>{t('joinFamilySub')}</Text>
+              <Text variant="title" style={{ color: tokens.colors.text, marginBottom: 8 }}>{t('joinFamily')}</Text>
+              <Text variant="body" style={{ color: tokens.colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>{t('joinFamilySub')}</Text>
               <TouchableOpacity style={styles.newsletterBtn}>
                 <LinearGradient
-                  colors={[theme.primary, theme.primaryDark]}
+                  colors={[tokens.colors.primary, tokens.colors.primaryDark]}
                   style={styles.newsletterBtnGradient}
                 >
                   <Text style={styles.newsletterBtnText}>{t('subscribe')}</Text>
@@ -626,10 +617,10 @@ export default function HomeScreen() {
 // ============================================
 // 🎨 COSMIC LUXURY STYLES
 // ============================================
-const getStyles = (theme, isDark) => StyleSheet.create({
+const getStyles = (tokens, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: tokens.colors.background,
   },
   bgOrb1: {
     position: 'absolute',
@@ -649,24 +640,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     borderRadius: 125,
     zIndex: -1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.background,
-  },
-  loadingGlow: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: theme.primary + '20',
-  },
-  loadingText: {
-    marginTop: 20,
-    fontSize: 16,
-    letterSpacing: 1,
-  },
 
   // Hero
   heroContainer: {
@@ -678,15 +651,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-  },
-  glowOrb: {
-    position: 'absolute',
-    top: 60,
-    right: 40,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: theme.primary,
   },
   heroContent: {
     position: 'absolute',
@@ -704,23 +668,17 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
   },
-  heroBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
   heroTitle: {
     fontSize: 34,
     fontWeight: '300',
     textAlign: 'center',
     lineHeight: 44,
-    letterSpacing: -0.5,
     marginBottom: 24,
   },
   heroButton: {
     borderRadius: 28,
     overflow: 'hidden',
-    shadowColor: theme.primary,
+    shadowColor: tokens.colors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -773,11 +731,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   skinTypeEmoji: {
     fontSize: 26,
   },
-  skinTypeName: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
 
   // Section Header
   sectionHeader: {
@@ -787,19 +740,10 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '300',
-    letterSpacing: 0.5,
-  },
   viewAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: '500',
   },
 
   // Elegant Header
@@ -812,16 +756,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   },
   elegantTitleContainer: {
     alignItems: 'flex-end',
-  },
-  elegantTitle: {
-    fontSize: 22,
-    fontWeight: '300',
-    letterSpacing: 0.5,
-  },
-  elegantSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-    letterSpacing: 0.3,
   },
 
   // Promo Banner
@@ -850,23 +784,10 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   promoEmoji: {
     fontSize: 32,
   },
-  promoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  promoSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
   promoBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 16,
-  },
-  promoBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
 
   // Section
@@ -911,24 +832,11 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   categoryEmoji: {
     fontSize: 22,
   },
-  categoryName: {
-    fontSize: 11,
-    fontWeight: '500',
-    textAlign: 'center',
-    letterSpacing: 0.2,
-  },
 
   // Why Shop Section
   whySection: {
     marginHorizontal: 20,
     marginVertical: 24,
-  },
-  whyTitle: {
-    fontSize: 22,
-    fontWeight: '300',
-    textAlign: 'center',
-    marginBottom: 20,
-    letterSpacing: 0.5,
   },
   whyGrid: {
     flexDirection: 'row',
@@ -956,18 +864,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  whyCardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-    textAlign: 'center',
-    letterSpacing: 0.2,
-  },
-  whyCardDesc: {
-    fontSize: 11,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
 
   // Newsletter
   newsletterSection: {
@@ -989,22 +885,10 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     fontSize: 48,
     marginBottom: 16,
   },
-  newsletterTitle: {
-    fontSize: 24,
-    fontWeight: '300',
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  newsletterSubtitle: {
-    fontSize: 14,
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
   newsletterBtn: {
     borderRadius: 24,
     overflow: 'hidden',
-    shadowColor: theme.primary,
+    shadowColor: tokens.colors.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 12,

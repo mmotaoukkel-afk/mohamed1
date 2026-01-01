@@ -33,12 +33,13 @@ export const AuthProvider = ({ children }) => {
 
     const checkUser = async () => {
         try {
+            // Load last active session
             const savedUser = await storage.getItem('user');
             if (savedUser) {
                 setUser(savedUser);
             }
         } catch (e) {
-            console.error(e);
+            // Silent fail for session restore
         } finally {
             setLoading(false);
         }
@@ -67,7 +68,8 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (userData) => {
         const existingProfile = await getStoredProfile(userData.email);
-        const finalUser = existingProfile ? { ...existingProfile, ...userData } : userData;
+        // Prioritize existingProfile data (custom photos, names) over fresh userData from provider
+        const finalUser = existingProfile ? { ...userData, ...existingProfile } : userData;
         setUser(finalUser);
         await storage.setItem('user', finalUser);
         await saveToProfiles(finalUser);
@@ -222,14 +224,9 @@ export const AuthProvider = ({ children }) => {
         // Update user profile password
         const profile = await getStoredProfile(email);
         if (profile) {
-            // NOTE: In a production app, never store passwords in plaintext.
-            // You should use Firebase Authentication's updatePassword() method:
-            // https://firebase.google.com/docs/auth/web/manage-users#set_a_users_password
-
-            // For this version, we remove plaintext storage to improve security.
-            // profile.password = newPassword; // REMOVED FOR SECURITY
+            // Note: Password updates should be handled via Firebase Auth
+            // Securely updating profile only here
             await saveToProfiles(profile);
-            // Password updated successfully
         }
         setTempOTP(null); // Clear OTP
         return Promise.resolve();

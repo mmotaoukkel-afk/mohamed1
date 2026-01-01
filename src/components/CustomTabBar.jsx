@@ -28,7 +28,7 @@ const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 export default function CustomTabBar({ state, descriptors, navigation }) {
     const insets = useSafeAreaInsets();
-    const { theme, isDark } = useTheme();
+    const { tokens, isDark } = useTheme(); // Use tokens directly
     const { t } = useTranslation();
     const { cartItems } = useCart();
 
@@ -42,16 +42,16 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
         { name: 'profile', icon: isDark ? 'person' : 'person-outline', label: t('profile') },
     ];
 
-    const styles = getStyles(theme, isDark);
+    const styles = getStyles(tokens, isDark);
 
     const TabIcon = ({ name, label, isFocused, onPress, routeName }) => {
 
         const animatedContainerStyle = useAnimatedStyle(() => {
             return {
-                backgroundColor: isFocused ? theme.primary : 'transparent',
-                paddingHorizontal: isFocused ? 20 : 0,
-                flexGrow: isFocused ? 0 : 1, // inactive items take flex space to distribute
-                width: isFocused ? 'auto' : 50, // Auto width for active, fixed for inactive
+                backgroundColor: isFocused ? tokens.colors.primary : 'transparent',
+                paddingHorizontal: isFocused ? tokens.spacing.lg : 0,
+                flexGrow: isFocused ? 0 : 1,
+                width: isFocused ? 'auto' : 50,
             };
         });
 
@@ -69,10 +69,10 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
                     <Ionicons
                         name={name}
                         size={24}
-                        color={isFocused ? '#FFF' : theme.textSecondary}
+                        color={isFocused ? tokens.colors.textOnPrimary : tokens.colors.textSecondary}
                     />
                     {routeName === 'cart' && cartCount > 0 && (
-                        <View style={[styles.badge, { borderColor: isFocused ? theme.primary : theme.backgroundCard }]}>
+                        <View style={[styles.badge, { borderColor: isFocused ? tokens.colors.primary : tokens.colors.card }]}>
                             <Text style={styles.badgeText}>
                                 {cartCount > 99 ? '99+' : cartCount}
                             </Text>
@@ -96,15 +96,11 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
 
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom + 10 }]}>
-            <BlurView intensity={Platform.OS === 'ios' ? 80 : 0} tint={isDark ? 'dark' : 'light'} style={styles.blurContainer}>
-                <View style={[styles.tabBarInner, { backgroundColor: isDark ? 'rgba(20,20,20,0.95)' : 'rgba(255,255,255,0.95)' }]}>
+            <BlurView intensity={Platform.OS === 'ios' ? (isDark ? 60 : 80) : 0} tint={isDark ? 'dark' : 'light'} style={styles.blurContainer}>
+                <View style={[styles.tabBarInner, { backgroundColor: isDark ? 'rgba(20,20,20,0.85)' : 'rgba(255,255,255,0.85)' }]}>
                     {state.routes.map((route, index) => {
                         const isFocused = state.index === index;
-                        // Map route name to tab config, safely fallback if route name changes
                         const tab = tabs.find(t => t.name === route.name) || tabs[0];
-
-                        // If specific tab logic needed (like keeping cart in middle logic from before), 
-                        // we can adjust here, but for this design a linear list is best.
 
                         const onPress = () => {
                             const event = navigation.emit({
@@ -135,72 +131,72 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
     );
 }
 
-const getStyles = (theme, isDark) => StyleSheet.create({
+const getStyles = (tokens, isDark) => StyleSheet.create({
     container: {
         position: 'absolute',
         bottom: 0,
         width: '100%',
         alignItems: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: tokens.spacing.md,
     },
     blurContainer: {
         width: '100%',
-        maxWidth: 400, // Dont get too wide on tablets
-        borderRadius: 35,
+        maxWidth: 400,
+        borderRadius: 35, // Slightly larger than xl for pill shape
         overflow: 'hidden',
-        shadowColor: "#000",
+        // Shadow logic
+        shadowColor: tokens.colors.shadow,
         shadowOffset: {
             width: 0,
             height: 5,
         },
-        shadowOpacity: isDark ? 0.5 : 0.1,
+        shadowOpacity: isDark ? 0.4 : 0.15,
         shadowRadius: 10,
         elevation: 10,
         borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+        borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.5)',
     },
     tabBarInner: {
         flexDirection: 'row',
-        justifyContent: 'space-between', // Distribute items space-between if using fixed width items, or just padding
+        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        height: 70, // Fixed height for consistency
+        paddingVertical: 10, // Slightly reduced
+        paddingHorizontal: tokens.spacing.sm,
+        height: 68,
     },
     tabButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        height: 50,
-        borderRadius: 25,
+        height: 48,
+        borderRadius: 24, // Pill shape
         gap: 8,
-        // Default style for inactive
     },
     label: {
-        color: '#FFF',
-        fontSize: 14,
-        fontWeight: '600',
+        color: tokens.colors.textOnPrimary,
+        fontSize: tokens.typography.sizes.sm,
+        fontWeight: tokens.typography.weights.semibold,
         marginLeft: 4,
     },
     badge: {
         position: 'absolute',
-        top: -8,
-        right: -12,
-        minWidth: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: '#FF3B30', // Forced red for visibility
+        top: -6,
+        right: -10,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: tokens.colors.error,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#FFF',
+        borderWidth: 1.5,
+        borderColor: tokens.colors.card,
         paddingHorizontal: 4,
         zIndex: 999,
         elevation: 10,
     },
     badgeText: {
         color: '#FFF',
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: 'bold',
         marginTop: -1,
     }

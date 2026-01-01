@@ -1,15 +1,13 @@
 /**
- * Order Success Screen - Kataraa
+ * Order Success Screen - Kataraa Cosmic Luxury
  * Premium animated success page after order placement
  */
 import React, { useEffect, useRef } from 'react';
 import {
     View,
-    Text,
     StyleSheet,
     Animated,
     Dimensions,
-    TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,10 +18,13 @@ import { useTranslation } from '../../src/hooks/useTranslation';
 import PaymentService from '../../src/services/PaymentService';
 import { ActivityIndicator } from 'react-native';
 
+import { useTheme } from '../../src/context/ThemeContext';
+import { Text, Button, Surface } from '../../src/components/ui';
+
 const { width, height } = Dimensions.get('window');
 
 // Confetti Particle Component
-const ConfettiParticle = ({ delay, startX }) => {
+const ConfettiParticle = ({ delay, startX, colors, style }) => {
     const translateY = useRef(new Animated.Value(-50)).current;
     const translateX = useRef(new Animated.Value(0)).current;
     const opacity = useRef(new Animated.Value(1)).current;
@@ -63,14 +64,14 @@ const ConfettiParticle = ({ delay, startX }) => {
         ]).start();
     }, []);
 
-    const colors = ['#667eea', '#764ba2', '#4CAF50', '#FF9800', '#E91E63', '#00BCD4'];
+    // Use passed colors or default
     const color = colors[Math.floor(Math.random() * colors.length)];
     const size = 8 + Math.random() * 8;
 
     return (
         <Animated.View
             style={[
-                styles.confetti,
+                style,
                 {
                     left: startX,
                     width: size,
@@ -97,9 +98,13 @@ const ConfettiParticle = ({ delay, startX }) => {
 export default function OrderSuccessScreen() {
     const router = useRouter();
     const { t } = useTranslation();
+    const { tokens, isDark } = useTheme();
+    const { addNotification } = useNotifications();
+    const styles = getStyles(tokens, isDark);
+
     const [verifying, setVerifying] = React.useState(!!useLocalSearchParams().paymentId);
     const [paymentStatus, setPaymentStatus] = React.useState(null); // 'success', 'failed'
-    const { paymentId } = useLocalSearchParams();
+    const { paymentId, orderId } = useLocalSearchParams();
 
     // Animations
     const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -122,6 +127,8 @@ export default function OrderSuccessScreen() {
                 } finally {
                     setVerifying(false);
                 }
+            } else {
+                setPaymentStatus('success'); // Assume success if no paymentId (e.g. COD)
             }
         };
 
@@ -155,16 +162,26 @@ export default function OrderSuccessScreen() {
             }),
         ]).start();
 
-        // Add success notification
-        addNotification(
-            'notifOrderTitle',
-            paymentStatus === 'failed' ? 'فشل الدفع للطلب' : 'notifOrderMsg',
-            paymentStatus === 'failed' ? 'error' : 'success',
-            { orderId: orderId || '' }
-        );
-    }, [paymentId]);
+        // Add success notification only if verified
+        if (paymentStatus) {
+            addNotification(
+                'notifOrderTitle',
+                paymentStatus === 'failed' ? 'notifOrderFailed' : 'notifOrderMsg',
+                paymentStatus === 'failed' ? 'error' : 'success',
+                { orderId: orderId || '' }
+            );
+        }
+    }, [paymentId, paymentStatus]);
 
     // Generate confetti particles
+    const confettiColors = [
+        tokens.colors.primary,
+        tokens.colors.secondary,
+        tokens.colors.accent,
+        tokens.colors.success,
+        '#FF9800'
+    ];
+
     const confettiParticles = Array.from({ length: 30 }, (_, i) => ({
         id: i,
         delay: Math.random() * 500,
@@ -173,12 +190,18 @@ export default function OrderSuccessScreen() {
 
     return (
         <View style={styles.container}>
+            {/* Background Orbs */}
+            <View style={[styles.orb, { backgroundColor: tokens.colors.success + '10', top: -50, right: -50 }]} />
+            <View style={[styles.orb, { backgroundColor: tokens.colors.primary + '10', bottom: -50, left: -50 }]} />
+
             {/* Confetti */}
-            {confettiParticles.map((particle) => (
+            {paymentStatus !== 'failed' && confettiParticles.map((particle) => (
                 <ConfettiParticle
                     key={particle.id}
                     delay={particle.delay}
                     startX={particle.startX}
+                    colors={confettiColors}
+                    style={styles.confetti}
                 />
             ))}
 
@@ -191,149 +214,132 @@ export default function OrderSuccessScreen() {
                     ]}
                 >
                     <LinearGradient
-                        colors={['#4CAF50', '#8BC34A']}
+                        colors={paymentStatus === 'failed'
+                            ? [tokens.colors.error, '#FF8A80']
+                            : [tokens.colors.success, '#81C784']}
                         style={styles.circleGradient}
                     >
                         <Animated.View style={{ transform: [{ scale: checkmarkScale }] }}>
-                            <Ionicons name="checkmark" size={80} color="#fff" />
+                            <Ionicons
+                                name={paymentStatus === 'failed' ? "close" : "checkmark"}
+                                size={80}
+                                color="#fff"
+                            />
                         </Animated.View>
                     </LinearGradient>
                 </Animated.View>
 
                 {/* Title */}
-                <Animated.Text
-                    style={[
-                        styles.title,
-                        {
-                            opacity: fadeAnim,
-                            transform: [{ translateY: slideAnim }]
-                        }
-                    ]}
-                >
-                    {verifying ? 'جاري التأكد من الدفع...' :
-                        paymentStatus === 'failed' ? '❌ عذراً، فشل الدفع' :
-                            '🎉 تم استلام طلبك!'}
-                </Animated.Text>
+                <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+                    <Text variant="display" style={{ textAlign: 'center', marginBottom: 16 }}>
+                        {verifying ? t('verifyingPayment') :
+                            paymentStatus === 'failed' ? t('paymentFailed') :
+                                t('orderPlaced')}
+                    </Text>
+                </Animated.View>
 
-                {verifying && <ActivityIndicator size="large" color="#667eea" style={{ marginVertical: 20 }} />}
+                {verifying && <ActivityIndicator size="large" color={tokens.colors.primary} style={{ marginVertical: 20 }} />}
 
                 {/* Order Number */}
                 <Animated.View
-                    style={[
-                        styles.orderCard,
-                        {
-                            opacity: fadeAnim,
-                            transform: [{ translateY: slideAnim }]
-                        }
-                    ]}
+                    style={{
+                        opacity: fadeAnim,
+                        transform: [{ translateY: slideAnim }],
+                        width: '100%',
+                        marginBottom: 20
+                    }}
                 >
-                    <Text style={styles.orderLabel}>رقم الطلب</Text>
-                    <Text style={styles.orderNumber}>#{orderId || '---'}</Text>
+                    <Surface variant="glass" style={styles.orderCard} padding="lg">
+                        <Text variant="label" style={{ color: tokens.colors.textSecondary }}>{t('orderNumber')}</Text>
+                        <Text variant="display" style={{ color: tokens.colors.primary, fontSize: 32 }}>#{orderId || '---'}</Text>
+                    </Surface>
                 </Animated.View>
 
                 {/* Info Card */}
                 <Animated.View
-                    style={[
-                        styles.infoCard,
-                        {
-                            opacity: fadeAnim,
-                            transform: [{ translateY: slideAnim }]
-                        }
-                    ]}
+                    style={{
+                        opacity: fadeAnim,
+                        transform: [{ translateY: slideAnim }],
+                        width: '100%',
+                        marginBottom: 30
+                    }}
                 >
-                    <View style={styles.infoRow}>
-                        <Ionicons name="call" size={24} color="#667eea" />
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoTitle}>سنتواصل معك قريباً</Text>
-                            <Text style={styles.infoDesc}>
-                                فريقنا سيرسل لك رابط الدفع عبر الواتساب
-                            </Text>
+                    <Surface variant="glass" style={styles.infoCard} padding="lg">
+                        <View style={styles.infoRow}>
+                            <View style={[styles.iconBox, { backgroundColor: tokens.colors.primary + '15' }]}>
+                                <Ionicons name="call" size={24} color={tokens.colors.primary} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text variant="body" weight="bold">{t('weWillContact')}</Text>
+                                <Text variant="caption" style={{ color: tokens.colors.textSecondary }}>
+                                    {t('weWillContactDesc')}
+                                </Text>
+                            </View>
                         </View>
-                    </View>
 
-                    <View style={styles.divider} />
+                        <View style={[styles.divider, { backgroundColor: tokens.colors.border }]} />
 
-                    <View style={styles.infoRow}>
-                        <Ionicons name="time" size={24} color="#FF9800" />
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoTitle}>وقت التوصيل المتوقع</Text>
-                            <Text style={styles.infoDesc}>1-3 أيام عمل</Text>
+                        <View style={styles.infoRow}>
+                            <View style={[styles.iconBox, { backgroundColor: tokens.colors.accent + '15' }]}>
+                                <Ionicons name="time" size={24} color={tokens.colors.accent} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text variant="body" weight="bold">{t('deliveryTime')}</Text>
+                                <Text variant="caption" style={{ color: tokens.colors.textSecondary }}>1-3 {t('days')}</Text>
+                            </View>
                         </View>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <View style={styles.infoRow}>
-                        <Ionicons name="shield-checkmark" size={24} color="#4CAF50" />
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoTitle}>ضمان الجودة</Text>
-                            <Text style={styles.infoDesc}>جميع منتجاتنا أصلية 100%</Text>
-                        </View>
-                    </View>
+                    </Surface>
                 </Animated.View>
-
-                {/* Thank You Message */}
-                <Animated.Text
-                    style={[
-                        styles.thankYou,
-                        { opacity: fadeAnim }
-                    ]}
-                >
-                    شكراً لتسوقك معنا! 💜
-                </Animated.Text>
 
                 {/* Return Home Button */}
                 <Animated.View
-                    style={[
-                        styles.buttonContainer,
-                        {
-                            opacity: fadeAnim,
-                            transform: [{ translateY: slideAnim }]
-                        }
-                    ]}
+                    style={{
+                        opacity: fadeAnim,
+                        transform: [{ translateY: slideAnim }],
+                        width: '100%'
+                    }}
                 >
-                    <TouchableOpacity
-                        style={styles.button}
+                    <Button
+                        title={t('continueShopping')}
                         onPress={() => router.replace('/')}
-                    >
-                        <LinearGradient
-                            colors={['#667eea', '#764ba2']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.buttonGradient}
-                        >
-                            <Text style={styles.buttonText}>العودة للتسوق</Text>
-                            <Ionicons name="home" size={22} color="#fff" />
-                        </LinearGradient>
-                    </TouchableOpacity>
+                        variant="primary"
+                        icon={<Ionicons name="home" size={20} color="#FFF" />}
+                    />
                 </Animated.View>
             </SafeAreaView>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (tokens, isDark) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8f9fa',
+        backgroundColor: tokens.colors.background,
+    },
+    orb: {
+        position: 'absolute',
+        width: 250,
+        height: 250,
+        borderRadius: 125,
     },
     confetti: {
         position: 'absolute',
         top: 0,
+        zIndex: 0,
     },
     content: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 20,
+        padding: 24,
     },
     successCircle: {
-        width: 150,
-        height: 150,
-        borderRadius: 75,
+        width: 140,
+        height: 140,
+        borderRadius: 70,
         overflow: 'hidden',
-        marginBottom: 30,
-        shadowColor: '#4CAF50',
+        marginBottom: 32,
+        shadowColor: tokens.colors.success,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
         shadowRadius: 20,
@@ -344,96 +350,30 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#1a1a2e',
-        marginBottom: 20,
-        textAlign: 'center',
-    },
     orderCard: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 20,
         alignItems: 'center',
-        marginBottom: 20,
-        width: '100%',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 5,
-    },
-    orderLabel: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 5,
-    },
-    orderNumber: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: '#667eea',
+        borderRadius: 24,
     },
     infoCard: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 20,
-        width: '100%',
-        marginBottom: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 5,
+        borderRadius: 24,
     },
     infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 15,
+        gap: 16,
+    },
+    iconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     infoContent: {
         flex: 1,
     },
-    infoTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#1a1a2e',
-        textAlign: 'right',
-    },
-    infoDesc: {
-        fontSize: 13,
-        color: '#666',
-        textAlign: 'right',
-        marginTop: 2,
-    },
     divider: {
         height: 1,
-        backgroundColor: '#f0f0f0',
-        marginVertical: 15,
-    },
-    thankYou: {
-        fontSize: 18,
-        color: '#667eea',
-        fontWeight: '600',
-        marginBottom: 30,
-    },
-    buttonContainer: {
-        width: '100%',
-    },
-    button: {
-        borderRadius: 16,
-        overflow: 'hidden',
-    },
-    buttonGradient: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 18,
-        gap: 10,
-    },
-    buttonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
+        marginVertical: 16,
     },
 });
