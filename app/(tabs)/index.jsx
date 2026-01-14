@@ -358,7 +358,7 @@ export default function HomeScreen() {
   const loadData = async () => {
     try {
       const [productsData, categoriesData] = await Promise.all([
-        api.getProducts(1, 50),
+        api.getProducts(1, 100), // جلب 100 منتج بدلاً من 50
         api.getCategories(),
       ]);
       setProducts(productsData || []);

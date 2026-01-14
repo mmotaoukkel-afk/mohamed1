@@ -67,7 +67,7 @@ export default function ProductsScreen() {
 
     const fetchProducts = async (pageNum = 1, category = null) => {
         try {
-            const data = await api.getProducts(pageNum, 20, category);
+            const data = await api.getProducts(pageNum, 50, category); // 50 منتج لكل صفحة
             if (pageNum === 1) {
                 setProducts(data || []);
             } else {
@@ -79,7 +79,7 @@ export default function ProductsScreen() {
                     return Array.from(uniqueMap.values());
                 });
             }
-            setHasMore((data?.length || 0) === 20);
+            setHasMore((data?.length || 0) === 50); // 50 منتج يعني في صفحات أخرى
         } catch (error) {
             console.error('Error fetching products:', error);
         }

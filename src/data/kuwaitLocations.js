@@ -1,5 +1,5 @@
 /**
- * Kuwait Locations Data - Synced with WooCommerce
+ * Kuwait Locations Data
  * Shipping Rules:
  * - Free shipping if cart >= 25 KWD
  * - 5 KWD for special cities (صباح الأحمد, الخيران, المطلاع)

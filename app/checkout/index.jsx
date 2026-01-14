@@ -154,7 +154,7 @@ export default function CheckoutScreen() {
                 return;
             }
 
-            // 1. Construct WooCommerce Order Data
+            // 1. Construct Order Data
             const wooOrderData = {
                 payment_method: paymentMethod,
                 payment_method_title: paymentMethod === 'cod' ? 'Cash on Delivery' : (paymentMethod === 'knet' ? 'KNET' : 'Credit Card'),
@@ -186,7 +186,7 @@ export default function CheckoutScreen() {
                 }))
             };
 
-            // 2. Create Order in WooCommerce
+            // 2. Create Order
             const result = await api.createOrder(wooOrderData);
             const orderId = result.id;
 

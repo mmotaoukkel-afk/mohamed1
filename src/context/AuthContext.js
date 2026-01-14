@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
         // Initialize Google Sign-In only if native module is available
         if (GoogleSignin) {
             GoogleSignin.configure({
-                webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+                webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1076765269610-926dg1v1po5jgbbi4sgtlh84u1eqf498.apps.googleusercontent.com', // Extracted from google-services.json
                 offlineAccess: true,
             });
         } else {

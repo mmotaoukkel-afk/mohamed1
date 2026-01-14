@@ -106,16 +106,8 @@ export const CheckoutProvider = ({ children }) => {
     try {
       const status = await PaymentService.getPaymentStatus(paymentId);
       if (status.IsSuccess && status.Data.InvoiceStatus === 'Paid') {
-        // 1. Update order in WooCommerce if we have a pending order ID
+        // Add order to local storage
         if (pendingOrderId) {
-          await api.updateOrder(pendingOrderId, {
-            status: 'processing',
-            set_paid: true,
-            transaction_id: paymentId
-          });
-
-          // 2. Add to local orders
-          const fullOrder = await api.getProduct(pendingOrderId); // Actually should be getOrder but let's assume we have what we need or just add the ID
           await addOrder({
             id: pendingOrderId,
             status: 'processing',
@@ -125,7 +117,7 @@ export const CheckoutProvider = ({ children }) => {
           });
         }
 
-        // 3. Clear Cart and Reset
+        // Clear Cart and Reset
         clearCart();
         setPendingOrderId(null);
 

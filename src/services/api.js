@@ -1,173 +1,101 @@
-import NetInfo from '@react-native-community/netinfo';
-import { storage } from '../utils/storage';
+import { MOCK_PRODUCTS, MOCK_CATEGORIES } from './mockData';
 
 /**
- * WooCommerce API Service - Kataraa
+ * API Service - Kataraa
+ * Uses mock data for products and categories
  */
-
-const WOO_CONFIG = {
-  baseURL: 'https://kataraa.com/wp-json/wc/v3',
-  consumerKey: process.env.EXPO_PUBLIC_WOO_KEY,
-  consumerSecret: process.env.EXPO_PUBLIC_WOO_SECRET,
-};
-
-const getAuthHeader = () => {
-  const credentials = btoa(`${WOO_CONFIG.consumerKey}:${WOO_CONFIG.consumerSecret}`);
-  return `Basic ${credentials}`;
-};
-
-const isOffline = async () => {
-  const state = await NetInfo.fetch();
-  return !state.isConnected;
-};
-
-const fetchWithTimeout = async (resource, options = {}) => {
-  const { timeout = 10000 } = options;
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(resource, {
-      ...options,
-      signal: controller.signal
-    });
-    return response;
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Request timed out');
-    }
-    throw error;
-  } finally {
-    clearTimeout(id);
-  }
-};
 
 const api = {
   // Get Products
   async getProducts(page = 1, perPage = 20, category = null) {
     try {
-      if (await isOffline()) {
-        const cached = await storage.getItem('cached_products');
-        if (cached) {
-          // Filter by category if needed
-          if (category) {
-            return cached.filter(p => p.categories?.some(c => c.id === category));
-          }
-          return cached.slice((page - 1) * perPage, page * perPage);
-        }
-        return [];
+      console.log('📦 Loading products from mock data');
+      let products = [...MOCK_PRODUCTS];
+
+      // Filter by category if specified
+      if (category) {
+        products = products.filter(p => p.categories?.some(c => c.id === category));
       }
 
-      let url = `${WOO_CONFIG.baseURL}/products?page=${page}&per_page=${perPage}&status=publish`;
-      if (category) url += `&category=${category}`;
-
-      const response = await fetchWithTimeout(url, {
-        headers: { 'Authorization': getAuthHeader() }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch products');
-      const data = await response.json();
-
-      // Update cache on first page load
-      if (page === 1 && !category) {
-        await storage.setItem('cached_products', data);
-      }
-
-      return data;
+      // Paginate results
+      const start = (page - 1) * perPage;
+      const end = page * perPage;
+      return products.slice(start, end);
     } catch (error) {
-      console.error('getProducts error:', error);
-      const cached = await storage.getItem('cached_products');
-      return cached || [];
+      console.error('Error loading products:', error);
+      return [];
     }
   },
 
   // Get Single Product
   async getProduct(id) {
     try {
-      const response = await fetchWithTimeout(`${WOO_CONFIG.baseURL}/products/${id}`, {
-        headers: { 'Authorization': getAuthHeader() }
-      });
-      if (!response.ok) throw new Error('Product not found');
-      return await response.json();
+      console.log(`📦 Loading product ${id} from mock data`);
+      const product = MOCK_PRODUCTS.find(p => p.id === parseInt(id));
+      return product || MOCK_PRODUCTS[0];
     } catch (error) {
-      console.error('getProduct error:', error);
-      return null;
+      console.error('Error loading product:', error);
+      return MOCK_PRODUCTS[0];
     }
   },
 
   // Get Categories
   async getCategories() {
     try {
-      if (await isOffline()) {
-        const cached = await storage.getItem('cached_categories');
-        return cached || [];
-      }
-
-      const response = await fetchWithTimeout(`${WOO_CONFIG.baseURL}/products/categories?per_page=50`, {
-        headers: { 'Authorization': getAuthHeader() }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch categories');
-      const data = await response.json();
-      await storage.setItem('cached_categories', data);
-      return data;
+      console.log('📂 Loading categories from mock data');
+      return MOCK_CATEGORIES;
     } catch (error) {
-      console.error('getCategories error:', error);
-      const cached = await storage.getItem('cached_categories');
-      return cached || [];
+      console.error('Error loading categories:', error);
+      return [];
     }
   },
 
   // Search Products
   async searchProducts(query, page = 1, perPage = 20) {
     try {
-      const response = await fetchWithTimeout(
-        `${WOO_CONFIG.baseURL}/products?search=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}&status=publish`,
-        { headers: { 'Authorization': getAuthHeader() } }
+      console.log(`🔍 Searching products: "${query}"`);
+      const filtered = MOCK_PRODUCTS.filter(p =>
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        p.description?.toLowerCase().includes(query.toLowerCase())
       );
-      if (!response.ok) throw new Error('Search failed');
-      return await response.json();
+
+      const start = (page - 1) * perPage;
+      const end = page * perPage;
+      return filtered.slice(start, end);
     } catch (error) {
-      console.error('searchProducts error:', error);
+      console.error('Error searching products:', error);
       return [];
     }
   },
 
-  // Create Order
+  // Create Order (Mock implementation)
   async createOrder(orderData) {
     try {
-      const response = await fetchWithTimeout(`${WOO_CONFIG.baseURL}/orders`, {
-        method: 'POST',
-        headers: {
-          'Authorization': getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData),
-      });
-
-      if (!response.ok) throw new Error('Failed to create order');
-      return await response.json();
+      console.log('📝 Creating mock order');
+      return {
+        id: Date.now(),
+        status: 'pending',
+        total: orderData.total || '0',
+        ...orderData,
+        created_at: new Date().toISOString(),
+      };
     } catch (error) {
-      console.error('createOrder error:', error);
+      console.error('Error creating order:', error);
       throw error;
     }
   },
 
-  // Update Order
+  // Update Order (Mock implementation)
   async updateOrder(orderId, orderData) {
     try {
-      const response = await fetchWithTimeout(`${WOO_CONFIG.baseURL}/orders/${orderId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData),
-      });
-
-      if (!response.ok) throw new Error('Failed to update order');
-      return await response.json();
+      console.log(`📝 Updating mock order ${orderId}`);
+      return {
+        id: orderId,
+        ...orderData,
+        updated_at: new Date().toISOString(),
+      };
     } catch (error) {
-      console.error('updateOrder error:', error);
+      console.error('Error updating order:', error);
       throw error;
     }
   },
