@@ -9,13 +9,14 @@ import {
     View,
     StyleSheet,
     TouchableOpacity,
-    Image,
     Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
+import currencyService from '../services/currencyService';
 import { Surface, Text } from './ui'; // Import from UI Kit
 
 const { width } = Dimensions.get('window');
@@ -33,15 +34,20 @@ const ProductCardSoko = React.memo(({
     const { t } = useTranslation();
     const styles = getStyles(tokens, isDark, t);
 
-    const imageSource = item?.images?.[0]?.src
-        ? { uri: item.images[0].src }
-        : require('../../assets/images/placeholder.png');
+    const getImageSource = () => {
+        const firstImage = item?.images?.[0];
+        if (!firstImage) return require('../../assets/images/placeholder.png');
+        if (typeof firstImage === 'string') return { uri: firstImage };
+        if (firstImage.src) return { uri: firstImage.src };
+        return require('../../assets/images/placeholder.png');
+    };
+    const imageSource = getImageSource();
 
     const isOnSale = item?.on_sale && item?.regular_price && item?.sale_price;
     const isOutOfStock = item?.stock_status === 'outofstock';
 
     const formatPrice = (price) => {
-        return `${parseFloat(price || 0).toFixed(3)}`;
+        return currencyService.formatPrice(price);
     };
 
     const getDiscountPercent = () => {
@@ -65,7 +71,8 @@ const ProductCardSoko = React.memo(({
                     <Image
                         source={imageSource}
                         style={styles.image}
-                        resizeMode="cover"
+                        contentFit="cover"
+                        transition={200}
                     />
 
                     {/* Favorite Button */}
@@ -131,15 +138,15 @@ const ProductCardSoko = React.memo(({
                         {isOnSale ? (
                             <>
                                 <Text variant="body" weight="bold" color="accent">
-                                    {formatPrice(item.sale_price)} {t('currency')}
+                                    {formatPrice(item.sale_price)}
                                 </Text>
                                 <Text variant="caption" style={styles.originalPrice}>
-                                    {formatPrice(item.regular_price)} {t('currency')}
+                                    {formatPrice(item.regular_price)}
                                 </Text>
                             </>
                         ) : (
                             <Text variant="body" weight="bold" color="primary">
-                                {formatPrice(item.price)} {t('currency')}
+                                {formatPrice(item.price)}
                             </Text>
                         )}
                     </View>

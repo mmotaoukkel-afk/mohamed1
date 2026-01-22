@@ -22,20 +22,22 @@ import { BlurView } from 'expo-blur';
 import { useCart } from '../../src/context/CartContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
+import currencyService from '../../src/services/currencyService';
 import { Text, Button, Surface, IconButton } from '../../src/components/ui';
+import { CartItemSkeleton } from '../../src/components/SkeletonLoader';
 
 const { width } = Dimensions.get('window');
 
 export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart } = useCart();
+  const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart, loading } = useCart();
   const { tokens, isDark } = useTheme(); // Use tokens
   const { t } = useTranslation();
   const styles = getStyles(tokens, isDark, insets);
 
   const formatPrice = (price) => {
-    return `${parseFloat(price || 0).toFixed(3)} ${t('currency')}`;
+    return currencyService.formatPrice(price);
   };
 
   const cartTotal = getCartTotal();
@@ -119,7 +121,13 @@ export default function CartScreen() {
           {cartItems.length === 0 && <View style={{ width: 40 }} />}
         </View>
 
-        {cartItems.length === 0 ? (
+        {loading ? (
+          <View style={{ padding: 20 }}>
+            <CartItemSkeleton />
+            <CartItemSkeleton />
+            <CartItemSkeleton />
+          </View>
+        ) : cartItems.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={[styles.emptyIconCircle, { backgroundColor: tokens.colors.primary + '15' }]}>
               <Ionicons name="cart-outline" size={64} color={tokens.colors.primary} />

@@ -26,7 +26,7 @@ const socialService = {
     /**
      * Post a public review for a product
      */
-    async addComment(productId, user, text) {
+    async addComment(productId, user, text, rating) {
         try {
             if (!text || text.trim() === '') return;
 
@@ -35,7 +35,9 @@ const socialService = {
                 userId: user.uid,
                 userName: user.displayName || user.email?.split('@')[0] || 'Unknown User',
                 userPhoto: user.photoURL || null,
+                userPhoto: user.photoURL || null,
                 text: text.trim(),
+                rating: rating || 5,
                 createdAt: serverTimestamp(),
             };
 

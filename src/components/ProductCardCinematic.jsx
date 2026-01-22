@@ -51,9 +51,15 @@ export default function ProductCardCinematic({
     index = 0,
 }) {
     const { t } = useTranslation();
-    const imageSource = item.images?.[0]?.src
-        ? { uri: item.images[0].src }
-        : require('../../assets/images/placeholder.png');
+    // Handle multiple image data formats
+    const getImageSource = () => {
+        const firstImage = item.images?.[0];
+        if (!firstImage) return require('../../assets/images/placeholder.png');
+        if (typeof firstImage === 'string') return { uri: firstImage };
+        if (firstImage.src) return { uri: firstImage.src };
+        return require('../../assets/images/placeholder.png');
+    };
+    const imageSource = getImageSource();
 
     const onSale = item.on_sale && item.regular_price && item.sale_price;
     const discount = onSale

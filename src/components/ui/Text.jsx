@@ -25,38 +25,40 @@ export const Text = ({
     const variants = {
         hero: {
             fontSize: tokens.typography.sizes.hero,
-            fontWeight: tokens.typography.weights.bold,
+            fontFamily: tokens.typography.fontFamilies.heading,
             lineHeight: tokens.typography.sizes.hero * tokens.typography.lineHeights.tight,
             letterSpacing: tokens.typography.letterSpacing.tight,
         },
         title: {
             fontSize: tokens.typography.sizes.xl,
-            fontWeight: tokens.typography.weights.bold,
+            fontFamily: tokens.typography.fontFamilies.heading,
             lineHeight: tokens.typography.sizes.xl * tokens.typography.lineHeights.tight,
             letterSpacing: tokens.typography.letterSpacing.tight,
         },
         subtitle: {
             fontSize: tokens.typography.sizes.lg,
+            fontFamily: tokens.typography.fontFamilies.body,
             fontWeight: tokens.typography.weights.semibold,
             lineHeight: tokens.typography.sizes.lg * tokens.typography.lineHeights.normal,
         },
         body: {
             fontSize: tokens.typography.sizes.md,
-            fontWeight: tokens.typography.weights.regular,
+            fontFamily: tokens.typography.fontFamilies.body,
             lineHeight: tokens.typography.sizes.md * tokens.typography.lineHeights.normal,
         },
         bodySmall: {
             fontSize: tokens.typography.sizes.sm,
-            fontWeight: tokens.typography.weights.regular,
+            fontFamily: tokens.typography.fontFamilies.body,
             lineHeight: tokens.typography.sizes.sm * tokens.typography.lineHeights.normal,
         },
         caption: {
             fontSize: tokens.typography.sizes.xs,
-            fontWeight: tokens.typography.weights.regular,
+            fontFamily: tokens.typography.fontFamilies.body,
             lineHeight: tokens.typography.sizes.xs * tokens.typography.lineHeights.normal,
         },
         label: {
             fontSize: tokens.typography.sizes.sm,
+            fontFamily: tokens.typography.fontFamilies.button,
             fontWeight: tokens.typography.weights.medium,
             lineHeight: tokens.typography.sizes.sm * tokens.typography.lineHeights.normal,
             letterSpacing: tokens.typography.letterSpacing.wide,

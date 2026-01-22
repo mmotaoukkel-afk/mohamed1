@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { useTranslation } from '../hooks/useTranslation';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -31,15 +32,54 @@ export const NotificationProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [loadedUserEmail, setLoadedUserEmail] = useState(null);
     const [expoPushToken, setExpoPushToken] = useState('');
+    const { t } = useTranslation();
     const notificationListener = useRef();
     const responseListener = useRef();
 
-    // Listen for auth changes directly to isolate storage
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
             setUser(firebaseUser);
         });
-        return unsubscribe;
+
+        // Initialize Push Notifications
+        registerForPushNotificationsAsync().then(token => {
+            if (token) {
+                setExpoPushToken(token);
+                console.log('📬 Push Token:', token);
+            }
+        });
+
+        // Listen for foreground notifications
+        notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+            const { title, body, data } = notification.request.content;
+
+            // Add to local list only if it's a remote push (not triggered locally)
+            if (!data?.isLocal) {
+                const newNotif = {
+                    id: notification.request.identifier,
+                    title: title,
+                    message: body,
+                    type: data?.type || 'info',
+                    params: data || {},
+                    time: new Date().toISOString(),
+                    read: false,
+                };
+                setNotifications(prev => [newNotif, ...prev]);
+            }
+            console.log('🔔 Notification Received:', title);
+        });
+
+        // Listen for user interaction with notification
+        responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+            const { type, orderId } = response.notification.request.content.data;
+            console.log('🖱️ Notification Interaction:', type, orderId);
+        });
+
+        return () => {
+            unsubscribe();
+            Notifications.removeNotificationSubscription(notificationListener.current);
+            Notifications.removeNotificationSubscription(responseListener.current);
+        };
     }, []);
 
     useEffect(() => {
@@ -60,6 +100,7 @@ export const NotificationProvider = ({ children }) => {
             // Don't set loading false immediately if we are just switching users, 
             // but here we might be strictly logging out.
             // If user is null, we clear notifications.
+            setLoading(false);
             return;
         }
 
@@ -82,11 +123,15 @@ export const NotificationProvider = ({ children }) => {
         }
     };
 
-    const addNotification = async (title, message, type = 'info', params = {}) => {
+    const addNotification = async (titleKey, messageKey, type = 'info', params = {}) => {
+        // Translate content if they look like keys
+        const translatedTitle = t(titleKey, params);
+        const translatedMessage = t(messageKey, params);
+
         const newNotif = {
             id: Date.now().toString(),
-            title,
-            message,
+            title: translatedTitle,
+            message: translatedMessage,
             type,
             params,
             time: new Date().toISOString(),
@@ -98,9 +143,9 @@ export const NotificationProvider = ({ children }) => {
         try {
             await Notifications.scheduleNotificationAsync({
                 content: {
-                    title: title,
-                    body: message,
-                    data: { ...params, type },
+                    title: translatedTitle,
+                    body: translatedMessage,
+                    data: { ...params, type, isLocal: true },
                 },
                 trigger: null, // Show immediately
             });
@@ -137,7 +182,8 @@ export const NotificationProvider = ({ children }) => {
             markAllAsRead,
             clearNotifications,
             unreadCount,
-            loading
+            loading,
+            expoPushToken
         }}>
             {children}
         </NotificationContext.Provider>

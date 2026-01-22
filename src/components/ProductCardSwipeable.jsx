@@ -56,11 +56,18 @@ const ProductCardSwipeable = React.memo(({
         transform: [{ scale: heartScale.value }],
     }));
 
-    // Get images
+    // Get image URI from different formats
+    const getImageUri = (img) => {
+        if (!img) return null;
+        if (typeof img === 'string') return img;
+        if (img.src) return img.src;
+        return null;
+    };
+
     const productImages = item?.images || [];
     const placeholderImage = require('../../assets/images/placeholder.png');
-    const image1 = productImages[0]?.src || placeholderImage;
-    const image2 = productImages[1]?.src || productImages[0]?.src || placeholderImage;
+    const image1 = getImageUri(productImages[0]) || placeholderImage;
+    const image2 = getImageUri(productImages[1]) || getImageUri(productImages[0]) || placeholderImage;
     const images = [image1, image2];
 
     const isOnSale = item?.on_sale && item?.regular_price && item?.sale_price;

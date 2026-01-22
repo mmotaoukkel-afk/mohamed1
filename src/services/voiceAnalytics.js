@@ -1,129 +1,131 @@
 /**
- * Voice Analytics Service
- * Tracks and analyzes voice search patterns
+ * Voice Analytics Service (Firestore Edition) ☁️
+ * Tracks and analyzes voice search patterns globally
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { collection, addDoc, getDocs, query, orderBy, limit, deleteDoc, writeBatch } from 'firebase/firestore';
+import { db } from './firebaseConfig';
 
-const ANALYTICS_KEY = 'voice_analytics';
-const MAX_QUERIES = 500; // Maximum queries to store
+const COLLECTIONS = {
+    LOGS: 'search_logs'
+};
 
 /**
- * Log a voice search query
+ * Log a voice search query to Firestore
  * @param {string} transcript - Original voice transcript
  * @param {Object} keywords - Extracted keywords
  * @param {number} resultsCount - Number of results found
  */
 export async function logQuery(transcript, keywords, resultsCount) {
     try {
-        const data = await getAnalyticsData();
-
-        const entry = {
-            timestamp: new Date().toISOString(),
+        const docRef = await addDoc(collection(db, COLLECTIONS.LOGS), {
             transcript,
             keywords,
             resultsCount,
-        };
-
-        data.queries.unshift(entry);
-
-        // Keep only last MAX_QUERIES
-        if (data.queries.length > MAX_QUERIES) {
-            data.queries = data.queries.slice(0, MAX_QUERIES);
-        }
-
-        // Update counters
-        if (keywords.productType) {
-            data.productTypes[keywords.productType] = (data.productTypes[keywords.productType] || 0) + 1;
-        }
-        if (keywords.skinType) {
-            data.skinTypes[keywords.skinType] = (data.skinTypes[keywords.skinType] || 0) + 1;
-        }
-        if (keywords.concern) {
-            data.concerns[keywords.concern] = (data.concerns[keywords.concern] || 0) + 1;
-        }
-
-        data.totalQueries++;
-
-        await AsyncStorage.setItem(ANALYTICS_KEY, JSON.stringify(data));
-
-        return entry;
+            timestamp: new Date().toISOString(),
+            createdAt: new Date(), // for convenient sorting
+            platform: 'app'
+        });
+        console.log('✅ Voice search logged to Cloud:', docRef.id);
+        return { id: docRef.id };
     } catch (error) {
-        console.error('Error logging voice query:', error);
+        console.error('❌ Error logging to Cloud:', error);
+        // Fail silently so user experience isn't affected
     }
 }
 
 /**
- * Get analytics data
- * @returns {Object} - Analytics data
- */
-export async function getAnalyticsData() {
-    try {
-        const stored = await AsyncStorage.getItem(ANALYTICS_KEY);
-        if (stored) {
-            return JSON.parse(stored);
-        }
-    } catch (error) {
-        console.error('Error getting analytics:', error);
-    }
-
-    return {
-        queries: [],
-        productTypes: {},
-        skinTypes: {},
-        concerns: {},
-        totalQueries: 0,
-    };
-}
-
-/**
- * Get insights from analytics
+ * Get aggregated insights from Firestore
+ * NOTE: For MVP, we fetch last 100 logs and aggregate in-memory.
+ * For production with millions of logs, use Aggregation Queries or Cloud Functions.
  * @returns {Object} - Insights
  */
 export async function getInsights() {
-    const data = await getAnalyticsData();
+    try {
+        // Fetch last 100 logs
+        const q = query(
+            collection(db, COLLECTIONS.LOGS),
+            orderBy('createdAt', 'desc'),
+            limit(100)
+        );
 
-    // Sort by count
-    const sortByCount = (obj) => {
-        return Object.entries(obj)
-            .sort(([, a], [, b]) => b - a)
-            .map(([key, count]) => ({ name: key, count }));
-    };
+        const snapshot = await getDocs(q);
+        const queries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    const topProductTypes = sortByCount(data.productTypes).slice(0, 5);
-    const topSkinTypes = sortByCount(data.skinTypes).slice(0, 5);
-    const topConcerns = sortByCount(data.concerns).slice(0, 5);
+        // Init counters
+        const stats = {
+            productTypes: {},
+            skinTypes: {},
+            concerns: {},
+            totalQueries: queries.length // This is just "Recent" total. For absolute total we'd need a counter doc.
+        };
 
-    // Recent queries
-    const recentQueries = data.queries.slice(0, 10);
+        // Aggregate Data
+        queries.forEach(log => {
+            const k = log.keywords || {};
+            if (k.productType) stats.productTypes[k.productType] = (stats.productTypes[k.productType] || 0) + 1;
+            if (k.skinType) stats.skinTypes[k.skinType] = (stats.skinTypes[k.skinType] || 0) + 1;
+            if (k.concern) stats.concerns[k.concern] = (stats.concerns[k.concern] || 0) + 1;
+        });
 
-    // Queries with no results
-    const failedQueries = data.queries.filter(q => q.resultsCount === 0).slice(0, 10);
+        // Helper to format for charts
+        const sortByCount = (obj) => {
+            return Object.entries(obj)
+                .sort(([, a], [, b]) => b - a)
+                .map(([key, count]) => ({ name: key, count }));
+        };
 
-    return {
-        totalQueries: data.totalQueries,
-        topProductTypes,
-        topSkinTypes,
-        topConcerns,
-        recentQueries,
-        failedQueries,
-    };
+        return {
+            totalQueries: queries.length, // Displaying "Analyzed Sessions" count
+            topProductTypes: sortByCount(stats.productTypes).slice(0, 5),
+            topSkinTypes: sortByCount(stats.skinTypes).slice(0, 5),
+            topConcerns: sortByCount(stats.concerns).slice(0, 5),
+            recentQueries: queries.slice(0, 10),
+            failedQueries: queries.filter(q => q.resultsCount === 0).slice(0, 10)
+        };
+
+    } catch (error) {
+        console.error('Error fetching insights:', error);
+        return {
+            totalQueries: 0,
+            topProductTypes: [],
+            topSkinTypes: [],
+            topConcerns: [],
+            recentQueries: [],
+            failedQueries: []
+        };
+    }
 }
 
 /**
- * Clear all analytics data
+ * Clear analytics log (Admin Only)
+ * WARNING: This deletes data from Firestore!
  */
 export async function clearAnalytics() {
     try {
-        await AsyncStorage.removeItem(ANALYTICS_KEY);
+        const q = query(collection(db, COLLECTIONS.LOGS), limit(50));
+        const snapshot = await getDocs(q);
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+        console.log('🧹 Cleared recent logs from Cloud');
     } catch (error) {
         console.error('Error clearing analytics:', error);
     }
 }
 
+// Stub for compatibility if needed, but getInsights handles data fetching now
+export async function getAnalyticsData() {
+    return { queries: [] };
+}
+
 export default {
     logQuery,
-    getAnalyticsData,
     getInsights,
     clearAnalytics,
+    getAnalyticsData
 };

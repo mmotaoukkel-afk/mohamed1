@@ -3,7 +3,7 @@
  * Unified Shipping & Payment Flow with Premium UI
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     StyleSheet,
@@ -27,7 +27,8 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import api from '../../src/services/api';
 import PaymentService from '../../src/services/PaymentService';
-import { kuwaitGovernorates, getCitiesByGovernorate, calculateShipping } from '../../src/data/kuwaitLocations';
+import { getAllCoupons, validateCoupon, updateCouponUsage, getAllCountries, getDeliveryPrice, ARAB_COUNTRIES } from '../../src/services/adminSettingsService';
+import { kuwaitGovernorates, kuwaitCities, calculateShipping } from '../../src/data/kuwaitLocations';
 
 // UI Kit
 import { Text, Input, Button, Surface, IconButton } from '../../src/components/ui';
@@ -60,52 +61,124 @@ export default function CheckoutScreen() {
     // Credit Card states
     const [cardInfo, setCardInfo] = useState({ number: '', expiry: '', cvv: '' });
 
-    const cartTotal = getCartTotal();
-    const cities = getCitiesByGovernorate(shippingInfo.governorate);
-    const shipping = calculateShipping(shippingInfo.governorate, cartTotal, shippingInfo.city);
-    // Ensure shipping fee is updated in context for consistency
-    // However, calculateShipping returns the fee object.
-    const currentShippingFee = shipping?.fee || 0;
-    const finalTotal = cartTotal + currentShippingFee;
+    // Coupon states
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState(null);
+    const [discountAmount, setDiscountAmount] = useState(0);
+    const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+    const [coupons, setCoupons] = useState([]);
 
-    const formatPrice = (price) => `${parseFloat(price || 0).toFixed(3)} ${t('currency')}`;
+    // Shipping states (Dynamic)
+    const [allCountries, setAllCountries] = useState(ARAB_COUNTRIES);
+    const [activeZones, setActiveZones] = useState([]);
+    const [showCountryDropdown, setShowCountryDropdown] = useState(false);
+    const [suggestedCities, setSuggestedCities] = useState([]);
+
+    // Initial data loading
+    useEffect(() => {
+        const loadInitialData = async () => {
+            try {
+                const [couponsData, countriesData] = await Promise.all([
+                    getAllCoupons(),
+                    getAllCountries()
+                ]);
+                setCoupons(couponsData);
+
+                // Merge Firestore countries with Arab suggestions
+                if (countriesData && countriesData.length > 0) {
+                    const combined = [...ARAB_COUNTRIES];
+                    countriesData.forEach(c => {
+                        if (!combined.find(ac => ac.id === c.id || ac.code === c.code)) {
+                            combined.push(c);
+                        }
+                    });
+                    setAllCountries(combined);
+                }
+
+                // Set default country (e.g. Kuwait)
+                const kuwait = ARAB_COUNTRIES.find(c => c.id === 'kuwait');
+                if (kuwait && !shippingInfo.country) {
+                    selectCountry(kuwait);
+                }
+            } catch (error) {
+                console.error('Error loading checkout data:', error);
+            }
+        };
+        loadInitialData();
+    }, []);
+
+    const cartTotal = getCartTotal();
+
+    // Shipping calculation
+    const getShippingFee = () => {
+        if (appliedCoupon?.type === 'free_shipping') return 0;
+
+        // Specialized logic for Kuwait
+        if (shippingInfo.country === 'kuwait' || shippingInfo.country === 'KW') {
+            const res = calculateShipping(shippingInfo.governorate, cartTotal, shippingInfo.city);
+            return res.fee;
+        }
+
+        // Firestore dynamic zones
+        const res = getDeliveryPrice(shippingInfo.city, cartTotal, activeZones);
+        return res?.price || 0;
+    };
+
+    const currentShippingFee = getShippingFee();
+    const finalTotal = cartTotal - discountAmount + currentShippingFee;
+
+    const formatPrice = (price) => {
+        const country = allCountries.find(c => c.id === shippingInfo.country || c.code === shippingInfo.country);
+        const symbol = country?.currency || t('currency');
+        return `${parseFloat(price || 0).toFixed(3)} ${symbol}`;
+    };
 
     const updateField = (field, value) => {
         setShippingInfo(prev => ({ ...prev, [field]: value }));
         if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
     };
 
-    const selectGovernorate = (gov) => {
-        setShippingInfo(prev => ({ ...prev, governorate: gov.id, city: '' }));
-        setShippingFee(0);
-        setShowGovDropdown(false);
+    const selectCountry = (country) => {
+        updateField('country', country.id);
+        updateField('city', '');
+        updateField('governorate', '');
+
+        // Update suggested cities
+        if (country.id === 'kuwait') {
+            setSuggestedCities([]); // We show governorates first for Kuwait
+        } else if (country.id === 'morocco') {
+            // Use DELIVERY_ZONES from admin service (already handled by getDeliveryPrice fallback if we want)
+            // But for suggestions we can just map them
+            setSuggestedCities(['الدار البيضاء', 'الرباط', 'مراكش', 'طنجة', 'فاس', 'أكادير']);
+        } else {
+            // Basic suggestions for other Arab countries
+            const citySuggestions = {
+                saudi: ['الرياض', 'جددة', 'الدمام', 'مكة المكرمة', 'المدينة المنورة'],
+                uae: ['دبي', 'أبو ظبي', 'الشارقة', 'عجمان'],
+                qatar: ['الدوحة', 'الوكرة', 'الخور'],
+                egypt: ['القاهرة', 'الإسكندرية', 'الجيزة'],
+            };
+            setSuggestedCities(citySuggestions[country.id] || []);
+        }
+
+        setActiveZones(country.zones || []);
+        setShowCountryDropdown(false);
     };
 
     const selectCity = (city) => {
-        setShippingInfo(prev => ({ ...prev, city }));
-        const newShipping = calculateShipping(shippingInfo.governorate, cartTotal, city);
-        setShippingFee(newShipping.fee);
+        updateField('city', city);
         setShowCityDropdown(false);
     };
 
-    const useSavedAddress = (addr) => {
-        if (addr.data) {
-            setShippingInfo({ ...addr.data });
-        } else {
-            // Backward compatibility
-            setShippingInfo(prev => ({ ...prev, fullName: addr.title }));
-        }
-        setSaveAddressChecked(false);
+    const selectGovernorate = (govId) => {
+        updateField('governorate', govId);
+        const cities = kuwaitCities[govId] || [];
+        setSuggestedCities(cities);
     };
 
-    const useSavedCard = (card) => {
-        setCardInfo({ number: card.raw || card.number, expiry: '', cvv: '' });
-        setSaveCardChecked(false);
-    };
-
-    const getGovName = () => {
-        const gov = kuwaitGovernorates.find(g => g.id === shippingInfo.governorate);
-        return gov ? gov.name : t('selectGovernorate');
+    const getCountryName = () => {
+        const country = allCountries.find(c => c.id === shippingInfo.country || c.code === shippingInfo.country);
+        return country ? `${country.flag || '📍'} ${country.name}` : t('selectCountry');
     };
 
     const validateShipping = () => {
@@ -113,7 +186,7 @@ export default function CheckoutScreen() {
         if (!shippingInfo.fullName?.trim()) e.fullName = t('required');
         // Simple regex for phone validation (min 8 digits)
         if (!shippingInfo.phone?.trim() || shippingInfo.phone.length < 8) e.phone = t('invalidPhone');
-        if (!shippingInfo.governorate) e.governorate = t('required');
+        if (!shippingInfo.country) e.country = t('required');
         if (!shippingInfo.city) e.city = t('required');
         if (!shippingInfo.block?.trim()) e.block = t('required');
         if (!shippingInfo.street?.trim()) e.street = t('required');
@@ -129,8 +202,30 @@ export default function CheckoutScreen() {
 
     const verifyStockBeforeOrder = async () => {
         try {
-            const stockChecks = await Promise.all(cartItems.map(item => api.getProduct(item.id)));
-            const outOfStockItems = stockChecks.filter(p => !p || p.stock_status === 'outofstock');
+            console.log('🔄 Verifying stock for items:', cartItems.length);
+
+            // Validate IDs
+            const invalidItems = cartItems.filter(item => !item.id);
+            if (invalidItems.length > 0) {
+                console.warn('⚠️ Found items in cart without valid IDs:', invalidItems);
+                Alert.alert(t('error'), 'Found invalid items in your cart. Please try removing them and adding them again.');
+                return false;
+            }
+
+            const stockChecks = await Promise.all(cartItems.map(item => {
+                console.log(`🔍 Checking stock for product: ${item.id} (${item.name})`);
+                return api.getProduct(item.id);
+            }));
+
+            // Filter out null results (failed fetches)
+            const resolvedStock = stockChecks.filter(p => p !== null);
+
+            if (resolvedStock.length < cartItems.length) {
+                console.warn('⚠️ Some products could not be found in Firestore.');
+                // We handle missing products as out of stock for safety
+            }
+
+            const outOfStockItems = resolvedStock.filter(p => p.stock <= 0 || p.status === 'out_of_stock');
 
             if (outOfStockItems.length > 0) {
                 const itemNames = outOfStockItems.map(p => p?.name || 'Unknown Item').join(', ');
@@ -142,6 +237,24 @@ export default function CheckoutScreen() {
             console.error('Stock verification error:', error);
             return false;
         }
+    };
+
+    const handleApplyCoupon = () => {
+        if (!couponCode.trim()) return;
+
+        setIsValidatingCoupon(true);
+        const result = validateCoupon(couponCode, cartTotal, coupons);
+
+        if (result.valid) {
+            setAppliedCoupon(result.coupon);
+            setDiscountAmount(result.discount);
+            Alert.alert(t('success'), `${t('couponApplied')} (${result.coupon.code})`);
+        } else {
+            Alert.alert(t('error'), result.error);
+            setAppliedCoupon(null);
+            setDiscountAmount(0);
+        }
+        setIsValidatingCoupon(false);
     };
 
     const handlePlaceOrder = async () => {
@@ -160,6 +273,13 @@ export default function CheckoutScreen() {
                 payment_method_title: paymentMethod === 'cod' ? 'Cash on Delivery' : (paymentMethod === 'knet' ? 'KNET' : 'Credit Card'),
                 set_paid: false,
                 status: 'pending',
+                customer: {
+                    uid: user?.uid,
+                    displayName: user?.displayName || shippingInfo.fullName,
+                    email: user?.email || 'guest@kataraa.com',
+                    photoURL: user?.photoURL || null
+                },
+                shipping_info: { ...shippingInfo },
                 billing: {
                     first_name: shippingInfo.fullName,
                     address_1: shippingInfo.street,
@@ -167,7 +287,7 @@ export default function CheckoutScreen() {
                     city: shippingInfo.city,
                     state: shippingInfo.governorate,
                     postcode: 'KW',
-                    country: 'KW',
+                    country: shippingInfo.country === 'kuwait' ? 'KW' : shippingInfo.country,
                     email: user?.email || 'guest@kataraa.com',
                     phone: shippingInfo.phone
                 },
@@ -178,12 +298,19 @@ export default function CheckoutScreen() {
                     city: shippingInfo.city,
                     state: shippingInfo.governorate,
                     postcode: 'KW',
-                    country: 'KW'
+                    country: shippingInfo.country === 'kuwait' ? 'KW' : shippingInfo.country
                 },
                 line_items: cartItems.map(item => ({
                     product_id: item.id,
-                    quantity: item.quantity
-                }))
+                    quantity: item.quantity,
+                    name: item.name,
+                    price: item.price,
+                    image: item.image
+                })),
+                total: finalTotal,
+                currency: 'KWD', // Or dynamic based on country
+                shipping_total: currentShippingFee,
+                discount_total: discountAmount
             };
 
             // 2. Create Order
@@ -201,6 +328,11 @@ export default function CheckoutScreen() {
 
             if (paymentMethod === 'cod') {
                 // Success for COD
+                // 3. Update Coupon Usage if applied
+                if (appliedCoupon && appliedCoupon.id) {
+                    await updateCouponUsage(appliedCoupon.id);
+                }
+
                 await addOrder({ ...result, id: orderId.toString(), items: [...cartItems], date: new Date().toISOString() });
                 clearCart();
                 setIsProcessing(false);
@@ -290,121 +422,47 @@ export default function CheckoutScreen() {
                         {step === 1 ? (
                             /* STEP 1: Shipping Form */
                             <View style={styles.formContainer}>
-                                <Text variant="subtitle" style={{ marginBottom: 16 }}>{t('shippingAddress')}</Text>
+                                <Text variant="subtitle" style={{ marginBottom: 20, textAlign: 'center' }}>{t('shippingAddress')}</Text>
 
-                                {/* Saved Addresses */}
-                                {/* Saved Addresses */}
-                                {savedAddresses.length > 0 && (
-                                    <View style={styles.savedSection}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                                            <Ionicons name="bookmark" size={18} color={tokens.colors.primary} style={{ marginRight: 8 }} />
-                                            <Text variant="label">{t('useSavedAddress')}</Text>
-                                        </View>
-
-                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.savedList}>
-                                            {savedAddresses.map((addr) => (
-                                                <TouchableOpacity
-                                                    key={addr.id}
-                                                    style={[
-                                                        styles.savedChip,
-                                                        {
-                                                            backgroundColor: tokens.colors.card,
-                                                            borderColor: tokens.colors.border,
-                                                            borderWidth: 1
-                                                        }
-                                                    ]}
-                                                    onPress={() => useSavedAddress(addr)}
-                                                >
-                                                    <View style={{
-                                                        width: 32, height: 32, borderRadius: 16,
-                                                        backgroundColor: tokens.colors.primary + '15',
-                                                        alignItems: 'center', justifyContent: 'center',
-                                                        marginRight: 8
-                                                    }}>
-                                                        <Ionicons name="location" size={16} color={tokens.colors.primary} />
-                                                    </View>
-                                                    <View>
-                                                        <Text variant="body" weight="bold">{addr.title}</Text>
-                                                        <Text variant="caption" style={{ color: tokens.colors.textMuted }}>
-                                                            {addr.data.city}, {addr.data.block}
-                                                        </Text>
-                                                    </View>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </ScrollView>
+                                {/* Arab Country Suggestions - Horizontal Scroll */}
+                                <View style={{ marginBottom: 24 }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <Text variant="label" weight="bold">{t('selectCountry')}</Text>
+                                        <TouchableOpacity onPress={() => setShowCountryDropdown(!showCountryDropdown)}>
+                                            <Text variant="caption" style={{ color: tokens.colors.primary }}>{t('viewAll')}</Text>
+                                        </TouchableOpacity>
                                     </View>
-                                )}
 
-                                <Input
-                                    label={t('fullName')}
-                                    placeholder={t('enterName')}
-                                    value={shippingInfo.fullName}
-                                    onChangeText={v => updateField('fullName', v)}
-                                    error={errors.fullName}
-                                />
-                                <Input
-                                    label={t('phone')}
-                                    placeholder={t('enterPhone')}
-                                    value={shippingInfo.phone}
-                                    onChangeText={v => updateField('phone', v)}
-                                    keyboardType="phone-pad"
-                                    error={errors.phone}
-                                />
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+                                        {ARAB_COUNTRIES.map(country => (
+                                            <TouchableOpacity
+                                                key={country.id}
+                                                style={[
+                                                    styles.countryCircle,
+                                                    shippingInfo.country === country.id && { borderColor: tokens.colors.primary, backgroundColor: tokens.colors.primary + '10' }
+                                                ]}
+                                                onPress={() => selectCountry(country)}
+                                            >
+                                                <View style={styles.flagWrapper}>
+                                                    <Text style={{ fontSize: 24 }}>{country.flag}</Text>
+                                                </View>
+                                                <Text variant="caption" weight={shippingInfo.country === country.id ? "bold" : "regular"} style={{ marginTop: 6, color: shippingInfo.country === country.id ? tokens.colors.primary : tokens.colors.text }}>
+                                                    {country.name}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
 
-                                {/* Governorate Select - Custom UI */}
-                                <View style={{ marginBottom: 16 }}>
-                                    <Text variant="label" style={{ marginBottom: 8 }}>{t('governorate')}</Text>
-                                    <TouchableOpacity
-                                        style={[styles.selectBox, { borderColor: errors.governorate ? tokens.colors.error : tokens.colors.border }]}
-                                        onPress={() => setShowGovDropdown(!showGovDropdown)}
-                                    >
-                                        <Text style={{ color: shippingInfo.governorate ? tokens.colors.text : tokens.colors.textMuted }}>
-                                            {getGovName()}
-                                        </Text>
-                                        <Ionicons name="chevron-down" size={18} color={tokens.colors.primary} />
-                                    </TouchableOpacity>
-                                    {errors.governorate && <Text variant="caption" style={{ color: tokens.colors.error, marginTop: 4 }}>{errors.governorate}</Text>}
-
-                                    {showGovDropdown && (
-                                        <Surface style={styles.dropdownList} elevation={4}>
-                                            {kuwaitGovernorates.map(gov => (
-                                                <TouchableOpacity
-                                                    key={gov.id}
-                                                    style={styles.dropdownItem}
-                                                    onPress={() => selectGovernorate(gov)}
-                                                >
-                                                    <Text>{gov.name}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </Surface>
-                                    )}
-                                </View>
-
-                                {/* City Select */}
-                                <View style={{ marginBottom: 16 }}>
-                                    <Text variant="label" style={{ marginBottom: 8 }}>{t('city')}</Text>
-                                    <TouchableOpacity
-                                        style={[styles.selectBox, { borderColor: errors.city ? tokens.colors.error : tokens.colors.border, opacity: shippingInfo.governorate ? 1 : 0.6 }]}
-                                        onPress={() => shippingInfo.governorate && setShowCityDropdown(!showCityDropdown)}
-                                        disabled={!shippingInfo.governorate}
-                                    >
-                                        <Text style={{ color: shippingInfo.city ? tokens.colors.text : tokens.colors.textMuted }}>
-                                            {shippingInfo.city || t('selectCity')}
-                                        </Text>
-                                        <Ionicons name="chevron-down" size={18} color={tokens.colors.primary} />
-                                    </TouchableOpacity>
-                                    {errors.city && <Text variant="caption" style={{ color: tokens.colors.error, marginTop: 4 }}>{errors.city}</Text>}
-
-                                    {showCityDropdown && (cities.length > 0) && (
-                                        <Surface style={styles.dropdownList} elevation={4}>
+                                    {showCountryDropdown && (
+                                        <Surface style={[styles.dropdownList, { marginTop: 10 }]} elevation={4}>
                                             <ScrollView style={{ maxHeight: 200 }}>
-                                                {cities.map((city, i) => (
+                                                {allCountries.map(country => (
                                                     <TouchableOpacity
-                                                        key={i}
+                                                        key={country.id}
                                                         style={styles.dropdownItem}
-                                                        onPress={() => selectCity(city)}
+                                                        onPress={() => selectCountry(country)}
                                                     >
-                                                        <Text>{city}</Text>
+                                                        <Text>{country.flag} {country.name}</Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </ScrollView>
@@ -412,35 +470,157 @@ export default function CheckoutScreen() {
                                     )}
                                 </View>
 
-                                <View style={styles.row}>
-                                    <View style={[styles.halfInput, { marginRight: 8 }]}>
-                                        <Input
-                                            label={t('block')}
-                                            placeholder="1"
-                                            value={shippingInfo.block}
-                                            onChangeText={v => updateField('block', v)}
-                                            error={errors.block}
-                                        />
-                                    </View>
-                                    <View style={[styles.halfInput, { marginLeft: 8 }]}>
-                                        <Input
-                                            label={t('street')}
-                                            placeholder="Street Name"
-                                            value={shippingInfo.street}
-                                            onChangeText={v => updateField('street', v)}
-                                            error={errors.street}
-                                        />
-                                    </View>
-                                </View>
+                                <Surface variant="glass" padding="md" style={{ marginBottom: 32, borderRadius: 24 }}>
+                                    <Input
+                                        label={t('fullName')}
+                                        placeholder={t('enterName')}
+                                        value={shippingInfo.fullName}
+                                        onChangeText={v => updateField('fullName', v)}
+                                        error={errors.fullName}
+                                        icon={<Ionicons name="person-outline" size={18} color={tokens.colors.primary} />}
+                                    />
 
-                                <Input
-                                    label={t('notes')}
-                                    placeholder={t('enterNotes')}
-                                    value={shippingInfo.notes}
-                                    onChangeText={v => updateField('notes', v)}
-                                    multiline
-                                    numberOfLines={3}
-                                />
+                                    <View style={{ height: 24 }} />
+
+                                    <Input
+                                        label={t('phone')}
+                                        placeholder={t('enterPhone')}
+                                        value={shippingInfo.phone}
+                                        onChangeText={v => updateField('phone', v)}
+                                        keyboardType="phone-pad"
+                                        error={errors.phone}
+                                        icon={<Ionicons name="call-outline" size={18} color={tokens.colors.primary} />}
+                                    />
+                                </Surface>
+
+                                {/* Location Details Suggestions */}
+                                <Surface variant="glass" padding="md" style={{ marginBottom: 32, borderRadius: 24 }}>
+                                    {/* Kuwait Specialized Governorate Select */}
+                                    {shippingInfo.country === 'kuwait' && (
+                                        <View style={{ marginBottom: 24 }}>
+                                            <Text variant="label" style={{ marginBottom: 16 }}>{t('governorate')}</Text>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                                {kuwaitGovernorates.map(gov => (
+                                                    <TouchableOpacity
+                                                        key={gov.id}
+                                                        style={[
+                                                            styles.pillChip,
+                                                            shippingInfo.governorate === gov.id && { backgroundColor: tokens.colors.primary, borderColor: tokens.colors.primary }
+                                                        ]}
+                                                        onPress={() => selectGovernorate(gov.id)}
+                                                    >
+                                                        <Text style={{ color: shippingInfo.governorate === gov.id ? '#FFF' : tokens.colors.text, fontSize: 13, fontWeight: shippingInfo.governorate === gov.id ? 'bold' : 'normal' }}>
+                                                            {gov.name}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </ScrollView>
+                                        </View>
+                                    )}
+
+                                    {/* City / Area Suggestions */}
+                                    {suggestedCities.length > 0 && (
+                                        <View style={{ marginBottom: 24 }}>
+                                            <Text variant="label" style={{ marginBottom: 16 }}>{t('selectCity')}</Text>
+                                            <View style={styles.chipsWrapper}>
+                                                {suggestedCities.slice(0, 10).map((city, i) => (
+                                                    <TouchableOpacity
+                                                        key={i}
+                                                        style={[
+                                                            styles.pillChip,
+                                                            shippingInfo.city === city && { backgroundColor: tokens.colors.primary, borderColor: tokens.colors.primary }
+                                                        ]}
+                                                        onPress={() => selectCity(city)}
+                                                    >
+                                                        <Text style={{ color: shippingInfo.city === city ? '#FFF' : tokens.colors.text, fontSize: 13, fontWeight: shippingInfo.city === city ? 'bold' : 'normal' }}>
+                                                            {city}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                                {suggestedCities.length > 10 && (
+                                                    <TouchableOpacity onPress={() => setShowCityDropdown(true)} style={[styles.pillChip, { backgroundColor: tokens.colors.primary + '10' }]}>
+                                                        <Text style={{ fontSize: 13, color: tokens.colors.primary }}>+ {suggestedCities.length - 10}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    <Input
+                                        label={t('city')}
+                                        placeholder={t('selectCity')}
+                                        value={shippingInfo.city}
+                                        onChangeText={v => updateField('city', v)}
+                                        error={errors.city}
+                                        icon={<Ionicons name="location-outline" size={18} color={tokens.colors.primary} />}
+                                    />
+
+                                    <View style={{ height: 24 }} />
+
+                                    <View style={styles.row}>
+                                        <View style={[styles.halfInput, { marginRight: 8 }]}>
+                                            <Input
+                                                label={t('block')}
+                                                placeholder="1"
+                                                value={shippingInfo.block}
+                                                onChangeText={v => updateField('block', v)}
+                                                error={errors.block}
+                                            />
+                                        </View>
+                                        <View style={[styles.halfInput, { marginLeft: 8 }]}>
+                                            <Input
+                                                label={t('street')}
+                                                placeholder="Street Name"
+                                                value={shippingInfo.street}
+                                                onChangeText={v => updateField('street', v)}
+                                                error={errors.street}
+                                            />
+                                        </View>
+                                    </View>
+                                </Surface>
+
+                                {/* Optional Coupon Section - More subtle */}
+                                <Surface variant="glass" padding="md" style={{ marginBottom: 28, borderRadius: 20, borderStyle: 'dashed', borderWidth: 1, borderColor: tokens.colors.primary + '30' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Ionicons name="pricetag-outline" size={18} color={tokens.colors.primary} style={{ marginRight: 6 }} />
+                                            <Text variant="label" weight="bold">{t('promoCode')}</Text>
+                                        </View>
+                                        <Text variant="caption" style={{ color: tokens.colors.textMuted }}>({t('optional')})</Text>
+                                    </View>
+
+                                    <View style={styles.promoInputRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Input
+                                                placeholder={t('enterPromoCode')}
+                                                value={couponCode}
+                                                onChangeText={setCouponCode}
+                                                containerStyle={{ marginBottom: 0 }}
+                                                autoCapitalize="characters"
+                                            />
+                                        </View>
+                                        <TouchableOpacity
+                                            style={[styles.applyBtnSmall, { backgroundColor: couponCode.trim() ? tokens.colors.primary : tokens.colors.border }]}
+                                            onPress={handleApplyCoupon}
+                                            disabled={isValidatingCoupon || !couponCode.trim()}
+                                        >
+                                            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{isValidatingCoupon ? '...' : t('apply')}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {appliedCoupon && (
+                                        <TouchableOpacity
+                                            style={styles.removeCoupon}
+                                            onPress={() => {
+                                                setAppliedCoupon(null);
+                                                setDiscountAmount(0);
+                                                setCouponCode('');
+                                            }}
+                                        >
+                                            <Ionicons name="close-circle" size={16} color={tokens.colors.error} />
+                                            <Text variant="caption" style={{ color: tokens.colors.error, marginLeft: 4 }}>{t('removeCoupon')}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </Surface>
 
                                 <TouchableOpacity
                                     style={styles.checkboxRow}
@@ -473,6 +653,12 @@ export default function CheckoutScreen() {
                                         <Text variant="body">{t('subtotal')}</Text>
                                         <Text variant="body">{formatPrice(cartTotal)}</Text>
                                     </View>
+                                    {discountAmount > 0 && (
+                                        <View style={styles.summaryRow}>
+                                            <Text variant="body" style={{ color: tokens.colors.success }}>{t('discount')} ({appliedCoupon?.code})</Text>
+                                            <Text variant="body" style={{ color: tokens.colors.success }}>-{formatPrice(discountAmount)}</Text>
+                                        </View>
+                                    )}
                                     <View style={styles.summaryRow}>
                                         <Text variant="body">{t('shipping')}</Text>
                                         <Text variant="body" style={{ color: currentShippingFee === 0 ? tokens.colors.success : tokens.colors.text }}>
@@ -694,19 +880,51 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    savedSection: {
-        marginBottom: 24,
-    },
-    savedList: {
-        flexDirection: 'row',
-    },
-    savedChip: {
-        flexDirection: 'row',
+    countryCircle: {
+        width: 80,
+        height: 90,
         alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: tokens.colors.border,
+        backgroundColor: tokens.colors.card,
+        marginRight: 12,
+    },
+    flagWrapper: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: tokens.colors.background,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    pillChip: {
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 16,
+        paddingVertical: 10,
+        borderRadius: 25,
+        backgroundColor: tokens.colors.card,
+        borderWidth: 1,
+        borderColor: tokens.colors.border,
         marginRight: 10,
+        marginBottom: 10,
+    },
+    chipsWrapper: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    applyBtnSmall: {
+        height: 50,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 8,
     },
     orderItem: {
         flexDirection: 'row',
@@ -763,5 +981,20 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
     bottomBar: {
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
+    },
+    promoInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    applyBtn: {
+        height: 50,
+        paddingHorizontal: 20,
+    },
+    removeCoupon: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+        alignSelf: 'flex-start',
     },
 });

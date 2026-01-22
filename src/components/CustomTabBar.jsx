@@ -36,9 +36,9 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
 
     const tabs = [
         { name: 'index', icon: isDark ? 'home' : 'home-outline', label: t('home') },
-        { name: 'favorites', icon: isDark ? 'heart' : 'heart-outline', label: t('favorites') },
-        { name: 'cart', icon: isDark ? 'cart' : 'cart-outline', label: t('cart') },
         { name: 'products', icon: isDark ? 'grid' : 'grid-outline', label: t('shop') },
+        { name: 'cart', icon: isDark ? 'cart' : 'cart-outline', label: t('cart') },
+        { name: 'favorites', icon: isDark ? 'heart' : 'heart-outline', label: t('favorites') },
         { name: 'profile', icon: isDark ? 'person' : 'person-outline', label: t('profile') },
     ];
 

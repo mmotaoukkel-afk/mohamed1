@@ -128,6 +128,12 @@ const translations = {
         enterBlock: 'Block',
         enterStreet: 'Street',
         enterNotes: 'Delivery notes...',
+        selectCountry: 'Select Country',
+        promoCode: 'Promo Code',
+        apply: 'Apply',
+        removeCoupon: 'Remove Coupon',
+        enterPromoCode: 'Enter Promo Code',
+        optional: 'Optional',
 
         // Products & Details
         addToCart: 'Add to Cart',
@@ -306,8 +312,12 @@ const translations = {
         loginLink: "Login here",
         orContinue: "OR CONTINUE WITH",
         dontHaveAccount: "Don't have an account?",
+        paymentErrorTitle: "Payment Error",
+        paymentErrorMsg: "We could not verify the payment. Please try again.",
+        notifOrderFailed: "Order Verification Failed",
     },
     ar: {
+        // ... (existing arabic translations)
         // Nav & Common
         home: 'الرئيسية',
         shop: 'المتجر',
@@ -428,6 +438,12 @@ const translations = {
         enterBlock: 'القطعة',
         enterStreet: 'الشارع',
         enterNotes: 'ملاحظات للتوصيل...',
+        selectCountry: 'اختر الدولة',
+        promoCode: 'كود الخصم',
+        apply: 'تفعيل',
+        removeCoupon: 'إزالة الكوبون',
+        enterPromoCode: 'أدخل كود الخصم',
+        optional: 'اختياري',
 
         // Products & Details
         addToCart: 'أضف للسلة',
@@ -606,8 +622,12 @@ const translations = {
         loginLink: "سجلي الدخول هنا",
         orContinue: "أو تابعي باستخدام",
         dontHaveAccount: "ليس لديك حساب؟",
+        paymentErrorTitle: "خطأ في الدفع",
+        paymentErrorMsg: "لم نتمكن من التحقق من عملية الدفع. يرجى المحاولة مرة أخرى.",
+        notifOrderFailed: "فشل التحقق من الطلب",
     }
-};
+}
+
 
 export const useTranslation = () => {
     // Consume language from SettingsContext to ensure reactivity

@@ -26,7 +26,7 @@ import { useCartAnimation } from '../src/context/CartAnimationContext';
 import { useFavorites } from '../src/context/FavoritesContext';
 import { useTranslation } from '../src/hooks/useTranslation';
 import { storage } from '../src/utils/storage';
-import api from '../src/services/api';
+import { useSearchProducts } from '../src/hooks/useProducts';
 import ProductCardSoko from '../src/components/ProductCardSoko';
 import { ProductSkeleton } from '../src/components/SkeletonLoader';
 
@@ -41,11 +41,7 @@ export default function SearchScreen() {
     const styles = getStyles(theme, isDark);
 
     const [query, setQuery] = useState('');
-    const [results, setResults] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
+    const { data: results, isLoading, isError } = useSearchProducts(query);
     const [recentSearches, setRecentSearches] = useState([]);
     const [hasSearched, setHasSearched] = useState(false);
 
@@ -83,66 +79,26 @@ export default function SearchScreen() {
         }
     };
 
+    // Auto-save successful searches
     useEffect(() => {
-        if (query.length >= 2) {
-            const timer = setTimeout(() => {
-                performSearch(query, 1);
-            }, 300);
-            return () => clearTimeout(timer);
-        } else if (query.length === 0) {
-            setResults([]);
-            setHasSearched(false);
-            setPage(1);
-            setHasMore(true);
-        }
-    }, [query]);
-
-    const performSearch = async (searchQuery, pageNum = 1) => {
-        if (pageNum === 1) {
-            setLoading(true);
+        if (results && results.length > 0 && query.length >= 2) {
+            saveSearch(query);
             setHasSearched(true);
-            setPage(1);
-        } else {
-            setLoadingMore(true);
+        } else if (query.length < 2) {
+            setHasSearched(false);
         }
-
-        try {
-            const data = await api.searchProducts(searchQuery, pageNum);
-            if (pageNum === 1) {
-                setResults(data || []);
-            } else {
-                setResults(prev => {
-                    const combined = [...prev, ...(data || [])];
-                    const uniqueMap = new Map();
-                    combined.forEach(item => uniqueMap.set(item.id, item));
-                    return Array.from(uniqueMap.values());
-                });
-            }
-            setHasMore((data?.length || 0) === 20);
-
-            if (pageNum === 1 && searchQuery.length > 0 && data.length > 0) {
-                saveSearch(searchQuery);
-            }
-        } catch (error) {
-            console.error('Search error:', error);
-            if (pageNum === 1) setResults([]);
-        } finally {
-            setLoading(false);
-            setLoadingMore(false);
-        }
-    };
-
-    const handleLoadMore = () => {
-        if (!loading && !loadingMore && hasMore && results.length > 0) {
-            const nextPage = page + 1;
-            setPage(nextPage);
-            performSearch(query, nextPage);
-        }
-    };
+    }, [results]);
 
     const handleRecentSearchPress = (searchQuery) => {
         setQuery(searchQuery);
     };
+
+    const handleLoadMore = () => {
+        // Client-side pagination can be added here if needed, 
+        // but current API returns all matches (up to 100)
+    };
+
+
 
     const handleProductPress = React.useCallback((item) => {
         router.push(`/product/${item.id}`);
@@ -271,7 +227,7 @@ export default function SearchScreen() {
                             </Text>
                         </View>
                     </View>
-                ) : loading ? (
+                ) : isLoading ? (
                     <View style={styles.content}>
                         <View style={styles.row}>
                             <ProductSkeleton style={styles.gridItem} />
@@ -286,7 +242,7 @@ export default function SearchScreen() {
                             <ProductSkeleton style={styles.gridItem} />
                         </View>
                     </View>
-                ) : results.length === 0 && hasSearched ? (
+                ) : (results?.length === 0 && hasSearched) ? (
                     <View style={styles.emptyContainer}>
                         <View style={styles.emptyIconCircle}>
                             <Ionicons name="search-outline" size={48} color={theme.textMuted} />
@@ -308,11 +264,7 @@ export default function SearchScreen() {
                         columnWrapperStyle={styles.row}
                         onEndReached={handleLoadMore}
                         onEndReachedThreshold={0.5}
-                        ListFooterComponent={
-                            loadingMore ? (
-                                <ActivityIndicator style={{ marginVertical: 20 }} color={theme.primary} />
-                            ) : null
-                        }
+
                     />
                 )}
             </View>

@@ -43,10 +43,10 @@ export const Surface = ({
     // Get shadow based on variant
     const getShadow = () => {
         if (variant === 'elevated') {
-            return isDark ? tokens.shadows.md : tokens.shadows.md;
+            return tokens.shadows.md;
         }
         if (variant === 'default') {
-            return isDark ? tokens.shadows.sm : tokens.shadows.sm;
+            return tokens.shadows.sm;
         }
         return tokens.shadows.none;
     };

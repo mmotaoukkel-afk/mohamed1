@@ -11,6 +11,7 @@ export { Surface } from './Surface';
 export { Text, Title, Subtitle, Body, Caption, Label } from './Text';
 export { Input, SearchInput } from './Input';
 export { IconButton, Badge } from './IconButton';
+export { default as PatternBackground } from './PatternBackground';
 
 // Re-export tokens for convenience
 export {

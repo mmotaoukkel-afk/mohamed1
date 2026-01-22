@@ -1,6 +1,6 @@
 /**
  * Kataraa Design System - Unified Tokens
- * "Cosmic Luxury Minimal" Theme
+ * "Rose Gold & Deep Charcoal" Theme
  * 
  * ⚠️ RULE: Never use hex colors directly in components!
  *    Always import from this file or use useTheme() hook.
@@ -12,101 +12,100 @@
 
 export const colors = {
     // ─────────────────────────────────────────
-    // LIGHT MODE - Pearl Cosmos
+    // LIGHT MODE - Luxury Pearl
     // ─────────────────────────────────────────
     light: {
-        // Primary - Soft Orchid Violet
-        primary: '#9B7BB8',           // Main CTA color
-        primaryDark: '#7A5A99',       // Pressed/hover state
-        primaryLight: '#C9B8DC',      // Subtle backgrounds
-        primarySoft: '#F0E6F5',       // Very light tint
+        // Primary - Rose Gold
+        primary: '#D4AF76',        // Rose Gold - Main CTA
+        primaryDark: '#B8924F',    // Dark Gold - Interactions
+        primaryLight: '#E8D5B7',   // Light Champagne - Backgrounds
+        primarySoft: '#FFF5F7',    // Very light tint - Hover/Subtle
 
-        // Accent - Champagne Gold (5% usage only!)
-        accent: '#C9A962',            // Price badges, highlights
-        accentLight: '#E8DCC8',       // Soft gold tint
-        accentMuted: '#D4C49A',       // Subdued gold
+        // Secondary - Deep Charcoal
+        secondary: '#2C2C2C',      // Deep Charcoal - Strong accents
+        secondaryLight: '#6B6B6B', // Medium Gray
+        secondarySoft: '#E8B4B8',  // Soft Pink accent
 
-        // Backgrounds (80% of UI)
-        background: '#FDFBFE',        // Main background - Off-white Pearl
-        backgroundSecondary: '#F8F4FC', // Cards, sections
-        backgroundTertiary: '#F3EEF8', // Elevated surfaces
+        // Backgrounds
+        background: '#FFFFFF',        // Pure White
+        backgroundSecondary: '#F5F5F5', // Light Gray - Cards/Sections
+        backgroundTertiary: '#F9FAFB', // Subtle backgrounds
 
         // Cards & Surfaces
         card: '#FFFFFF',
         cardElevated: '#FFFFFF',
         surface: '#FFFFFF',
-        surfaceGlass: 'rgba(255, 255, 255, 0.85)',
+        surfaceGlass: 'rgba(255, 255, 255, 0.7)',
 
         // Text Hierarchy
-        text: '#2D2639',              // Primary text - Deep Cosmic Purple
-        textSecondary: '#6B5A7A',     // Secondary text
-        textMuted: '#9B8FA6',         // Muted/placeholder
+        text: '#2C2C2C',              // Primary text - Deep Charcoal
+        textSecondary: '#6B6B6B',     // Secondary text - Medium Gray
+        textMuted: '#B8B8B8',         // Disabled/Placeholder
         textOnPrimary: '#FFFFFF',     // Text on primary buttons
+        textOnDark: '#FFFFFF',        // Text on dark backgrounds
 
         // Borders
-        border: '#EDE6F2',            // Default border
-        borderLight: '#F5F0F9',       // Subtle border
-        borderFocus: '#9B7BB8',       // Focus state
+        border: 'rgba(44, 44, 44, 0.1)',
+        borderLight: 'rgba(44, 44, 44, 0.05)',
+        borderFocus: '#D4AF76',
 
         // Status Colors
-        success: '#5BA37B',           // Sage green
-        warning: '#D4A54A',           // Warm gold
-        error: '#C47070',             // Dusty rose
-        info: '#6A9BC3',              // Soft sky
+        success: '#4CAF50',
+        warning: '#FF9800',
+        error: '#D32F2F',
 
         // Special
-        overlay: 'rgba(45, 38, 57, 0.5)',
-        shadow: 'rgba(45, 38, 57, 0.08)',
-        shimmer: '#F0E6F5',
+        overlay: 'rgba(44, 44, 44, 0.6)',
+        shadow: 'rgba(212, 175, 118, 0.25)', // Gold tinted shadow
+        shimmer: '#F5F5F5',
     },
 
     // ─────────────────────────────────────────
-    // DARK MODE - Deep Plum Cosmos
+    // DARK MODE - Midnight Luxury
     // ─────────────────────────────────────────
     dark: {
-        // Primary - Soft Violet (glowing)
-        primary: '#B89FCC',           // Main CTA
-        primaryDark: '#9B7BB8',       // Pressed state
-        primaryLight: '#D4C4E8',      // Soft glow
-        primarySoft: 'rgba(184, 159, 204, 0.15)',
+        // Primary - Rose Gold (Glowing)
+        primary: '#D4AF76',           // Rose Gold
+        primaryDark: '#B8924F',       // Dark Gold
+        primaryLight: '#E8D5B7',      // Light Champagne
+        primarySoft: 'rgba(212, 175, 118, 0.15)',
 
-        // Accent - Warm Gold
-        accent: '#C9A962',            // Same gold, less intense
-        accentLight: '#D4B87A',
-        accentMuted: '#A89050',
+        // Secondary - Deep Black
+        secondary: '#FFFFFF',         // White text/icons
+        secondaryLight: '#A0A0A0',    // Light Gray
+        secondarySoft: '#2C2C2C',     // Dark Charcoal
 
-        // Backgrounds - Deep Plum / Near-black
-        background: '#0D0A12',        // Main - almost black
-        backgroundSecondary: '#16121D', // Cards
-        backgroundTertiary: '#1E1828', // Elevated
+        // Backgrounds
+        background: '#1A1A1A',        // Deep Black/Charcoal
+        backgroundSecondary: '#2C2C2C', // Darker Charcoal
+        backgroundTertiary: '#121212', // Pure Black
 
         // Cards & Surfaces
-        card: '#1A1520',
-        cardElevated: '#211A2A',
-        surface: '#16121D',
-        surfaceGlass: 'rgba(26, 21, 32, 0.9)',
+        card: '#2C2C2C',
+        cardElevated: '#383838',
+        surface: '#2C2C2C',
+        surfaceGlass: 'rgba(26, 26, 26, 0.85)',
 
         // Text Hierarchy
-        text: '#F8F4FC',              // Pearl white
-        textSecondary: '#C9B8DC',     // Soft violet
-        textMuted: '#8A7A9A',         // Muted
-        textOnPrimary: '#0D0A12',     // Dark text on light buttons
+        text: '#FFFFFF',              // Primary Text
+        textSecondary: '#B8B8B8',     // Secondary Text
+        textMuted: '#666666',         // Muted Text
+        textOnPrimary: '#1A1A1A',     // Dark text on gold buttons
 
         // Borders
-        border: 'rgba(184, 159, 204, 0.2)',
-        borderLight: 'rgba(184, 159, 204, 0.1)',
-        borderFocus: '#B89FCC',
+        border: 'rgba(255, 255, 255, 0.1)',
+        borderLight: 'rgba(255, 255, 255, 0.05)',
+        borderFocus: '#D4AF76',
 
-        // Status Colors (same, slightly adjusted)
-        success: '#6BC48B',
-        warning: '#E4B55A',
-        error: '#D48080',
-        info: '#7AABDB',
+        // Status Colors
+        success: '#66BB6A',
+        warning: '#FFA726',
+        error: '#EF5350',
 
         // Special
-        overlay: 'rgba(0, 0, 0, 0.7)',
-        shadow: 'rgba(0, 0, 0, 0.4)',
-        shimmer: '#241E2D',
+        overlay: 'rgba(0, 0, 0, 0.8)',
+        shadow: 'rgba(0, 0, 0, 0.5)',
+        shimmer: '#2C2C2C',
     },
 };
 
@@ -121,12 +120,13 @@ export const spacing = {
     lg: 24,
     xl: 32,
     xxl: 48,
+    xxxl: 64,
 
     // Semantic aliases
-    screenPadding: 16,    // Global screen padding
-    sectionGap: 24,       // Between sections
-    cardGap: 12,          // Between cards
-    itemGap: 8,           // Between small items
+    screenPadding: 20,
+    sectionGap: 32,
+    cardGap: 16,
+    itemGap: 12,
 };
 
 // ============================================
@@ -135,19 +135,18 @@ export const spacing = {
 
 export const radius = {
     xs: 6,
-    sm: 10,
-    md: 14,
-    lg: 18,               // Primary radius for cards
+    sm: 8,
+    md: 12,
+    lg: 16,               // Primary radius for cards
     xl: 24,
     xxl: 32,
     round: 999,           // Circular elements
 
     // Semantic aliases
-    button: 14,
-    card: 18,
+    button: 12,
+    card: 16,
     input: 12,
-    badge: 8,
-    avatar: 999,
+    badge: 6,
 };
 
 // ============================================
@@ -155,29 +154,39 @@ export const radius = {
 // ============================================
 
 export const typography = {
-    // Size scale (6 sizes only - no clutter!)
-    sizes: {
-        xs: 11,             // Captions, badges
-        sm: 13,             // Small labels
-        md: 15,             // Body text
-        lg: 17,             // Large body, subtitles
-        xl: 22,             // Section titles
-        hero: 28,           // Hero headings
+    // Font Families (React Native requires loading these fonts separately)
+    fontFamilies: {
+        heading: 'PlayfairDisplay-Bold', // Requires font asset
+        body: 'Inter-Regular',           // Requires font asset
+        button: 'Montserrat-Medium',     // Requires font asset
     },
 
-    // Weight scale
+    // Fixed Sizes
+    sizes: {
+        xs: 11,             // Captions
+        sm: 13,             // Helper text
+        md: 15,             // Body text
+        lg: 17,             // Large body
+        xl: 20,             // H4
+        xxl: 24,            // H3
+        display: 28,        // H2
+        hero: 32,           // H1
+    },
+
+    // Weights
     weights: {
+        light: '300',
         regular: '400',
         medium: '500',
         semibold: '600',
         bold: '700',
     },
 
-    // Line heights (relative to font size)
+    // Line heights
     lineHeights: {
         tight: 1.2,
         normal: 1.5,
-        relaxed: 1.7,
+        relaxed: 1.8,
     },
 
     // Letter spacing
@@ -200,57 +209,73 @@ export const shadows = {
         shadowRadius: 0,
         elevation: 0,
     },
+    // Level 1 - Subtle
     sm: {
-        shadowColor: '#2D2639',
+        shadowColor: '#D4AF76',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 2,
     },
+    // Level 2 - Medium
     md: {
-        shadowColor: '#2D2639',
+        shadowColor: '#D4AF76',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
         elevation: 4,
     },
+    // Level 3 - Primary/Hover
     lg: {
-        shadowColor: '#2D2639',
+        shadowColor: '#D4AF76',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.08,
+        shadowOpacity: 0.25,
         shadowRadius: 16,
         elevation: 8,
     },
-    // For dark mode (use programmatically)
+    // Glass Effect
+    glass: {
+        shadowColor: '#1F2687',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.1,
+        shadowRadius: 32,
+        elevation: 4,
+    },
+
+    // Dark mode shadows
     dark: {
         none: {
             shadowColor: 'transparent',
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0,
-            shadowRadius: 0,
             elevation: 0,
         },
         sm: {
-            shadowColor: '#000000',
+            shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.3,
             shadowRadius: 4,
             elevation: 2,
         },
         md: {
-            shadowColor: '#000000',
+            shadowColor: '#000',
             shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.4,
+            shadowOpacity: 0.5,
             shadowRadius: 8,
             elevation: 4,
         },
         lg: {
-            shadowColor: '#000000',
+            shadowColor: '#000',
             shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.5,
+            shadowOpacity: 0.6,
             shadowRadius: 16,
             elevation: 8,
         },
+        glass: {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.4,
+            shadowRadius: 32,
+            elevation: 4,
+        }
     },
 };
 
@@ -259,26 +284,16 @@ export const shadows = {
 // ============================================
 
 export const animations = {
-    // Durations (in ms)
     durations: {
-        instant: 100,       // Button press
-        fast: 200,          // Quick transitions
-        normal: 300,        // Standard animations
-        slow: 500,          // Elaborate animations
+        fast: 150,
+        normal: 300,
+        slow: 500,
     },
-
-    // Stagger delays
-    stagger: {
-        fast: 50,
-        normal: 100,
-        slow: 150,
-    },
-
-    // Spring configs (for react-native-reanimated)
-    spring: {
-        gentle: { damping: 20, stiffness: 150 },
-        snappy: { damping: 15, stiffness: 300 },
-        bouncy: { damping: 10, stiffness: 400 },
+    easings: {
+        easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+        easeOut: 'cubic-bezier(0, 0, 0.2, 1)',
+        easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+        spring: { damping: 15, stiffness: 100 },
     },
 };
 
@@ -287,15 +302,15 @@ export const animations = {
 // ============================================
 
 export const layout = {
-    headerHeight: 56,
-    tabBarHeight: 60,
-    inputHeight: 48,
-    buttonHeight: 48,
-    iconButtonSize: 40,
+    headerHeight: 60,
+    tabBarHeight: 65,
+    inputHeight: 50,
+    buttonHeight: 50,
+    iconButtonSize: 44,
     avatarSizes: {
         sm: 32,
-        md: 40,
-        lg: 56,
+        md: 44,
+        lg: 60,
         xl: 80,
     },
 };
@@ -305,17 +320,16 @@ export const layout = {
 // ============================================
 
 export const gradients = {
-    primary: ['#9B7BB8', '#7A5A99'],
-    primarySoft: ['#C9B8DC', '#9B7BB8'],
-    gold: ['#C9A962', '#A89050'],
+    primary: ['#D4AF76', '#E8B4B8'], // Rose Gold to Soft Pink
+    dark: ['#2C2C2C', '#1A1A1A'],    // Charcoal Gradient
     glass: {
-        light: ['rgba(255,255,255,0.8)', 'rgba(255,255,255,0.4)'],
-        dark: ['rgba(26,21,32,0.9)', 'rgba(13,10,18,0.95)'],
+        light: ['rgba(255,255,255,0.85)', 'rgba(255,255,255,0.5)'],
+        dark: ['rgba(44,44,44,0.9)', 'rgba(26,26,26,0.95)'],
     },
 };
 
 // ============================================
-// 🏷️ THEME OBJECTS (for ThemeContext)
+// 🏷️ THEME OBJECTS
 // ============================================
 
 export const lightTheme = {

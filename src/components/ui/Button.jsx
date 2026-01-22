@@ -70,7 +70,7 @@ export const Button = ({
 
     // Variant styles
     const getVariantStyles = () => {
-        const { colors } = tokens;
+        const { colors, shadows } = tokens;
 
         switch (variant) {
             case 'primary':
@@ -78,13 +78,16 @@ export const Button = ({
                     backgroundColor: colors.primary,
                     textColor: colors.textOnPrimary,
                     borderWidth: 0,
+                    // Add premium shadow
+                    ...shadows.md,
+                    shadowColor: colors.primary, // Tinted shadow
                 };
             case 'secondary':
                 return {
                     backgroundColor: 'transparent',
-                    textColor: colors.primary,
+                    textColor: colors.text,
                     borderWidth: 1.5,
-                    borderColor: colors.primary,
+                    borderColor: colors.borderFocus,
                 };
             case 'text':
                 return {
@@ -97,6 +100,7 @@ export const Button = ({
                     backgroundColor: colors.primary,
                     textColor: colors.textOnPrimary,
                     borderWidth: 0,
+                    ...shadows.md,
                 };
         }
     };
@@ -113,6 +117,12 @@ export const Button = ({
             borderColor: variantStyles.borderColor,
             borderRadius: tokens.radius.button,
             opacity: disabled ? 0.5 : 1,
+            // Apply shadows from variant
+            shadowColor: variantStyles.shadowColor,
+            shadowOffset: variantStyles.shadowOffset,
+            shadowOpacity: variantStyles.shadowOpacity,
+            shadowRadius: variantStyles.shadowRadius,
+            elevation: variantStyles.elevation,
         },
         fullWidth && styles.fullWidth,
         style,
@@ -123,7 +133,8 @@ export const Button = ({
         {
             color: variantStyles.textColor,
             fontSize: currentSize.fontSize,
-            fontWeight: tokens.typography.weights.semibold,
+            fontFamily: tokens.typography.fontFamilies.button, // Use Montserrat
+            fontWeight: tokens.typography.weights.medium,
         },
         textStyle,
     ];

@@ -20,12 +20,17 @@ import Animated, {
     useSharedValue,
     withTiming,
     FadeIn,
-    SlideInDown
+    SlideInDown,
+    runOnJS,
+    useDerivedValue,
+    interpolate
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "@jamsch/expo-speech-recognition";
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
+import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
+
 
 import { useTheme } from '../src/context/ThemeContext';
 import { useTranslation } from '../src/hooks/useTranslation';
@@ -37,6 +42,8 @@ import { useFavorites } from '../src/context/FavoritesContext';
 import { useAuth } from '../src/context/AuthContext';
 
 const { width, height } = Dimensions.get('window');
+const SHEET_MAX_HEIGHT = height * 0.85; // Expanded height
+const SHEET_MIN_HEIGHT = height * 0.45; // Collapsed height
 
 export default function VoiceSearchScreen() {
     const { theme, isDark } = useTheme();
@@ -55,6 +62,10 @@ export default function VoiceSearchScreen() {
 
     const scale = useSharedValue(1);
     const pulseScale = useSharedValue(1);
+
+    // Draggable Sheet Shared Value
+    const sheetHeight = useSharedValue(0);
+    const context = useSharedValue({ y: 0 });
 
     useEffect(() => {
         // Initial Greeting
@@ -85,6 +96,13 @@ export default function VoiceSearchScreen() {
             pulseScale.value = withSpring(1);
         }
     }, [state]);
+
+    // Creating a separate derived value or just setting it when results appear
+    useEffect(() => {
+        if (state === 'results' && products.length > 0) {
+            sheetHeight.value = withTiming(SHEET_MIN_HEIGHT, { duration: 300 });
+        }
+    }, [state, products]);
 
     const silenceTimer = useRef(null);
 
@@ -228,6 +246,34 @@ export default function VoiceSearchScreen() {
         opacity: (state === 'listening' || state === 'speaking') ? withTiming(0.4) : 0,
     }));
 
+    // --- Gesture Logic for Bottom Sheet ---
+    const panGesture = Gesture.Pan()
+        .onStart(() => {
+            context.value = { y: sheetHeight.value };
+        })
+        .onUpdate((event) => {
+            // Dragging up increases height (inverted logic because we set height)
+            // event.translationY is negative when dragging up
+            const newHeight = context.value.y - event.translationY;
+
+            // Clamp value
+            if (newHeight >= SHEET_MIN_HEIGHT && newHeight <= SHEET_MAX_HEIGHT) {
+                sheetHeight.value = newHeight;
+            }
+        })
+        .onEnd((event) => {
+            // Snap logic based on velocity and position
+            if (event.velocityY < -500 || sheetHeight.value > (SHEET_MAX_HEIGHT + SHEET_MIN_HEIGHT) / 2) {
+                sheetHeight.value = withTiming(SHEET_MAX_HEIGHT, { duration: 300 });
+            } else {
+                sheetHeight.value = withTiming(SHEET_MIN_HEIGHT, { duration: 300 });
+            }
+        });
+
+    const sheetStyle = useAnimatedStyle(() => ({
+        height: sheetHeight.value,
+    }));
+
     const renderProduct = ({ item }) => (
         <View style={styles.gridItem}>
             <ProductCardSoko
@@ -241,7 +287,7 @@ export default function VoiceSearchScreen() {
     );
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.background }]}>
             {/* Cinematic Background Gradient */}
             <LinearGradient
                 colors={isDark ? ['#1A1A2E', '#16213E'] : ['#FFF0F5', '#FFFFFF']}
@@ -309,24 +355,30 @@ export default function VoiceSearchScreen() {
                     ) : null}
                 </View>
 
-                {/* Results Section */}
-                {state === 'results' && products.length > 0 && (
-                    <Animated.View entering={SlideInDown} style={styles.resultsWrapper}>
-                        <View style={styles.resultsHandle} />
-                        <Text style={[styles.resultsTitle, { color: theme.text }]}>منتجات مقترحة لكِ ✨</Text>
-                        <FlatList
-                            data={products}
-                            renderItem={renderProduct}
-                            keyExtractor={(item) => item.id.toString()}
-                            numColumns={2}
-                            showsVerticalScrollIndicator={false}
-                            columnWrapperStyle={styles.productRow}
-                            contentContainerStyle={styles.listPadding}
-                        />
-                    </Animated.View>
+                {/* Results Section (Draggable) */}
+                {products.length > 0 && (state === 'results' || state === 'speaking' || state === 'idle') && (
+                    <GestureDetector gesture={panGesture}>
+                        <Animated.View style={[styles.resultsWrapper, sheetStyle]}>
+                            {/* Handle Bar */}
+                            <View style={styles.resultsHandle} />
+
+                            <Text style={[styles.resultsTitle, { color: theme.text }]}>منتجات مقترحة لكِ ✨</Text>
+                            <FlatList
+                                data={products}
+                                renderItem={renderProduct}
+                                keyExtractor={(item) => item.id.toString()}
+                                numColumns={2}
+                                showsVerticalScrollIndicator={false}
+                                columnWrapperStyle={styles.productRow}
+                                contentContainerStyle={styles.listPadding}
+                                // Prevent FlatList scrolling when dragging the sheet itself
+                                scrollEnabled={true}
+                            />
+                        </Animated.View>
+                    </GestureDetector>
                 )}
 
-                {state === 'idle' && (
+                {state === 'idle' && products.length === 0 && (
                     <View style={styles.demoControls}>
                         <Text style={[styles.demoLabel, { color: theme.textSecondary }]}>اختبار سريع (تجريبي):</Text>
                         <View style={styles.demoButtons}>
@@ -380,7 +432,7 @@ export default function VoiceSearchScreen() {
                     </View>
                 )}
 
-                {state === 'idle' && !transcript && (
+                {state === 'idle' && !transcript && products.length === 0 && (
                     <View style={styles.hintBox}>
                         <Text style={[styles.hintText, { color: theme.textMuted }]}>
                             اضغطي على الميكروفون للحدث أو استعملي الأزرار أعلاه للاختبار
@@ -388,7 +440,7 @@ export default function VoiceSearchScreen() {
                     </View>
                 )}
             </SafeAreaView>
-        </View>
+        </GestureHandlerRootView>
     );
 }
 
@@ -466,9 +518,11 @@ const styles = StyleSheet.create({
         color: '#666',
     },
     resultsWrapper: {
-        flex: 1,
+        position: 'absolute', // Added absolute position
+        bottom: 0,            // Anchored to bottom
+        left: 0,
+        right: 0,
         backgroundColor: '#fff',
-        marginTop: 30,
         borderTopLeftRadius: 40,
         borderTopRightRadius: 40,
         paddingHorizontal: 15,
@@ -477,10 +531,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 15,
         elevation: 10,
+        zIndex: 100, // Ensure it's on top
     },
     resultsHandle: {
-        width: 40,
-        height: 5,
+        width: 60, // Wider handle
+        height: 6,
         backgroundColor: '#E0E0E0',
         borderRadius: 3,
         alignSelf: 'center',

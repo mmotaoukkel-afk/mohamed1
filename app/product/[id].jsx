@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +22,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedScrollHandler,
   withSpring,
   withSequence,
   FadeInDown,
@@ -32,8 +34,11 @@ import { useFavorites } from '../../src/context/FavoritesContext';
 import { useAuth } from '../../src/context/AuthContext';
 import AddToCartSuccess from '../../src/components/AddToCartSuccess';
 import ReviewSection from '../../src/components/ReviewSection';
+import ProductImageGallery from '../../src/components/ProductImageGallery';
+import RelatedProducts from '../../src/components/RelatedProducts';
 import socialService from '../../src/services/socialService';
 import { useTranslation } from '../../src/hooks/useTranslation';
+import currencyService from '../../src/services/currencyService';
 import { Surface, Text, Button, IconButton } from '../../src/components/ui'; // UI Kit
 
 const { width } = Dimensions.get('window');
@@ -56,6 +61,22 @@ export default function ProductDetailsScreen() {
 
   // Animation values
   const heartScale = useSharedValue(1);
+  const scrollY = useSharedValue(0);
+
+  // Parallax handlers using reanimated
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  const headerStyle = useAnimatedStyle(() => {
+    const opacity = Math.min(scrollY.value / 100, 1);
+    return {
+      opacity,
+      backgroundColor: `${tokens.colors.background}${Math.round(opacity * 0.95 * 255).toString(16).padStart(2, '0')}`,
+    };
+  });
 
   useEffect(() => {
     fetchProduct();
@@ -66,10 +87,38 @@ export default function ProductDetailsScreen() {
     return () => unsubscribeLikes();
   }, [id]);
 
+  // Normalize Firestore data to WooCommerce format
+  const normalizeProductData = (firestoreProduct) => {
+    if (!firestoreProduct) return null;
+
+    // Normalize images: Firestore uses array of strings, WooCommerce uses array of objects
+    const normalizedImages = (firestoreProduct.images || []).map(img => {
+      if (typeof img === 'string') {
+        return { src: img };
+      }
+      return img; // Already in correct format
+    });
+
+    return {
+      ...firestoreProduct,
+      images: normalizedImages,
+      // Map Firestore fields to WooCommerce compatible fields
+      price: firestoreProduct.price || 0,
+      sale_price: firestoreProduct.price || 0,
+      regular_price: firestoreProduct.compareAtPrice || firestoreProduct.price || 0,
+      on_sale: firestoreProduct.compareAtPrice && firestoreProduct.compareAtPrice > firestoreProduct.price,
+      stock_status: firestoreProduct.stock > 0 ? 'instock' : 'outofstock',
+      in_stock: firestoreProduct.stock > 0,
+      short_description: firestoreProduct.description || '',
+      categories: firestoreProduct.category ? [{ name: firestoreProduct.category }] : [],
+    };
+  };
+
   const fetchProduct = async () => {
     try {
       const data = await api.getProduct(id);
-      setProduct(data);
+      const normalized = normalizeProductData(data);
+      setProduct(normalized);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -78,7 +127,7 @@ export default function ProductDetailsScreen() {
   };
 
   const formatPrice = (price) => {
-    return `${parseFloat(price || 0).toFixed(3)} ${t('currency')}`;
+    return currencyService.formatPrice(price);
   };
 
   const handleAddToCart = () => {
@@ -126,8 +175,9 @@ export default function ProductDetailsScreen() {
   const handleWhatsAppOrder = () => {
     if (!product) return;
     const price = product.sale_price || product.price;
-    const totalPrice = (parseFloat(price) * quantity).toFixed(3);
-    const message = `👋 ${t('whatsappMessage')}\n📦 *${product.name}*\n💰 ${t('price')}: ${totalPrice} ${t('currency')}\n🔢 ${t('quantity')}: ${quantity}\n\n${t('thankYou')} 💜`;
+    const totalPrice = (parseFloat(price) * quantity);
+    const formattedTotal = currencyService.formatPrice(totalPrice);
+    const message = `👋 ${t('whatsappMessage')}\n📦 *${product.name}*\n💰 ${t('price')}: ${formattedTotal}\n🔢 ${t('quantity')}: ${quantity}\n\n${t('thankYou')} 💜`;
     const whatsappUrl = `https://wa.me/9659910326?text=${encodeURIComponent(message)}`;
     Linking.openURL(whatsappUrl);
   };
@@ -174,9 +224,42 @@ export default function ProductDetailsScreen() {
       <View style={styles.bgOrb1} />
       <View style={styles.bgOrb2} />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Header Actions */}
-        <SafeAreaView style={styles.headerRow}>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
+        {/* Animated Header Actions (Fades in on scroll) */}
+        <Animated.View style={[styles.animatedHeader, headerStyle]}>
+          <SafeAreaView style={styles.headerRow}>
+            <IconButton
+              icon="arrow-back"
+              size="md"
+              variant="glass"
+              onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
+            />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Animated.View style={heartStyle}>
+                <IconButton
+                  icon={isLiked ? 'heart' : 'heart-outline'}
+                  size="md"
+                  variant="glass"
+                  onPress={handleHeartPress}
+                  iconColor={isLiked ? tokens.colors.error : tokens.colors.text}
+                />
+              </Animated.View>
+              {publicLikes > 0 && (
+                <View style={[styles.likeBadge, { backgroundColor: tokens.colors.primary }]}>
+                  <Text style={styles.likeBadgeText}>{publicLikes}</Text>
+                </View>
+              )}
+            </View>
+          </SafeAreaView>
+        </Animated.View>
+
+        {/* Static Header (Always visible at top) */}
+        <SafeAreaView style={[styles.headerRow, { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100 }]}>
           <IconButton
             icon="arrow-back"
             size="md"
@@ -201,48 +284,12 @@ export default function ProductDetailsScreen() {
           </View>
         </SafeAreaView>
 
-        {/* Hero Image - Museum Gallery Style */}
-        <Animated.View entering={FadeInDown.duration(800)} style={styles.heroSection}>
-          <Surface variant="glass" radius="xxl" style={styles.imageFrame} padding="none">
-            {/* Inner padding applied via wrapper View or style overrides if needed, here Surface glass handles background */}
-            <View style={{ padding: 20 }}>
-              <Image
-                source={images[selectedImage]?.src ? { uri: images[selectedImage].src } : require('../../assets/images/placeholder.png')}
-                style={styles.mainImage}
-                resizeMode="contain"
-              />
-            </View>
-          </Surface>
-
-          {onSale && (
-            <Surface variant="glass" style={styles.saleBadge} padding="sm" intensity={80}>
-              <Text variant="caption" weight="bold" style={{ color: '#FFF' }}>
-                ✦ {t('discountOff', { percent: discount })}
-              </Text>
-            </Surface>
-          )}
-
-          {/* Thumbnails */}
-          {images.length > 1 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbList}>
-              {images.map((img, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => setSelectedImage(index)}
-                >
-                  <Surface
-                    variant={isDark ? "glass" : "elevated"}
-                    padding="xs"
-                    radius="lg"
-                    style={[styles.thumb, selectedImage === index && { borderColor: tokens.colors.primary, borderWidth: 2 }]}
-                  >
-                    <Image source={{ uri: img.src }} style={styles.thumbImage} />
-                  </Surface>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </Animated.View>
+        {/* Hero Image Gallery - Interactive with Zoom */}
+        <ProductImageGallery
+          images={images}
+          initialIndex={selectedImage}
+          tokens={tokens}
+        />
 
         {/* Content Section */}
         <View style={styles.contentSection}>
@@ -296,6 +343,13 @@ export default function ProductDetailsScreen() {
             </Animated.View>
           )}
 
+          {/* Related Products */}
+          <RelatedProducts
+            productId={id}
+            category={product.categories?.[0]?.name || product.category}
+            tokens={tokens}
+          />
+
           {/* Reviews Section */}
           <ReviewSection
             productId={id}
@@ -307,7 +361,7 @@ export default function ProductDetailsScreen() {
 
           <View style={styles.extraSpacing} />
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Floating Bottom Bar */}
       <View style={styles.floatingBottomBar}>
@@ -335,7 +389,7 @@ export default function ProductDetailsScreen() {
             <LinearGradient colors={['#25D366', '#128C7E']} style={styles.waGradient}>
               <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
               <Text variant="label" style={{ color: '#FFF' }}>
-                {t('orderViaWhatsapp', { price: (parseFloat(product.sale_price || product.price) * quantity).toFixed(3) + ' ' + t('currency') })}
+                {t('orderViaWhatsapp', { price: currencyService.formatPrice(parseFloat(product.sale_price || product.price) * quantity) })}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -404,6 +458,24 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     zIndex: 10,
+  },
+  animatedHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 99,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   likeBadge: {
     position: 'absolute',

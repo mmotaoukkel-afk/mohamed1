@@ -32,6 +32,8 @@ export const Input = ({
     leftIcon,               // Icon name from Ionicons
     rightIcon,
     onRightIconPress,
+    label,
+    helpText,
     error,                  // Error message string
     disabled = false,
     secureTextEntry = false,
@@ -45,6 +47,7 @@ export const Input = ({
     onBlur,
     style,
     inputStyle,
+    containerStyle,
     ...props
 }) => {
     const { tokens, isDark } = useTheme();
@@ -109,7 +112,13 @@ export const Input = ({
     const searchIcon = variant === 'search' ? 'search-outline' : leftIcon;
 
     return (
-        <View style={styles.wrapper}>
+        <View style={[styles.wrapper, containerStyle]}>
+            {label && (
+                <Text variant="label" style={[styles.label, { color: error ? tokens.colors.error : tokens.colors.text }]}>
+                    {label}
+                </Text>
+            )}
+
             <AnimatedView style={[containerStyles, animatedBorderStyle]}>
                 {searchIcon && (
                     <Ionicons
@@ -167,10 +176,19 @@ export const Input = ({
                 )}
             </AnimatedView>
 
-            {error && (
-                <Text variant="caption" color="error" style={styles.errorText}>
-                    {error}
+            {helpText && !error && (
+                <Text variant="caption" style={styles.helpText}>
+                    {helpText}
                 </Text>
+            )}
+
+            {error && (
+                <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle-outline" size={14} color={tokens.colors.error} />
+                    <Text variant="caption" color="error" style={styles.errorText}>
+                        {error}
+                    </Text>
+                </View>
             )}
         </View>
     );
@@ -201,8 +219,23 @@ const styles = StyleSheet.create({
         marginLeft: 8,
         padding: 4,
     },
-    errorText: {
+    label: {
+        marginBottom: 8,
+        marginLeft: 4,
+        fontWeight: '600',
+    },
+    helpText: {
         marginTop: 4,
+        marginLeft: 4,
+        opacity: 0.6,
+    },
+    errorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+        marginLeft: 4,
+    },
+    errorText: {
         marginLeft: 4,
     },
 });

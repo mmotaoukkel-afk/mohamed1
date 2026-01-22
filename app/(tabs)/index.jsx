@@ -29,13 +29,13 @@ import Animated, {
 } from 'react-native-reanimated';
 
 // Services & Context
-import api from '../../src/services/api';
 import { useCart } from '../../src/context/CartContext';
 import { useCartAnimation } from '../../src/context/CartAnimationContext';
 import { useFavorites } from '../../src/context/FavoritesContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotifications } from '../../src/context/NotificationContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
+import { useProducts, useCategories } from '../../src/hooks/useProducts';
 
 // Components
 import SearchHeader from '../../src/components/SearchHeader';
@@ -245,15 +245,20 @@ const ProductCarousel = React.memo(({ products, onProductPress, onAddToCart, onF
 // 📦 FLOATING CATEGORY GRID
 // ============================================
 const CategoryGrid = ({ categories, onSelect, styles, tokens, t, isDark }) => {
+  // Real categories from kataraa.com
   const categoryData = [
-    { id: 'acne', name: t('acne'), icon: '🎯', color: '#D4B8E0' },
-    { id: 'makeup', name: t('makeup'), icon: '💄', color: '#F0D8E6' },
-    { id: 'hair', name: t('hair'), icon: '💇‍♀️', color: '#E0D8F0' },
-    { id: 'body', name: t('body'), icon: '✨', color: '#D8E6F0' },
-    { id: 'serum', name: t('serum'), icon: '💎', color: '#E6D8F0' },
-    { id: 'suncare', name: t('suncare'), icon: '☀️', color: '#F0ECD8' },
-    { id: 'aging', name: t('antiAging'), icon: '⏳', color: '#E8E4EC' },
-    { id: 'sets', name: t('sets'), icon: '🎁', color: '#E8DCC8' },
+    { id: 'سيروم', name: 'سيروم', icon: '💧', color: '#D4B8E0' },
+    { id: 'واقي الشمس', name: 'واقي الشمس', icon: '☀️', color: '#F0ECD8' },
+    { id: 'مرطب للبشرة', name: 'مرطب', icon: '✨', color: '#D8E6F0' },
+    { id: 'غسول', name: 'غسول', icon: '🧼', color: '#E0D8F0' },
+    { id: 'تونر', name: 'تونر', icon: '💦', color: '#E6D8F0' },
+    { id: 'ماسك للوجه', name: 'ماسك', icon: '🎭', color: '#F0D8E6' },
+    { id: 'العناية بالعين', name: 'العين', icon: '👁️', color: '#E8E4EC' },
+    { id: 'العناية بالشعر', name: 'الشعر', icon: '💇', color: '#E8DCC8' },
+    { id: 'حب الشباب والبثور', name: 'حب الشباب', icon: '🎯', color: '#D4B8E0' },
+    { id: 'تجاعيد البشره', name: 'التجاعيد', icon: '⏳', color: '#F0D8E6' },
+    { id: 'مسحات', name: 'مسحات', icon: '🧴', color: '#D8E6F0' },
+    { id: 'المكياج', name: 'المكياج', icon: '💄', color: '#F0D8E6' },
   ];
 
   return (
@@ -345,30 +350,15 @@ export default function HomeScreen() {
 
   const styles = getStyles(tokens, isDark);
 
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: productsData, isLoading: productsLoading, refetch: refetchProducts } = useProducts(1, 100);
+  const { data: categoriesData, isLoading: categoriesLoading, refetch: refetchCategories } = useCategories();
+
+  const products = productsData || [];
+  const categories = categoriesData?.filter(cat => cat.count > 0) || [];
+  const loading = productsLoading || categoriesLoading;
+
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      const [productsData, categoriesData] = await Promise.all([
-        api.getProducts(1, 100), // جلب 100 منتج بدلاً من 50
-        api.getCategories(),
-      ]);
-      setProducts(productsData || []);
-      setCategories(categoriesData?.filter(cat => cat.count > 0) || []);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (!loading && products.length > 0) {
@@ -385,9 +375,11 @@ export default function HomeScreen() {
 
   const handleRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([refetchProducts(), refetchCategories()]);
     setRefreshing(false);
-  }, []);
+  }, [refetchProducts, refetchCategories]);
+
+
 
   const handleSearch = React.useCallback((query) => {
     if (query.trim()) {
@@ -430,7 +422,7 @@ export default function HomeScreen() {
 
       {/* Cosmic Background Orbs */}
       <View style={[styles.bgOrb1, { backgroundColor: tokens.colors.primary + '10' }]} />
-      <View style={[styles.bgOrb2, { backgroundColor: tokens.colors.accent + '08' }]} />
+      <View style={[styles.bgOrb2, { backgroundColor: tokens.colors.secondarySoft + '08' }]} />
 
       {/* Drawer Menu */}
       <DrawerMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />

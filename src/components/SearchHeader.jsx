@@ -20,7 +20,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { useTranslation } from '../hooks/useTranslation';
 import { IconButton, Input, Text } from './ui'; // Import from UI Kit
 
-export default function SearchHeader({
+function SearchHeader({
     onSearch,
     onCartPress,
     onMenuPress,
@@ -146,6 +146,10 @@ export default function SearchHeader({
         </View>
     );
 }
+
+// Memoize to prevent re-renders when props haven't changed
+// Memoize to prevent re-renders when props haven't changed
+export default React.memo(SearchHeader);
 
 const getStyles = (tokens, isDark) => StyleSheet.create({
     container: {

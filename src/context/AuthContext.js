@@ -2,9 +2,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { auth as firebaseAuth } from '../services/firebaseConfig';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential, sendPasswordResetEmail } from 'firebase/auth';
 import { storage } from '../utils/storage';
 import { useNotifications } from './NotificationContext';
+import { getUserRole, ensureUserDocument, USER_ROLES, updateProfileInFirestore } from '../services/userService';
 
 const AuthContext = createContext();
 
@@ -16,14 +17,18 @@ const EMAILJS_PUBLIC_KEY = process.env.EXPO_PUBLIC_EMAILJS_PUBLIC_KEY;
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [role, setRole] = useState(USER_ROLES.CUSTOMER); // customer or admin
     const [tempOTP, setTempOTP] = useState(null); // Store OTP temporarily
+
+    // Computed: is current user an admin?
+    const isAdmin = role !== USER_ROLES.CUSTOMER;
 
     useEffect(() => {
         checkUser();
         // Initialize Google Sign-In only if native module is available
         if (GoogleSignin) {
             GoogleSignin.configure({
-                webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1076765269610-926dg1v1po5jgbbi4sgtlh84u1eqf498.apps.googleusercontent.com', // Extracted from google-services.json
+                webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1076765269610-u5to0vkmrfc2b82f8hvjbg6jfaog3oom.apps.googleusercontent.com', // Extracted from google-services.json (type 3)
                 offlineAccess: true,
             });
         } else {
@@ -37,9 +42,17 @@ export const AuthProvider = ({ children }) => {
             const savedUser = await storage.getItem('user');
             if (savedUser) {
                 setUser(savedUser);
+
+                // 🔐 Restore user role from Firestore
+                if (savedUser.uid) {
+                    const userRole = await getUserRole(savedUser.uid);
+                    setRole(userRole);
+                    console.log('Session restored with role:', userRole);
+                }
             }
         } catch (e) {
             // Silent fail for session restore
+            console.error('Error restoring session:', e);
         } finally {
             setLoading(false);
         }
@@ -73,13 +86,31 @@ export const AuthProvider = ({ children }) => {
         setUser(finalUser);
         await storage.setItem('user', finalUser);
         await saveToProfiles(finalUser);
+
+        // 🔐 Fetch and set user role from Firestore
+        let userRole = USER_ROLES.CUSTOMER;
+        if (finalUser.uid) {
+            await ensureUserDocument(finalUser);
+            userRole = await getUserRole(finalUser.uid);
+            setRole(userRole);
+            console.log('User role loaded:', userRole);
+        }
+
         addNotification('notifWelcomeBackTitle', 'notifWelcomeBackMsg', 'info', { name: finalUser.displayName || finalUser.email });
+        return userRole;
     };
 
     const signup = async (userData) => {
         setUser(userData);
         await storage.setItem('user', userData);
         await saveToProfiles(userData);
+
+        // 🔐 Create user document with default customer role
+        if (userData.uid) {
+            await ensureUserDocument(userData);
+            setRole(USER_ROLES.CUSTOMER); // New users are always customers
+        }
+
         addNotification('notifWelcomeNewTitle', 'notifWelcomeNewMsg', 'success', { name: userData.displayName });
     };
 
@@ -138,6 +169,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         setUser(null);
+        setRole(USER_ROLES.CUSTOMER); // Reset role on logout
         await storage.removeItem('user');
     };
 
@@ -147,7 +179,13 @@ export const AuthProvider = ({ children }) => {
         setUser(newUser);
         await storage.setItem('user', newUser);
         await saveToProfiles(newUser);
+
+        // 🔐 Sync with Firestore
+        if (newUser.uid) {
+            await updateProfileInFirestore(newUser.uid, updates);
+        }
     };
+
 
     const resetPassword = async (email) => {
         // 1. Generate OTP
@@ -157,8 +195,9 @@ export const AuthProvider = ({ children }) => {
         setTempOTP({ email, code: otp, timestamp: Date.now() });
 
         // 3. Send Email
-        if (EMAILJS_SERVICE_ID === 'YOUR_SERVICE_ID') {
-            console.warn('EmailJS keys not set. Simulate success. Check console for OTP.');
+        if (!EMAILJS_SERVICE_ID || !EMAILJS_PUBLIC_KEY || EMAILJS_SERVICE_ID === 'YOUR_SERVICE_ID') {
+            console.warn('EmailJS keys not set. Simulate success.');
+            console.log('🔐 [DEV MODE] Generated OTP:', otp);
             // Allow proceeding without email for testing
             return Promise.resolve();
         }
@@ -184,13 +223,22 @@ export const AuthProvider = ({ children }) => {
 
             if (response.ok) {
                 // Email sent successfully
+                console.log('Email sent successfully via EmailJS');
             } else {
                 const text = await response.text();
+                // Check if it's the specific "Public Key is required" error which implies keys are missing/invalid
+                if (text.includes('Public Key is required')) {
+                    console.warn('EmailJS Public Key invalid. Fallback to Dev Mode.');
+                    console.log('🔐 [DEV MODE] Generated OTP:', otp);
+                    return Promise.resolve();
+                }
                 console.error('EmailJS API Error:', text);
                 throw new Error('Failed to send email via API');
             }
         } catch (error) {
             console.error('EmailJS Error:', error);
+            // Fallback for network errors during dev mostly
+            console.log('🔐 [DEV MODE] Generated OTP (Fallback):', otp);
             throw new Error('Failed to send email. Please check internet connection.');
         }
     };
@@ -226,7 +274,7 @@ export const AuthProvider = ({ children }) => {
         if (profile) {
             // Note: Password updates should be handled via Firebase Auth
             // Securely updating profile only here
-            await saveToProfiles(profile);
+            await saveToProfiles({ ...profile, password: newPassword });
         }
         setTempOTP(null); // Clear OTP
         return Promise.resolve();
@@ -236,6 +284,8 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider value={{
             user,
             loading,
+            role,
+            isAdmin,
             login,
             signup,
             logout,

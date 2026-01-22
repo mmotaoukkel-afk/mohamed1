@@ -79,6 +79,32 @@ export const BannerSkeleton = () => {
     return <Skeleton style={styles.banner} />;
 };
 
+export const CartItemSkeleton = () => {
+    return (
+        <View style={styles.cartItem}>
+            <Skeleton style={styles.cartImage} />
+            <View style={styles.cartInfo}>
+                <Skeleton style={styles.lineMedium} />
+                <Skeleton style={styles.lineSmall} />
+                <View style={styles.row}>
+                    <Skeleton style={styles.price} />
+                    <Skeleton style={styles.quantity} />
+                </View>
+            </View>
+        </View>
+    );
+};
+
+export const ProfileSkeleton = () => {
+    return (
+        <View style={styles.profileCard}>
+            <Skeleton style={styles.avatar} />
+            <Skeleton style={styles.lineMedium} />
+            <Skeleton style={styles.lineSmall} />
+        </View>
+    );
+};
+
 const styles = StyleSheet.create({
     container: {
         overflow: 'hidden',
@@ -143,6 +169,37 @@ const styles = StyleSheet.create({
         borderRadius: 30,
         alignSelf: 'center',
         marginVertical: 20,
+    },
+    cartItem: {
+        flexDirection: 'row',
+        padding: 16,
+        marginBottom: 12,
+        borderRadius: 16,
+    },
+    cartImage: {
+        width: 80,
+        height: 80,
+        borderRadius: 12,
+        marginRight: 12,
+    },
+    cartInfo: {
+        flex: 1,
+        justifyContent: 'space-between',
+    },
+    quantity: {
+        width: 80,
+        height: 32,
+        borderRadius: 16,
+    },
+    profileCard: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    avatar: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        marginBottom: 16,
     }
 });
 

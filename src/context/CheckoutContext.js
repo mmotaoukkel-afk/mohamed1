@@ -24,6 +24,7 @@ export const CheckoutProvider = ({ children }) => {
   const [shippingInfo, setShippingInfo] = useState({
     fullName: '',
     phone: '',
+    country: '',
     governorate: '',
     city: '',
     block: '',
@@ -123,15 +124,15 @@ export const CheckoutProvider = ({ children }) => {
 
         // Notify user
         addNotification(
-          "تم الطلب بنجاح! 🎉",
-          `يا هلا! طلبك #${pendingOrderId} تم تأكيده بنجاح. سنقوم بتجهيزه فوراً!`,
+          'notifOrderTitle',
+          'notifOrderMsg',
           "success",
-          { id: pendingOrderId }
+          { orderId: pendingOrderId }
         );
       }
     } catch (e) {
       console.error('Payment verification failed:', e);
-      addNotification("خطأ في الدفع", "لم نتمكن من التحقق من عملية الدفع. يرجى المحاولة مرة أخرى.", "error");
+      addNotification("paymentErrorTitle", "paymentErrorMsg", "error");
     } finally {
       setIsVerifyingPayment(false);
     }
@@ -145,6 +146,7 @@ export const CheckoutProvider = ({ children }) => {
     setShippingInfo({
       fullName: '',
       phone: '',
+      country: '',
       governorate: '',
       city: '',
       block: '',

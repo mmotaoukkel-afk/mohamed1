@@ -190,6 +190,10 @@ export default function FavoritesScreen() {
           showsVerticalScrollIndicator={false}
           numColumns={2}
           columnWrapperStyle={{ gap: 16 }}
+          initialNumToRender={6}
+          maxToRenderPerBatch={4}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>

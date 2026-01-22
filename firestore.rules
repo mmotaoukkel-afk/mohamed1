@@ -1,0 +1,251 @@
+rules_version = '2';
+
+/**
+ * Firestore Security Rules - Kataraa
+ * 🔐 Backend protection for all collections
+ * 
+ * الهدف: حتى إذا تم تجاوز الواجهة، الـ Backend يحمي البيانات
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ═══════════════════════════════════════════════════════════
+    // 🔧 HELPER FUNCTIONS
+    // ═══════════════════════════════════════════════════════════
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Get user's role from the users collection
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    // Check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+    
+    // Check if user is super admin
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserRole() == 'super_admin';
+    }
+    
+    // Check if user is any type of admin (admin or super_admin)
+    function hasAdminAccess() {
+      return isAuthenticated() && (getUserRole() == 'admin' || getUserRole() == 'super_admin');
+    }
+    
+    // Check if user owns this document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Validate that required fields exist
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 👤 USERS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /users/{userId} {
+      // Users can read their own document
+      // Admins can read all user documents
+      allow read: if isOwner(userId) || hasAdminAccess();
+      
+      // Users can create their own document (during signup)
+      allow create: if isOwner(userId) && 
+                       request.resource.data.role == 'customer'; // Can only create as customer
+      
+      // Users can update their own non-role fields
+      // Only super_admin can change roles
+      allow update: if isOwner(userId) && 
+                       request.resource.data.role == resource.data.role // Cannot change own role
+                    || isSuperAdmin(); // Super admin can change anything
+      
+      // Only super admin can delete users
+      allow delete: if isSuperAdmin();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 📦 PRODUCTS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /products/{productId} {
+      // Anyone can read products (public catalog)
+      allow read: if true;
+      
+      // Only admins can create, update, delete products
+      allow create: if hasAdminAccess() && 
+                       hasRequiredFields(['name', 'price', 'stock']);
+      
+      allow update: if hasAdminAccess();
+      
+      allow delete: if hasAdminAccess();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 🛒 ORDERS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /orders/{orderId} {
+      // Customers can read their own orders
+      // Admins can read all orders
+      allow read: if isAuthenticated() && 
+                    (resource.data.customerId == request.auth.uid || hasAdminAccess());
+      
+      // Authenticated users can create orders (for themselves)
+      allow create: if isAuthenticated() && 
+                       request.resource.data.customerId == request.auth.uid &&
+                       hasRequiredFields(['customerId', 'items', 'total', 'status']);
+      
+      // Only admins can update orders (status changes, etc.)
+      allow update: if hasAdminAccess();
+      
+      // Only admins can delete orders
+      allow delete: if hasAdminAccess();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 👥 CUSTOMERS COLLECTION (Admin view of customer profiles)
+    // ═══════════════════════════════════════════════════════════
+    
+    match /customers/{customerId} {
+      // Only admins can read customer analytics data
+      allow read: if hasAdminAccess();
+      
+      // Only admins can write to customer analytics
+      allow write: if hasAdminAccess();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 🏷️ COUPONS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /coupons/{couponId} {
+      // Anyone can read coupons (for validation at checkout)
+      allow read: if true;
+      
+      // Only admins can create, update, delete coupons
+      allow create: if hasAdminAccess() &&
+                       hasRequiredFields(['code', 'type', 'value', 'status']);
+      
+      allow update: if hasAdminAccess();
+      
+      allow delete: if hasAdminAccess();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 📊 ANALYTICS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /analytics/{docId} {
+      // Only admins can read analytics
+      allow read: if hasAdminAccess();
+      
+      // Only system (cloud functions) or super admin can write analytics
+      allow write: if isSuperAdmin();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // ⚙️ SETTINGS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /settings/{settingId} {
+      // All authenticated users can read settings (for app config)
+      allow read: if isAuthenticated();
+      
+      // Only super admin can modify settings
+      allow write: if isSuperAdmin();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 🚚 DELIVERY ZONES COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /deliveryZones/{zoneId} {
+      // Anyone can read delivery zones (for checkout)
+      allow read: if true;
+      
+      // Only admins can modify delivery zones
+      allow write: if hasAdminAccess();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 📝 CATEGORIES COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /categories/{categoryId} {
+      // Anyone can read categories
+      allow read: if true;
+      
+      // Only admins can modify categories
+      allow write: if hasAdminAccess();
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // ⭐ REVIEWS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    // ═══════════════════════════════════════════════════════════
+    // ⭐ COMMENTS / REVIEWS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    
+    match /comments/{commentId} {
+      // Anyone can read comments
+      allow read: if true;
+      
+      // Authenticated users can create comments
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Users can update/delete their own comments, admins can moderate
+      allow update, delete: if isOwner(resource.data.userId) || hasAdminAccess();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ❤️ PRODUCT STATS & LIKES
+    // ═══════════════════════════════════════════════════════════
+
+    match /productStats/{productId} {
+      allow read: if true;
+      // Allow authenticated users to update likes count (via increments)
+      allow write: if isAuthenticated(); 
+    }
+
+    match /userLikes/{likeId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && 
+                      (request.resource.data.userId == request.auth.uid || resource.data.userId == request.auth.uid);
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 🛡️ ADMIN LOGS COLLECTION (Audit Trail)
+    // ═══════════════════════════════════════════════════════════
+    
+    match /adminLogs/{logId} {
+      // Only super admin can read logs
+      allow read: if isSuperAdmin();
+      
+      // Logs are created by cloud functions or super admin
+      allow create: if isSuperAdmin();
+      
+      // Logs cannot be updated or deleted (immutable audit trail)
+      allow update, delete: if false;
+    }
+    
+    // ═══════════════════════════════════════════════════════════
+    // 🔒 DEFAULT DENY
+    // Any collection not explicitly defined above is denied
+    // ═══════════════════════════════════════════════════════════
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

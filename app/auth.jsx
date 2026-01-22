@@ -62,11 +62,16 @@ export default function AuthScreen() {
             };
 
             if (isLogin) {
-                await login(userData);
+                const role = await login(userData);
+                if (role === 'admin') {
+                    router.replace('/admin/analytics-dashboard');
+                } else {
+                    router.back();
+                }
             } else {
                 await signup(userData);
+                router.back();
             }
-            router.back();
         } catch (e) {
             console.error(e);
             Alert.alert(t('error'), t('errorOccurred'));
@@ -259,6 +264,8 @@ export default function AuthScreen() {
                                     </Text>
                                 </TouchableOpacity>
                             </View>
+
+
 
                         </Animated.View>
                     </ScrollView>

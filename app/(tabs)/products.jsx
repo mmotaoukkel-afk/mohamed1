@@ -14,12 +14,14 @@ import {
     RefreshControl,
     TouchableOpacity,
     Dimensions,
+    Modal,
+    ScrollView,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 // Services & Context
-import api from '../../src/services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCart } from '../../src/context/CartContext';
 import { useCartAnimation } from '../../src/context/CartAnimationContext';
@@ -33,6 +35,7 @@ import BrandSection from '../../src/components/BrandSection';
 import { ProductSkeleton, CategorySkeleton } from '../../src/components/SkeletonLoader';
 
 import { useTranslation } from '../../src/hooks/useTranslation';
+import { useInfiniteProducts, useCategories } from '../../src/hooks/useProducts';
 
 const { width } = Dimensions.get('window');
 
@@ -46,108 +49,86 @@ export default function ProductsScreen() {
     const { t } = useTranslation();
     const styles = getStyles(theme, isDark);
 
-    const [products, setProducts] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState(params.category || null);
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
     const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'brand'
+    const [filterModalVisible, setFilterModalVisible] = useState(false);
+    const [sortBy, setSortBy] = useState('newest'); // 'newest', 'price_low', 'price_high', 'name'
 
-    useEffect(() => {
-        loadInitialData();
-    }, []);
+    // Real categories from kataraa.com
+    const realCategories = [
+        { id: 'سيروم', name: 'سيروم', icon: '💧' },
+        { id: 'واقي الشمس', name: 'واقي الشمس', icon: '☀️' },
+        { id: 'مرطب للبشرة', name: 'مرطب', icon: '✨' },
+        { id: 'غسول', name: 'غسول', icon: '🧼' },
+        { id: 'تونر', name: 'تونر', icon: '💦' },
+        { id: 'ماسك للوجه', name: 'ماسك', icon: '🎭' },
+        { id: 'العناية بالعين', name: 'العين', icon: '👁️' },
+        { id: 'العناية بالشعر', name: 'الشعر', icon: '💇' },
+        { id: 'حب الشباب والبثور', name: 'حب الشباب', icon: '🎯' },
+        { id: 'تجاعيد البشره', name: 'التجاعيد', icon: '⏳' },
+        { id: 'مسحات', name: 'مسحات', icon: '🧴' },
+        { id: 'المكياج', name: 'المكياج', icon: '💄' },
+    ];
 
-    const loadInitialData = async () => {
-        setLoading(true);
-        await Promise.all([fetchProducts(), fetchCategories()]);
-        setLoading(false);
-    };
-
-    const fetchProducts = async (pageNum = 1, category = null) => {
-        try {
-            const data = await api.getProducts(pageNum, 50, category); // 50 منتج لكل صفحة
-            if (pageNum === 1) {
-                setProducts(data || []);
-            } else {
-                setProducts(prev => {
-                    const combined = [...prev, ...(data || [])];
-                    // Deduplicate by ID
-                    const uniqueMap = new Map();
-                    combined.forEach(item => uniqueMap.set(item.id, item));
-                    return Array.from(uniqueMap.values());
-                });
-            }
-            setHasMore((data?.length || 0) === 50); // 50 منتج يعني في صفحات أخرى
-        } catch (error) {
-            console.error('Error fetching products:', error);
+    // Map sort values to API values
+    const getSortOption = () => {
+        switch (sortBy) {
+            case 'price_low': return 'price-asc';
+            case 'price_high': return 'price-desc';
+            case 'name': return 'alphabetic';
+            default: return 'newest';
         }
     };
 
-    const fetchCategories = async () => {
-        try {
-            const data = await api.getCategories();
-            const filtered = data?.filter(cat => cat.count > 0) || [];
+    // Use React Query Infinite Hook
+    const {
+        data: productsData,
+        isLoading: productsLoading,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        refetch: refetchProducts
+    } = useInfiniteProducts(
+        50,
+        selectedCategory,
+        getSortOption(),
+        params.skin
+    );
 
-            // Priority keywords for categories with custom icons
-            const priorityKeywords = [
-                'skincare', 'العناية بالبشرة', 'acne', 'حب الشباب', 'makeup', 'المكياج',
-                'hair', 'الشعر', 'body', 'الجسم', 'serum', 'السيروم', 'sun', 'شمس',
-                'set', 'مجموعات', 'nail', 'أظافر', 'cleanser', 'منظفات', 'mask',
-                'ماسك', 'cream', 'moist', 'مرطب', 'eye', 'عين', 'lip', 'شفاه',
-                'toner', 'تونر', 'aging', 'تجاعيد'
-            ];
+    const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
 
-            // Sort: Priority items first
-            const sorted = filtered.sort((a, b) => {
-                const nameA = a.name.toLowerCase();
-                const nameB = b.name.toLowerCase();
-                const isAPriority = priorityKeywords.some(key => nameA.includes(key));
-                const isBPriority = priorityKeywords.some(key => nameB.includes(key));
+    // Flatten pages into a single array
+    const products = productsData?.pages?.flatMap(page => page) || [];
+    const categories = categoriesData?.filter(cat => cat.count > 0) || [];
+    const loading = productsLoading || categoriesLoading;
 
-                if (isAPriority && !isBPriority) return -1;
-                if (!isAPriority && isBPriority) return 1;
-                return 0;
-            });
+    const [refreshing, setRefreshing] = useState(false);
 
-            setCategories(sorted);
-        } catch (error) {
-            console.error('Error fetching categories:', error);
-        }
-    };
+    // Refetching is handled automatically by React Query keys when params change
+
 
     const handleRefresh = React.useCallback(async () => {
         setRefreshing(true);
-        setPage(1);
-        await fetchProducts(1, selectedCategory);
+        await refetchProducts();
         setRefreshing(false);
-    }, [selectedCategory]);
+    }, [refetchProducts]);
 
     const handleLoadMore = () => {
-        if (hasMore && !loading) {
-            const nextPage = page + 1;
-            setPage(nextPage);
-            fetchProducts(nextPage, selectedCategory);
+        if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
         }
     };
 
     const handleCategorySelect = React.useCallback(async (categoryId) => {
         const newCategory = categoryId === selectedCategory ? null : categoryId;
         setSelectedCategory(newCategory);
-        setPage(1);
-        setLoading(true);
-        await fetchProducts(1, newCategory);
-        setLoading(false);
     }, [selectedCategory]);
 
+
     const handleSearch = (query) => {
+        // Search is handled by the search screen, just navigate
         if (query.trim()) {
-            api.searchProducts(query).then(results => {
-                setProducts(results || []);
-            });
-        } else {
-            handleRefresh();
+            router.push(`/search?q=${encodeURIComponent(query)}`);
         }
     };
 
@@ -310,18 +291,55 @@ export default function ProductsScreen() {
     // Render header with categories
     const ListHeader = () => (
         <View style={styles.listHeader}>
-            {/* Categories Filter */}
-            <FlatList
-                data={[{ id: null, name: t('all') }, ...categories]}
-                renderItem={renderCategory}
-                keyExtractor={(item) => (item.id || 'all').toString()}
+            {/* Real Categories Filter with Arabic names */}
+            <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.categoriesList}
-            />
+            >
+                {/* All Button */}
+                <TouchableOpacity
+                    style={styles.categoryCircleWrapper}
+                    onPress={() => setSelectedCategory(null)}
+                >
+                    <View style={[
+                        styles.categoryCircle,
+                        selectedCategory === null && styles.categoryCircleActive,
+                    ]}>
+                        <Text style={styles.categoryEmoji}>📦</Text>
+                    </View>
+                    <Text style={[
+                        styles.categoryCircleLabel,
+                        { color: selectedCategory === null ? theme.primary : theme.textSecondary },
+                        selectedCategory === null && { fontWeight: '700' }
+                    ]}>الكل</Text>
+                </TouchableOpacity>
 
-            {/* View Mode Toggle & Results Count */}
+                {/* Real Categories */}
+                {realCategories.map((cat) => (
+                    <TouchableOpacity
+                        key={cat.id}
+                        style={styles.categoryCircleWrapper}
+                        onPress={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
+                    >
+                        <View style={[
+                            styles.categoryCircle,
+                            selectedCategory === cat.id && styles.categoryCircleActive,
+                        ]}>
+                            <Text style={styles.categoryEmoji}>{cat.icon}</Text>
+                        </View>
+                        <Text style={[
+                            styles.categoryCircleLabel,
+                            { color: selectedCategory === cat.id ? theme.primary : theme.textSecondary },
+                            selectedCategory === cat.id && { fontWeight: '700' }
+                        ]}>{cat.name}</Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+
+            {/* Filter Row with Filter Button */}
             <View style={styles.filterRow}>
+                {/* View Mode Toggle */}
                 <View style={styles.viewModeToggle}>
                     <TouchableOpacity
                         style={[styles.viewModeBtn, viewMode === 'grid' && styles.viewModeBtnActive]}
@@ -337,11 +355,110 @@ export default function ProductsScreen() {
                     </TouchableOpacity>
                 </View>
 
+                {/* Filter Button */}
+                <TouchableOpacity
+                    style={styles.filterBtn}
+                    onPress={() => setFilterModalVisible(true)}
+                >
+                    <Ionicons name="options-outline" size={20} color={theme.primary} />
+                    <Text style={[styles.filterBtnText, { color: theme.primary }]}>فلترة</Text>
+                </TouchableOpacity>
+
                 <Text style={styles.resultsCount}>
-                    {t('itemCount', { count: products.length })}
+                    {products.length} منتج
                 </Text>
             </View>
         </View>
+    );
+
+    // Filter Modal
+    const FilterModal = () => (
+        <Modal
+            visible={filterModalVisible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setFilterModalVisible(false)}
+        >
+            <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+                    <View style={styles.modalHeader}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>فلترة المنتجات</Text>
+                        <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
+                            <Ionicons name="close" size={24} color={theme.text} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Sort Options */}
+                    <Text style={[styles.filterSectionTitle, { color: theme.text }]}>الترتيب</Text>
+                    {[
+                        { id: 'newest', label: 'الأحدث' },
+                        { id: 'price_low', label: 'السعر: من الأقل للأعلى' },
+                        { id: 'price_high', label: 'السعر: من الأعلى للأقل' },
+                        { id: 'name', label: 'الاسم' },
+                    ].map(option => (
+                        <TouchableOpacity
+                            key={option.id}
+                            style={[
+                                styles.sortOption,
+                                sortBy === option.id && { backgroundColor: theme.primary + '20' }
+                            ]}
+                            onPress={() => setSortBy(option.id)}
+                        >
+                            <Text style={{ color: sortBy === option.id ? theme.primary : theme.text }}>
+                                {option.label}
+                            </Text>
+                            {sortBy === option.id && (
+                                <Ionicons name="checkmark" size={20} color={theme.primary} />
+                            )}
+                        </TouchableOpacity>
+                    ))}
+
+                    {/* Category Filter in Modal */}
+                    <Text style={[styles.filterSectionTitle, { color: theme.text, marginTop: 20 }]}>التصنيف</Text>
+                    <ScrollView style={{ maxHeight: 200 }}>
+                        <TouchableOpacity
+                            style={[
+                                styles.sortOption,
+                                selectedCategory === null && { backgroundColor: theme.primary + '20' }
+                            ]}
+                            onPress={() => setSelectedCategory(null)}
+                        >
+                            <Text style={{ color: selectedCategory === null ? theme.primary : theme.text }}>
+                                📦 الكل
+                            </Text>
+                            {selectedCategory === null && (
+                                <Ionicons name="checkmark" size={20} color={theme.primary} />
+                            )}
+                        </TouchableOpacity>
+                        {realCategories.map(cat => (
+                            <TouchableOpacity
+                                key={cat.id}
+                                style={[
+                                    styles.sortOption,
+                                    selectedCategory === cat.id && { backgroundColor: theme.primary + '20' }
+                                ]}
+                                onPress={() => setSelectedCategory(cat.id)}
+                            >
+                                <Text style={{ color: selectedCategory === cat.id ? theme.primary : theme.text }}>
+                                    {cat.icon} {cat.name}
+                                </Text>
+                                {selectedCategory === cat.id && (
+                                    <Ionicons name="checkmark" size={20} color={theme.primary} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+
+                    {/* Apply Button */}
+                    <TouchableOpacity
+                        style={[styles.applyBtn, { backgroundColor: theme.primary }]}
+                        onPress={() => setFilterModalVisible(false)}
+                    >
+                        <Text style={styles.applyBtnText}>تطبيق</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
     );
 
     // No full screen loader. Show skeletons in list.
@@ -394,12 +511,17 @@ export default function ProductsScreen() {
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
                     ListFooterComponent={
-                        hasMore && products.length > 0 ? (
+                        isFetchingNextPage ? (
                             <ActivityIndicator style={styles.footerLoader} color={theme.primary} />
                         ) : null
                     }
                     contentContainerStyle={styles.listContent}
                     columnWrapperStyle={styles.row}
+                    initialNumToRender={6}
+                    maxToRenderPerBatch={4}
+                    windowSize={5}
+                    removeClippedSubviews={true}
+                    updateCellsBatchingPeriod={50}
                 />
             ) : (
                 // Brand/Category View
@@ -431,6 +553,9 @@ export default function ProductsScreen() {
                     contentContainerStyle={styles.listContent}
                 />
             )}
+
+            {/* Render Filter Modal */}
+            <FilterModal />
         </View>
     );
 }
@@ -439,6 +564,69 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.background,
+    },
+    // ... existing styles ...
+    filterBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: isDark ? 'rgba(30,30,40,0.6)' : 'rgba(255,255,255,0.8)',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderWidth: 1,
+        borderColor: theme.border,
+        marginLeft: 8,
+    },
+    filterBtnText: {
+        marginLeft: 6,
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+    },
+    filterSectionTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 12,
+    },
+    sortOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        marginBottom: 8,
+    },
+    applyBtn: {
+        paddingVertical: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginTop: 24,
+    },
+    applyBtnText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     loadingContainer: {
         flex: 1,
