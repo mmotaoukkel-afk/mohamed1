@@ -1,168 +1,421 @@
 /**
- * Profile Screen - Kataraa
+ * Profile Screen - Redesign
+ * Clean, list-based layout matching the "Charlotte King" reference
  */
 
-import React from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
-  Text,
-  StyleSheet,
+  Image,
   TouchableOpacity,
   ScrollView,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+  Modal,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  I18nManager,
+  Switch
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../src/context/AuthContext";
+import { useTheme } from "../../src/context/ThemeContext";
+import { useSettings } from "../../src/context/SettingsContext";
+import { useFavorites } from "../../src/context/FavoritesContext";
+import { useCheckout } from "../../src/context/CheckoutContext";
+import { useTranslation } from "../../src/hooks/useTranslation";
+import { BlurView } from "expo-blur";
+import { Text, Surface, Button, IconButton } from "../../src/components/ui";
+import EditProfileModal from "../../src/components/EditProfileModal";
+import SavedAddresses from "../../src/components/SavedAddresses";
+import PaymentMethods from "../../src/components/PaymentMethods";
+import { ProfileSkeleton } from "../../src/components/SkeletonLoader";
 
-export default function ProfileScreen() {
+const Profile = () => {
+  const router = useRouter();
+  const { user, logout, updateUser, isAdmin, loading } = useAuth();
+  const { theme, isDark, toggleTheme } = useTheme();
+  const { t } = useTranslation();
+  const { language, changeLanguage } = useSettings();
+  const { savedAddresses } = useCheckout();
+  const { favorites } = useFavorites();
+  const { savedPaymentMethods } = useCheckout();
+
+  const [loadingImage, setLoadingImage] = useState(false);
+  const [showAddresses, setShowAddresses] = useState(false);
+  const [showPayments, setShowPayments] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+
+  const pickAndCropImage = async () => {
+    if (!user) {
+      router.push('/auth');
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setLoadingImage(true);
+        await updateUser({ photoURL: result.assets[0].uri });
+        setLoadingImage(false);
+      }
+    } catch (error) {
+      setLoadingImage(false);
+      Alert.alert(t('error'), t('updateFailed'));
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      t('logout'),
+      t('logoutConfirm'),
+      [
+        { text: t('cancel'), style: "cancel" },
+        {
+          text: t('logout'),
+          style: "destructive",
+          onPress: async () => {
+            await logout();
+            router.replace('/');
+          }
+        }
+      ]
+    );
+  };
+
+  // New Menu Items Config
   const menuItems = [
-    { icon: 'receipt-outline', title: 'طلباتي', subtitle: 'تتبع طلباتك' },
-    { icon: 'location-outline', title: 'عناويني', subtitle: 'إدارة عناوين التوصيل' },
-    { icon: 'card-outline', title: 'طرق الدفع', subtitle: 'البطاقات المحفوظة' },
-    { icon: 'notifications-outline', title: 'الإشعارات', subtitle: 'إعدادات الإشعارات' },
-    { icon: 'help-circle-outline', title: 'المساعدة', subtitle: 'الأسئلة الشائعة' },
-    { icon: 'information-circle-outline', title: 'عن التطبيق', subtitle: 'الإصدار 1.0.0' },
+    {
+      id: 'favorites',
+      label: t('favorites'),
+      icon: 'heart-outline',
+      onPress: () => router.push('/favorites'),
+      showChevron: true
+    },
+    {
+      id: 'orders',
+      label: t('orders'), // Was Downloads
+      icon: 'receipt-outline', // Was Cloud-download
+      onPress: () => router.push('/orders'),
+      showChevron: true
+    },
+    {
+      id: 'language',
+      label: t('language'),
+      icon: 'globe-outline',
+      onPress: () => changeLanguage(language === 'en' ? 'ar' : 'en'),
+      showChevron: true,
+      rightText: language === 'en' ? 'English' : 'العربية'
+    },
+    {
+      id: 'theme',
+      label: isDark ? t('lightMode') : t('darkMode'),
+      icon: isDark ? 'sunny-outline' : 'moon-outline',
+      onPress: toggleTheme,
+      showChevron: false,
+      rightElement: (
+        <Switch
+          trackColor={{ false: '#767577', true: theme.primary }}
+          thumbColor={'#fff'}
+          ios_backgroundColor="#3e3e3e"
+          onValueChange={toggleTheme}
+          value={isDark}
+        />
+      )
+    },
+    {
+      id: 'location',
+      label: t('addresses'),
+      icon: 'location-outline',
+      onPress: () => setShowAddresses(true),
+      showChevron: true
+    },
+    {
+      id: 'payment',
+      label: t('paymentMethods'), // Was Subscription
+      icon: 'card-outline',
+      onPress: () => setShowPayments(true),
+      showChevron: true
+    },
+    ...(isAdmin ? [{
+      id: 'admin',
+      label: language === 'ar' ? 'لوحة التحكم' : 'Admin Dashboard',
+      icon: 'shield-checkmark-outline',
+      onPress: () => router.push('/admin/overview'),
+      showChevron: true,
+      color: theme.primary
+    }] : []),
+    {
+      id: 'about',
+      label: t('aboutApp'),
+      icon: 'information-circle-outline',
+      onPress: () => router.push('/about'),
+      showChevron: true
+    },
+    {
+      id: 'logout',
+      label: t('logout'),
+      icon: 'log-out-outline',
+      onPress: handleLogout,
+      showChevron: true,
+      color: '#EF4444' // Red color for logout
+    }
   ];
+
+  const styles = getStyles(theme, isDark);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { padding: 20, paddingTop: 100 }]}>
+        <View style={{ alignItems: 'center' }}>
+          <ProfileSkeleton />
+        </View>
+      </View>
+    );
+  }
+
+  if (!user) {
+    // Simple Guest View
+    return (
+      <View style={styles.container}>
+        <View style={styles.guestContent}>
+          <Ionicons name="person-circle-outline" size={100} color={theme.textMuted} />
+          <Text variant="title" style={{ marginTop: 20 }}>{t('welcome')}</Text>
+          <Text variant="body" style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 8 }}>
+            {t('loginToAccessProfile')}
+          </Text>
+          <Button
+            title={t('login')}
+            onPress={() => router.push('/auth')}
+            style={{ marginTop: 32, width: 200 }}
+            variant="primary"
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#667eea', '#764ba2']} style={styles.header}>
-        <SafeAreaView>
-          <View style={styles.profileSection}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={40} color="#667eea" />
+      {/* Header */}
+      <View style={styles.header}>
+        <Text variant="title" style={styles.headerTitle}>
+          {language === 'ar' ? 'ملفي الشخصي' : 'My Profile'}
+        </Text>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Profile Info */}
+        <View style={styles.profileSection}>
+          <TouchableOpacity onPress={pickAndCropImage} style={styles.avatarContainer}>
+            {loadingImage ? (
+              <ActivityIndicator color={theme.primary} />
+            ) : user.photoURL ? (
+              <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: theme.text + '10', justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.text }}>
+                  {user.displayName ? user.displayName[0].toUpperCase() : 'U'}
+                </Text>
+              </View>
+            )}
+            <View style={styles.cameraBadge}>
+              <Ionicons name="camera" size={12} color="#FFF" />
             </View>
-            <Text style={styles.name}>زائر</Text>
-            <Text style={styles.email}>مرحباً بك في كتارا</Text>
-            
-            <TouchableOpacity style={styles.loginBtn}>
-              <Text style={styles.loginBtnText}>تسجيل الدخول</Text>
+          </TouchableOpacity>
+
+          <View style={styles.infoContainer}>
+            <Text variant="title" style={styles.name}>{user.displayName || 'User'}</Text>
+            <Text variant="bodySmall" style={styles.handle}>{user.email}</Text>
+
+            <TouchableOpacity style={styles.editBtn} onPress={() => setShowEditProfile(true)}>
+              <Text style={styles.editBtnText}>{t('editProfile')}</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
-      </LinearGradient>
+        </View>
 
-      <ScrollView style={styles.menuContainer}>
-        {menuItems.map((item, index) => (
-          <TouchableOpacity key={index} style={styles.menuItem}>
-            <View style={styles.menuIcon}>
-              <Ionicons name={item.icon} size={24} color="#667eea" />
-            </View>
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>{item.title}</Text>
-              <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
-            </View>
-            <Ionicons name="chevron-back" size={20} color="#ccc" />
-          </TouchableOpacity>
-        ))}
+        {/* Menu List */}
+        <View style={styles.menuContainer}>
+          {menuItems.map((item, index) => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.menuItem}
+              onPress={item.onPress}
+              activeOpacity={0.7}
+            >
+              <View style={styles.menuLeft}>
+                <Ionicons name={item.icon} size={22} color={item.color || theme.text} />
+                <Text variant="body" style={[styles.menuLabel, { color: item.color || theme.text }]}>
+                  {item.label}
+                </Text>
+              </View>
 
-        <TouchableOpacity style={styles.logoutBtn}>
-          <Ionicons name="log-out-outline" size={22} color="#EF4444" />
-          <Text style={styles.logoutText}>تسجيل الخروج</Text>
-        </TouchableOpacity>
+              <View style={styles.menuRight}>
+                {item.rightText && (
+                  <Text variant="bodySmall" style={styles.rightText}>{item.rightText}</Text>
+                )}
+                {item.rightElement}
+                {item.showChevron && (
+                  <Ionicons
+                    name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
+                    size={18}
+                    color={theme.textMuted}
+                  />
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
       </ScrollView>
+
+      {/* Modals */}
+      <Modal visible={showAddresses} animationType="slide" transparent={true} onRequestClose={() => setShowAddresses(false)}>
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+          <View style={styles.modalContent}>
+            <SavedAddresses onClose={() => setShowAddresses(false)} addresses={savedAddresses} />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showPayments} animationType="slide" transparent={true} onRequestClose={() => setShowPayments(false)}>
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+          <View style={styles.modalContent}>
+            <PaymentMethods onClose={() => setShowPayments(false)} cards={savedPaymentMethods} />
+          </View>
+        </View>
+      </Modal>
+
+      <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} />
     </View>
   );
-}
+};
 
-const styles = StyleSheet.create({
+const getStyles = (theme, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.background,
+  },
+  guestContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
   header: {
-    paddingBottom: 30,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
   },
   profileSection: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 20,
+    paddingHorizontal: 24,
+    marginBottom: 32,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 20,
+    marginLeft: 0,
   },
   avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#fff',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: theme.text,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    borderWidth: 2,
+    borderColor: theme.background,
+  },
+  infoContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
   },
   name: {
-    color: '#fff',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
+    color: theme.text,
+    marginBottom: 4,
   },
-  email: {
-    color: 'rgba(255,255,255,0.8)',
+  handle: {
     fontSize: 14,
-    marginTop: 5,
+    color: theme.textSecondary,
+    marginBottom: 12,
   },
-  loginBtn: {
-    marginTop: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
+  editBtn: {
+    backgroundColor: '#EF4444', // Red color from design
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  loginBtnText: {
-    color: '#fff',
-    fontSize: 16,
+  editBtnText: {
+    color: '#FFF',
     fontWeight: '600',
+    fontSize: 14,
   },
   menuContainer: {
-    padding: 16,
+    paddingHorizontal: 24,
   },
   menuItem: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    justifyContent: 'space-between',
+    paddingVertical: 16,
   },
-  menuIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: 'rgba(102,126,234,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuText: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  menuTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a2e',
-    textAlign: 'right',
-  },
-  menuSubtitle: {
-    fontSize: 13,
-    color: '#999',
-    marginTop: 3,
-    textAlign: 'right',
-  },
-  logoutBtn: {
+  menuLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 20,
-    marginBottom: 40,
-    padding: 16,
+    gap: 16,
   },
-  logoutText: {
-    color: '#EF4444',
+  menuLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
+  menuRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rightText: {
+    fontSize: 14,
+    color: theme.textMuted,
+  },
+  // Modal Styles
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalContent: {
+    height: '85%',
+    backgroundColor: theme.backgroundCard,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+    paddingTop: 10
+  }
 });
+
+export default Profile;

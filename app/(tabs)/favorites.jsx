@@ -1,23 +1,39 @@
 /**
- * Favorites Screen - Kataraa
+ * Favorites Screen - Cosmic Luxury Edition
+ * 🌙 Floating glass cards with ethereal animations
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  Image,
+  // Image, 
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useFavorites } from '../context/FavoritesContext';
-import { useCart } from '../context/CartContext';
+import { useFavorites } from '../../src/context/FavoritesContext';
+import { useCart } from '../../src/context/CartContext';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useTranslation } from '../../src/hooks/useTranslation';
+import { useSettings } from '../../src/context/SettingsContext';
+import { Surface } from '../../src/components/ui';
+import { BlurView } from 'expo-blur';
+import Animated, {
+  FadeInDown,
+  FadeInRight,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
@@ -25,187 +41,361 @@ export default function FavoritesScreen() {
   const router = useRouter();
   const { favorites, toggleFavorite } = useFavorites();
   const { addToCart } = useCart();
+  const { theme, isDark } = useTheme();
+  const { t } = useTranslation();
+  const { language } = useSettings();
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    setTick(t => t + 1);
+  }, [language]);
+
+  const styles = getStyles(theme, isDark);
 
   const formatPrice = (price) => {
-    return `${parseFloat(price || 0).toFixed(3)} د.ك`;
+    return `${parseFloat(price || 0).toFixed(3)} ${t('currency')}`;
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <TouchableOpacity
-        style={styles.cardContent}
-        onPress={() => router.push(`/product/${item.id}`)}
-      >
-        <Image source={{ uri: item.image }} style={styles.image} />
-        <View style={styles.info}>
-          <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
-          <Text style={styles.price}>{formatPrice(item.price)}</Text>
-        </View>
-      </TouchableOpacity>
+  const handleItemPress = React.useCallback((id) => {
+    router.push(`/product/${id}`);
+  }, [router]);
 
-      <View style={styles.actions}>
+  const handleAddToCart = React.useCallback((item) => {
+    addToCart({ ...item, quantity: 1 });
+  }, [addToCart]);
+
+  const handleToggleFavorite = React.useCallback((item) => {
+    toggleFavorite(item);
+  }, [toggleFavorite]);
+
+  const renderItem = React.useCallback(({ item, index }) => (
+    <Animated.View
+      entering={FadeInDown.delay(index * 100).springify()}
+      style={styles.cardContainer}
+    >
+      <Surface
+        variant="glass"
+        padding="none" // Remove internal padding
+        style={[styles.card, { borderWidth: 0, shadowOpacity: 0, backgroundColor: 'transparent' }]} // Ensure transparent bg
+        intensity={isDark ? 20 : 40}
+      >
         <TouchableOpacity
-          style={styles.addToCartBtn}
-          onPress={() => addToCart({ ...item, quantity: 1 })}
+          style={styles.cardContent}
+          onPress={() => handleItemPress(item.id)}
         >
-          <Ionicons name="cart-outline" size={20} color="#667eea" />
+          <View style={styles.imageContainer}>
+            <Image
+              source={item.image}
+              style={styles.image}
+              contentFit="cover"
+              transition={200}
+            />
+            <LinearGradient
+              colors={['transparent', isDark ? 'rgba(26,21,32,0.5)' : 'rgba(254,251,255,0.5)']}
+              style={styles.imageOverlay}
+            />
+          </View>
+
+          <View style={styles.info}>
+            <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
+            <View style={styles.priceContainer}>
+              <Text style={styles.price}>{formatPrice(item.price)}</Text>
+            </View>
+          </View>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.removeBtn}
-          onPress={() => toggleFavorite(item)}
-        >
-          <Ionicons name="trash-outline" size={20} color="#EF4444" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => handleAddToCart(item)}
+          >
+            <LinearGradient
+              colors={[theme.primary + '30', theme.primary + '20']}
+              style={styles.actionBtnGradient}
+            >
+              <Ionicons name="cart" size={20} color={theme.primary} />
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => handleToggleFavorite(item)}
+          >
+            <LinearGradient
+              colors={['#D4A5A5' + '30', '#D4A5A5' + '20']}
+              style={styles.actionBtnGradient}
+            >
+              <Ionicons name="trash-outline" size={20} color="#D4A5A5" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </Surface>
+    </Animated.View>
+  ), [isDark, styles, theme, handleItemPress, handleAddToCart, handleToggleFavorite, formatPrice]);
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#667eea', '#764ba2']} style={styles.header}>
-        <SafeAreaView>
-          <Text style={styles.headerTitle}>المفضلة</Text>
-          <Text style={styles.headerSubtitle}>{favorites.length} منتج</Text>
-        </SafeAreaView>
-      </LinearGradient>
+      {/* Cosmic Background Orbs */}
+      <View style={styles.bgOrb1} />
+      <View style={styles.bgOrb2} />
+
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={[theme.primary, theme.primaryDark]}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <SafeAreaView edges={['top']}>
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.headerTitle}>{t('favoritesTitle')}</Text>
+                <Text style={styles.headerSubtitle}>{t('productCount', { count: favorites.length })}</Text>
+              </View>
+              <Animated.View entering={FadeInRight.delay(500)}>
+                <View style={styles.headerIconCircle}>
+                  <Ionicons name="heart" size={28} color="#fff" />
+                </View>
+              </Animated.View>
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
+      </View>
 
       {favorites.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="heart-outline" size={80} color="#ddd" />
-          <Text style={styles.emptyTitle}>لا توجد منتجات مفضلة</Text>
-          <Text style={styles.emptySubtitle}>اضغط على ❤️ لإضافة منتجات</Text>
+        <Animated.View
+          entering={FadeInDown}
+          style={styles.emptyContainer}
+        >
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="heart-outline" size={56} color={theme.primary} />
+          </View>
+          <Text style={styles.emptyTitle}>{t('noFavorites')}</Text>
+          <Text style={styles.emptySubtitle}>{t('addFavoritesHint')}</Text>
           <TouchableOpacity
             style={styles.browseBtn}
             onPress={() => router.push('/')}
           >
-            <Text style={styles.browseBtnText}>تصفح المنتجات</Text>
+            <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.browseBtnGradient}>
+              <Text style={styles.browseBtnText}>{t('browseProducts')}</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </LinearGradient>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       ) : (
         <FlatList
           data={favorites}
           renderItem={renderItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          numColumns={2}
+          columnWrapperStyle={{ gap: 16 }}
+          initialNumToRender={6}
+          maxToRenderPerBatch={4}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.background,
+  },
+  bgOrb1: {
+    position: 'absolute',
+    top: -80,
+    right: -80,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: theme.primary,
+    zIndex: -1,
+  },
+  bgOrb2: {
+    position: 'absolute',
+    bottom: 50,
+    left: -60,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: theme.accent + '08',
+    zIndex: -1,
+  },
+  headerContainer: {
+    overflow: 'hidden',
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 12,
   },
   header: {
-    paddingBottom: 25,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingBottom: 32,
+    paddingTop: 12,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
   headerTitle: {
     color: '#fff',
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginTop: 10,
+    fontSize: 30,
+    fontWeight: '300',
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 14,
-    textAlign: 'center',
-    marginTop: 5,
+    marginTop: 4,
+    fontWeight: '400',
+  },
+  headerIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listContent: {
-    padding: 16,
+    padding: 20,
+    paddingTop: 28,
+    paddingBottom: 100,
+  },
+  cardContainer: {
+    flex: 1,
+    marginBottom: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+    maxWidth: (width - 40 - 16) / 2, // Account for padding and gap
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    flexDirection: 'column', // Vertical layout
+    alignItems: 'stretch',
+    padding: 0,
+    height: 260, // Fixed height for grid
   },
   cardContent: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  imageContainer: {
+    width: '100%',
+    height: 140, // Taller image for vertical card
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 12,
   },
   image: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: '#f5f5f5',
+    width: '100%',
+    height: '100%',
+  },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   info: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 0,
+    paddingHorizontal: 12,
   },
   name: {
-    fontSize: 15,
-    color: '#1a1a2e',
-    textAlign: 'right',
-    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.text,
+    textAlign: 'center', // Center text for grid
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  priceContainer: {
+    alignSelf: 'center',
+    marginBottom: 12,
   },
   price: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#667eea',
-    textAlign: 'right',
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.primary,
   },
   actions: {
-    flexDirection: 'column',
-    gap: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 0,
+    marginBottom: 12,
+    gap: 12,
+    marginLeft: 0,
   },
-  addToCartBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(102,126,234,0.1)',
+  actionBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  actionBtnGradient: {
+    width: 36,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  removeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 14,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 44,
+    marginTop: -40,
+  },
+  emptyIconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: theme.primary + '12',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: theme.primary + '20',
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    marginTop: 20,
+    fontSize: 24,
+    fontWeight: '300',
+    color: theme.text,
+    marginBottom: 10,
+    letterSpacing: 0.3,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
+    fontSize: 15,
+    color: theme.textMuted,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   browseBtn: {
-    marginTop: 30,
-    backgroundColor: '#667eea',
-    paddingHorizontal: 30,
-    paddingVertical: 14,
-    borderRadius: 25,
+    marginTop: 40,
+    width: '85%',
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  browseBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 12,
   },
   browseBtnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

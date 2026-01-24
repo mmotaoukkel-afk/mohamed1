@@ -8,13 +8,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCheckout } from '../context/CheckoutContext';
-import { useCart } from '../context/CartContext';
-import api from '../services/api';
+import { useCheckout } from '../../src/context/CheckoutContext';
+import { useCart } from '../../src/context/CartContext';
+import { useAuth } from '../../src/context/AuthContext';
+import api from '../../src/services/api';
+import PaymentService from '../../src/services/PaymentService';
+import * as Linking from 'expo-linking';
 
 export default function PaymentScreen() {
   const router = useRouter();
-  const { shippingInfo, shippingFee, resetCheckout } = useCheckout();
+  const { user } = useAuth();
+  const { shippingInfo, shippingFee, resetCheckout, addOrder } = useCheckout();
   const { cartItems, getCartTotal, clearCart } = useCart();
   const [loading, setLoading] = useState(false);
 
@@ -55,11 +59,36 @@ export default function PaymentScreen() {
       };
 
       const order = await api.createOrder(orderData);
-      clearCart();
-      resetCheckout();
 
-      // Navigate to success page
-      router.replace(`/checkout/success?orderId=${order.id}`);
+      // Save to local history
+      addOrder({
+        ...order,
+        items: cartItems,
+        total: finalTotal,
+        payment_status: 'pending'
+      });
+
+      // 💳 Initiate Real Payment via MyFatoorah
+      const paymentData = {
+        customerName: shippingInfo.fullName,
+        amount: finalTotal,
+        email: user?.email || 'customer@example.com',
+        mobile: shippingInfo.phone,
+        orderId: order.id.toString(),
+      };
+
+      const paymentResult = await PaymentService.initiatePayment(paymentData);
+
+      if (paymentResult.success && paymentResult.paymentUrl) {
+        // Redirection to MyFatoorah Payment Page
+        Linking.openURL(paymentResult.paymentUrl);
+
+        // Finalize local state
+        clearCart();
+        resetCheckout();
+      } else {
+        Alert.alert('خطأ في الدفع', paymentResult.error || 'فشل بدء عملية الدفع.');
+      }
     } catch (error) {
       console.log('Order error:', error);
       Alert.alert('خطأ', 'حدث خطأ أثناء إرسال الطلب. حاول مرة أخرى.');

@@ -18,9 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCheckout } from '../context/CheckoutContext';
-import { useCart } from '../context/CartContext';
-import { kuwaitGovernorates, getCitiesByGovernorate, calculateShipping } from '../data/kuwaitLocations';
+import { useCheckout } from '../../src/context/CheckoutContext';
+import { useCart } from '../../src/context/CartContext';
+import { kuwaitGovernorates, getCitiesByGovernorate, calculateShipping } from '../../src/data/kuwaitLocations';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -43,7 +43,6 @@ export default function ShippingScreen() {
   };
 
   const selectGovernorate = (gov) => {
-    console.log('Selected governorate:', gov.name);
     // Update both fields at once to avoid stale state
     setShippingInfo(prev => ({
       ...prev,
@@ -57,7 +56,6 @@ export default function ShippingScreen() {
   };
 
   const selectCity = (city) => {
-    console.log('Selected city:', city);
     setShippingInfo(prev => ({ ...prev, city: city }));
     // Calculate shipping based on city
     const newShipping = calculateShipping(shippingInfo.governorate, cartTotal, city);
