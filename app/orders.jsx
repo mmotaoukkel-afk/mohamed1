@@ -18,6 +18,8 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useTheme } from '../src/context/ThemeContext';
 import { useCheckout } from '../src/context/CheckoutContext';
 import { useTranslation } from '../src/hooks/useTranslation';
+import OrderTimeline from '../src/components/OrderTimeline';
+import { EmptyState } from '../src/components/ui';
 
 const { width, height } = Dimensions.get('window');
 
@@ -64,11 +66,29 @@ export default function OrdersScreen() {
                             {item.total} {t('currency')}
                         </Text>
                     </View>
+
+                    {/* Order Timeline */}
+                    <OrderTimeline status={item.payment_status} style={styles.timeline} />
                 </View>
 
-                <TouchableOpacity style={[styles.reorderBtn, { borderColor: theme.border }]}>
-                    <Text style={[styles.reorderText, { color: theme.text }]}>{t('viewDetails') || 'View Details'}</Text>
-                </TouchableOpacity>
+                <View style={styles.actionRow}>
+                    <TouchableOpacity
+                        style={[styles.detailsBtn, { backgroundColor: theme.primary + '15' }]}
+                        onPress={() => router.push(`/orders/${item.id}`)}
+                    >
+                        <Text style={[styles.detailsText, { color: theme.primary }]}>{t('viewDetails')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.supportBtn, { borderColor: theme.border }]}
+                        onPress={() => {
+                            const message = `${t('supportMessage')} #${item.id?.toString().slice(-6)}`;
+                            const whatsappUrl = `https://wa.me/9659910326?text=${encodeURIComponent(message)}`;
+                            Linking.openURL(whatsappUrl);
+                        }}
+                    >
+                        <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                    </TouchableOpacity>
+                </View>
             </BlurView>
         </Animated.View>
     );
@@ -90,21 +110,13 @@ export default function OrdersScreen() {
                 </View>
 
                 {orders.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                        <Animated.View entering={FadeInUp.springify()} style={styles.emptyIconContainer}>
-                            <LinearGradient colors={[theme.primary + '30', theme.primary + '10']} style={styles.emptyIconGradient}>
-                                <Ionicons name="receipt-outline" size={80} color={theme.primary} />
-                            </LinearGradient>
-                        </Animated.View>
-                        <Text style={[styles.emptyTitle, { color: theme.text }]}>{t('noOrders') || 'No orders yet'}</Text>
-                        <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>{t('browseProducts')}</Text>
-                        <TouchableOpacity
-                            style={[styles.shopBtn, { backgroundColor: theme.primary }]}
-                            onPress={() => router.push('/products')}
-                        >
-                            <Text style={styles.shopBtnText}>{t('shopNow')}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <EmptyState
+                        title={t('noOrders')}
+                        description={t('browseProducts')}
+                        icon="receipt-outline"
+                        actionLabel={t('shopNow')}
+                        onAction={() => router.push('/products')}
+                    />
                 ) : (
                     <FlatList
                         data={orders}
@@ -149,8 +161,10 @@ const styles = StyleSheet.create({
     orderTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     itemCount: { fontSize: 13, fontWeight: '600' },
     totalPrice: { fontSize: 18, fontWeight: '900' },
-    reorderBtn: { width: '100%', padding: 12, borderRadius: 15, borderWidth: 1, alignItems: 'center' },
-    reorderText: { fontSize: 14, fontWeight: '700' },
+    actionRow: { flexDirection: 'row', gap: 10 },
+    detailsBtn: { flex: 1, padding: 12, borderRadius: 15, alignItems: 'center' },
+    detailsText: { fontSize: 14, fontWeight: '700' },
+    supportBtn: { width: 50, height: 50, borderRadius: 15, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
     emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
     emptyIconContainer: { marginBottom: 30 },
     emptyIconGradient: { width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },
@@ -158,4 +172,8 @@ const styles = StyleSheet.create({
     emptySubtitle: { fontSize: 16, textAlign: 'center', opacity: 0.7, marginBottom: 30 },
     shopBtn: { paddingHorizontal: 30, paddingVertical: 15, borderRadius: 20 },
     shopBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+    timeline: {
+        marginTop: 8,
+        paddingHorizontal: 4,
+    }
 });

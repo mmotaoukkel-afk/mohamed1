@@ -3,18 +3,17 @@
  * Next-Generation Beauty App - Ethereal, Floating, Cinematic
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
-  FlatList,
   RefreshControl,
   TouchableOpacity,
   Dimensions,
-  ImageBackground,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,80 +34,118 @@ import { useFavorites } from '../../src/context/FavoritesContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotifications } from '../../src/context/NotificationContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
+import { useRecentlyViewed } from '../../src/context/RecentlyViewedContext';
 import { useProducts, useCategories } from '../../src/hooks/useProducts';
+import { getAllBanners } from '../../src/services/adminBannerService';
+import { FlashList } from '@shopify/flash-list';
 
 // Components
 import SearchHeader from '../../src/components/SearchHeader';
-import ProductCardSoko from '../../src/components/ProductCardSoko'; // Use Standardized Card
+import ProductCardCinematic from '../../src/components/ProductCardCinematic'; // Cinematic 3D Card
 import DrawerMenu from '../../src/components/DrawerMenu';
 import { ProductSkeleton, CategorySkeleton, BannerSkeleton } from '../../src/components/SkeletonLoader';
-import { Text, Surface } from '../../src/components/ui'; // UI Kit
+import { Text, Surface, EmptyState } from '../../src/components/ui'; // UI Kit
 
 const { width, height } = Dimensions.get('window');
+const CARD_WIDTH = (width - 48) / 2;
 
 // ============================================
 // 🌙 COSMIC HERO SECTION
 // ============================================
-const CosmicHero = ({ onShopNow, tokens, styles, t, isDark }) => {
+const CosmicHero = ({ banners, onShopNow, tokens, styles, t, isDark }) => {
+  const [activeIndex, setActiveIndex] = useState(0);
   const fadeAnim = useSharedValue(0);
   const slideAnim = useSharedValue(40);
 
   useEffect(() => {
     fadeAnim.value = withTiming(1, { duration: 1200 });
     slideAnim.value = withTiming(0, { duration: 1000, easing: Easing.out(Easing.exp) });
-  }, []);
+  }, [activeIndex]);
 
   const contentStyle = useAnimatedStyle(() => ({
     opacity: fadeAnim.value,
     transform: [{ translateY: slideAnim.value }],
   }));
 
+  // Fallback if no banners
+  const displayBanners = banners && banners.length > 0 ? banners : [{
+    id: 'default',
+    title: t('heroTitle'),
+    imageUrl: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800',
+    isActive: true
+  }];
+
+  const currentBanner = displayBanners[activeIndex];
+
+  useEffect(() => {
+    if (displayBanners.length > 1) {
+      const interval = setInterval(() => {
+        fadeAnim.value = 0;
+        slideAnim.value = 40;
+        setActiveIndex((prev) => (prev + 1) % displayBanners.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [displayBanners.length]);
+
   return (
     <View style={styles.heroContainer}>
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800' }}
-        style={styles.heroImage}
-        resizeMode="cover"
-      >
-        {/* Cosmic Overlay */}
-        <LinearGradient
-          colors={[
-            'rgba(212,184,224,0.1)',
-            isDark ? 'rgba(13,10,18,0.7)' : 'rgba(254,251,255,0.6)',
-            isDark ? 'rgba(13,10,18,0.95)' : 'rgba(254,251,255,0.95)',
-          ]}
-          style={styles.heroOverlay}
-        />
+      <Image
+        source={{ uri: currentBanner.imageUrl }}
+        style={[styles.heroImage, StyleSheet.absoluteFill]}
+        contentFit="cover"
+        transition={500}
+        cachePolicy="memory-disk"
+      />
+      <LinearGradient
+        colors={[
+          'rgba(212,184,224,0.1)',
+          isDark ? 'rgba(13,10,18,0.7)' : 'rgba(254,251,255,0.6)',
+          isDark ? 'rgba(13,10,18,0.95)' : 'rgba(254,251,255,0.95)',
+        ]}
+        style={styles.heroOverlay}
+      />
 
-        <Animated.View style={[styles.heroContent, contentStyle]}>
-          {/* Ethereal Badge */}
-          <View style={styles.heroBadgeContainer}>
-            <View style={[styles.heroBadge, { backgroundColor: isDark ? 'rgba(26,21,32,0.7)' : 'rgba(255,255,255,0.8)' }]}>
-              <Text variant="label" style={{ color: tokens.colors.primary, letterSpacing: 1 }}>
-                ✦ {t('heroSubtitle')}
-              </Text>
-            </View>
+      <Animated.View style={[styles.heroContent, contentStyle]}>
+        <View style={styles.heroBadgeContainer}>
+          <View style={[styles.heroBadge, { backgroundColor: isDark ? 'rgba(26,21,32,0.7)' : 'rgba(255,255,255,0.8)' }]}>
+            <Text variant="label" style={{ color: tokens.colors.primary, letterSpacing: 1 }}>
+              ✦ {currentBanner.title || t('heroSubtitle')}
+            </Text>
           </View>
+        </View>
 
-          {/* Main Title */}
-          <Text style={[styles.heroTitle, { color: tokens.colors.text }]}>
-            {t('heroTitle')}
-          </Text>
+        <Text style={[styles.heroTitle, { color: tokens.colors.text }]}>
+          {currentBanner.title ? currentBanner.title : t('heroTitle')}
+        </Text>
 
-          {/* CTA Button */}
-          <TouchableOpacity style={styles.heroButton} onPress={onShopNow}>
-            <LinearGradient
-              colors={[tokens.colors.primary, tokens.colors.primaryDark]}
-              style={styles.heroButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.heroButtonText}>{t('shopNow')}</Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-      </ImageBackground>
+        <TouchableOpacity style={styles.heroButton} onPress={() => onShopNow(currentBanner)}>
+          <LinearGradient
+            colors={[tokens.colors.primary, tokens.colors.primaryDark]}
+            style={styles.heroButtonGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.heroButtonText}>{t('shopNow')}</Text>
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Carousel Indicators */}
+        {displayBanners.length > 1 && (
+          <View style={styles.indicatorContainer}>
+            {displayBanners.map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.indicator,
+                  { backgroundColor: i === activeIndex ? tokens.colors.primary : 'rgba(255,255,255,0.3)' }
+                ]}
+              />
+            ))}
+          </View>
+        )}
+      </Animated.View>
     </View>
   );
 };
@@ -218,28 +255,32 @@ const CosmicPromoBanner = ({ onPress, styles, tokens, t, isDark }) => (
 // ============================================
 // 🛒 PRODUCT CAROUSEL (Horizontal)
 // ============================================
-const ProductCarousel = React.memo(({ products, onProductPress, onAddToCart, onFavorite, isFavorite, styles }) => (
-  <FlatList
-    data={products}
-    horizontal
-    showsHorizontalScrollIndicator={false}
-    contentContainerStyle={styles.carouselContainer}
-    keyExtractor={(item) => item.id.toString()}
-    initialNumToRender={3}
-    maxToRenderPerBatch={2}
-    windowSize={5}
-    removeClippedSubviews={Platform.OS === 'android'}
-    renderItem={({ item }) => (
-      <ProductCardSoko
-        item={item}
-        onPress={onProductPress}
-        onAddToCart={onAddToCart}
-        onFavorite={onFavorite}
-        isFavorite={isFavorite(item.id)}
-      />
-    )}
-  />
-));
+const ProductCarousel = React.memo(({ products, onProductPress, onAddToCart, onFavorite, isFavorite, styles }) => {
+  const renderItem = React.useCallback(({ item, index }) => (
+    <ProductCardCinematic
+      item={item}
+      onPress={onProductPress}
+      onAddToCart={onAddToCart}
+      onFavorite={onFavorite}
+      isFavorite={isFavorite(item.id)}
+      index={index}
+    />
+  ), [onProductPress, onAddToCart, onFavorite, isFavorite]);
+
+  return (
+    <FlashList
+      data={products}
+      horizontal
+      estimatedItemSize={CARD_WIDTH + 12}
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.carouselContainer}
+      keyExtractor={(item) => item.id.toString()}
+      initialNumToRender={3}
+      removeClippedSubviews={Platform.OS === 'android'}
+      renderItem={renderItem}
+    />
+  );
+});
 
 // ============================================
 // 📦 FLOATING CATEGORY GRID
@@ -344,21 +385,52 @@ export default function HomeScreen() {
   const { cartItems } = useCart();
   const { triggerAddToCart } = useCartAnimation();
   const { toggleFavorite, isFavorite } = useFavorites();
+  const { recentlyViewed } = useRecentlyViewed();
   const { tokens, isDark } = useTheme(); // Use tokens
   const { t } = useTranslation();
   const { addNotification, notifications } = useNotifications();
 
   const styles = getStyles(tokens, isDark);
 
-  const { data: productsData, isLoading: productsLoading, refetch: refetchProducts } = useProducts(1, 100);
-  const { data: categoriesData, isLoading: categoriesLoading, refetch: refetchCategories } = useCategories();
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isError: productsError,
+    refetch: refetchProducts
+  } = useProducts(1, 100);
+
+  const {
+    data: categoriesData,
+    isLoading: categoriesLoading,
+    isError: categoriesError,
+    refetch: refetchCategories
+  } = useCategories();
 
   const products = productsData || [];
   const categories = categoriesData?.filter(cat => cat.count > 0) || [];
-  const loading = productsLoading || categoriesLoading;
+
+  const [banners, setBanners] = useState([]);
+  const [bannersLoading, setBannersLoading] = useState(true);
+  const loading = productsLoading || categoriesLoading || bannersLoading;
 
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const loadBanners = useCallback(async (isSilent = false) => {
+    try {
+      if (!isSilent) setBannersLoading(true);
+      const fetchedBanners = await getAllBanners(true);
+      setBanners(fetchedBanners);
+    } catch (err) {
+      console.error('Error loading banners:', err);
+    } finally {
+      setBannersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBanners();
+  }, [loadBanners]);
 
   useEffect(() => {
     if (!loading && products.length > 0) {
@@ -375,9 +447,9 @@ export default function HomeScreen() {
 
   const handleRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchProducts(), refetchCategories()]);
+    await Promise.all([refetchProducts(), refetchCategories(), loadBanners(true)]);
     setRefreshing(false);
-  }, [refetchProducts, refetchCategories]);
+  }, [refetchProducts, refetchCategories, loadBanners]);
 
 
 
@@ -391,14 +463,14 @@ export default function HomeScreen() {
     router.push(`/product/${item.id}`);
   }, [router]);
 
-  const handleAddToCart = React.useCallback((item) => {
+  const handleAddToCart = React.useCallback((item, sourceRef) => {
     triggerAddToCart({
       id: item.id,
       name: item.name,
       price: item.sale_price || item.price,
       image: item.images?.[0]?.src,
       quantity: 1,
-    });
+    }, sourceRef);
   }, [triggerAddToCart]);
 
   const handleFavorite = React.useCallback((item) => {
@@ -443,164 +515,214 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={tokens.colors.primary} />
         }
       >
-        {/* 🌙 Cosmic Hero */}
-        {loading ? <BannerSkeleton /> : <CosmicHero onShopNow={() => router.push('/products')} tokens={tokens} styles={styles} t={t} isDark={isDark} />}
-
-        {/* 💎 Shop by Skin Type */}
-        <SkinTypeSection onSelect={(type) => router.push(`/products?skin=${type.id}`)} tokens={tokens} styles={styles} t={t} isDark={isDark} />
-
-        {/* ✨ Promo Banner */}
-        {loading ? <BannerSkeleton /> : <CosmicPromoBanner onPress={() => router.push('/products?sale=true')} styles={styles} tokens={tokens} t={t} isDark={isDark} />}
-
-        {/* 🆕 New Arrivals */}
-        <View style={styles.section}>
-          <ElegantSectionHeader
-            title={t('newArrivals')}
-            subtitle={t('newArrivalsSub')}
-            onViewAll={() => router.push('/products')}
-            tokens={tokens}
-            styles={styles}
-            t={t}
+        {productsError ? (
+          <EmptyState
+            title={t('errorTitle') || 'Connection Error'}
+            description={t('errorDescription') || 'Failed to fetch products. Please check your connection.'}
+            icon="cloud-offline-outline"
+            actionLabel={t('retry') || 'Retry'}
+            onAction={handleRefresh}
+            style={{ marginVertical: 60 }}
           />
-          {loading ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
-              {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
-            </ScrollView>
-          ) : (
-            <ProductCarousel
-              products={newArrivals}
-              onProductPress={handleProductPress}
-              onAddToCart={handleAddToCart}
-              onFavorite={handleFavorite}
-              isFavorite={isFavorite}
-              styles={styles}
-            />
-          )}
-        </View>
-
-        {/* 🔥 On Sale */}
-        <View style={styles.section}>
-          <ElegantSectionHeader
-            title={t('onSale')}
-            subtitle={t('onSaleSub')}
-            onViewAll={() => router.push('/products?sale=true')}
-            tokens={tokens}
-            styles={styles}
-            t={t}
-          />
-          {loading ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
-              {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
-            </ScrollView>
-          ) : (
-            <ProductCarousel
-              products={saleProducts}
-              onProductPress={handleProductPress}
-              onAddToCart={handleAddToCart}
-              onFavorite={handleFavorite}
-              isFavorite={isFavorite}
-              styles={styles}
-            />
-          )}
-        </View>
-
-        {/* 📦 Shop by Category */}
-        {loading ? (
-          <View style={styles.categorySection}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselContainer}>
-              {[1, 2, 3, 4, 5].map(i => <CategorySkeleton key={i} />)}
-            </ScrollView>
-          </View>
         ) : (
-          <CategoryGrid
-            categories={categories}
-            onSelect={(cat) => router.push(`/products?category=${cat.id}`)}
-            styles={styles}
-            tokens={tokens}
-            t={t}
-            isDark={isDark}
-          />
-        )}
+          <>
+            {/* 🌙 Cosmic Hero */}
+            {loading ? <BannerSkeleton /> : (
+              <CosmicHero
+                banners={banners}
+                onShopNow={(banner) => {
+                  if (banner.link) {
+                    router.push(banner.link);
+                  } else {
+                    router.push('/products');
+                  }
+                }}
+                tokens={tokens}
+                styles={styles}
+                t={t}
+                isDark={isDark}
+              />
+            )}
 
-        {/* ⭐ Popular Products */}
-        <View style={styles.section}>
-          <ElegantSectionHeader
-            title={t('bestSellers')}
-            subtitle={t('bestSellersSub')}
-            onViewAll={() => router.push('/products')}
-            tokens={tokens}
-            styles={styles}
-            t={t}
-          />
-          {loading ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
-              {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
-            </ScrollView>
-          ) : (
-            <ProductCarousel
-              products={popularProducts}
-              onProductPress={handleProductPress}
-              onAddToCart={handleAddToCart}
-              onFavorite={handleFavorite}
-              isFavorite={isFavorite}
-              styles={styles}
-            />
-          )}
-        </View>
+            {/* 💎 Shop by Skin Type */}
+            <SkinTypeSection onSelect={(type) => router.push(`/products?skin=${type.id}`)} tokens={tokens} styles={styles} t={t} isDark={isDark} />
 
-        {/* 🌟 Why Shop With Us */}
-        <WhyShopWithUs tokens={tokens} styles={styles} t={t} isDark={isDark} />
+            {/* ✨ Promo Banner */}
+            {loading ? <BannerSkeleton /> : <CosmicPromoBanner onPress={() => router.push('/products?sale=true')} styles={styles} tokens={tokens} t={t} isDark={isDark} />}
 
-        {/* 💜 More Products */}
-        <View style={styles.section}>
-          <ElegantSectionHeader
-            title={t('discoverMore')}
-            subtitle={t('discoverMoreSub')}
-            onViewAll={() => router.push('/products')}
-            tokens={tokens}
-            styles={styles}
-            t={t}
-          />
-          {loading ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
-              {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
-            </ScrollView>
-          ) : (
-            <ProductCarousel
-              products={products.slice(12, 24)}
-              onProductPress={handleProductPress}
-              onAddToCart={handleAddToCart}
-              onFavorite={handleFavorite}
-              isFavorite={isFavorite}
-              styles={styles}
-            />
-          )}
-        </View>
+            {/* 🆕 New Arrivals */}
+            <View style={styles.section}>
+              <ElegantSectionHeader
+                title={t('newArrivals')}
+                subtitle={t('newArrivalsSub')}
+                onViewAll={() => router.push('/products')}
+                tokens={tokens}
+                styles={styles}
+                t={t}
+              />
+              {loading ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
+                  {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
+                </ScrollView>
+              ) : (
+                <ProductCarousel
+                  products={newArrivals}
+                  onProductPress={handleProductPress}
+                  onAddToCart={handleAddToCart}
+                  onFavorite={handleFavorite}
+                  isFavorite={isFavorite}
+                  styles={styles}
+                />
+              )}
+            </View>
 
-        {/* Newsletter CTA - Glass Style */}
-        <View style={styles.newsletterSection}>
-          <BlurView intensity={isDark ? 40 : 60} tint={isDark ? "dark" : "light"} style={styles.newsletterBlur}>
-            <LinearGradient
-              colors={[tokens.colors.primary + '20', tokens.colors.primaryDark + '30']}
-              style={styles.newsletterGradient}
-            >
-              <Text style={styles.newsletterEmoji}>💌</Text>
-              <Text variant="title" style={{ color: tokens.colors.text, marginBottom: 8 }}>{t('joinFamily')}</Text>
-              <Text variant="body" style={{ color: tokens.colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>{t('joinFamilySub')}</Text>
-              <TouchableOpacity style={styles.newsletterBtn}>
+            {/* 🔥 On Sale */}
+            <View style={styles.section}>
+              <ElegantSectionHeader
+                title={t('onSale')}
+                subtitle={t('onSaleSub')}
+                onViewAll={() => router.push('/products?sale=true')}
+                tokens={tokens}
+                styles={styles}
+                t={t}
+              />
+              {loading ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
+                  {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
+                </ScrollView>
+              ) : (
+                <ProductCarousel
+                  products={saleProducts}
+                  onProductPress={handleProductPress}
+                  onAddToCart={handleAddToCart}
+                  onFavorite={handleFavorite}
+                  isFavorite={isFavorite}
+                  styles={styles}
+                />
+              )}
+            </View>
+
+            {/* 📦 Shop by Category */}
+            {loading ? (
+              <View style={styles.categorySection}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselContainer}>
+                  {[1, 2, 3, 4, 5].map(i => <CategorySkeleton key={i} />)}
+                </ScrollView>
+              </View>
+            ) : (
+              <CategoryGrid
+                categories={categories}
+                onSelect={(cat) => router.push(`/products?category=${cat.id}`)}
+                styles={styles}
+                tokens={tokens}
+                t={t}
+                isDark={isDark}
+              />
+            )}
+
+            {/* ⭐ Popular Products */}
+            <View style={styles.section}>
+              <ElegantSectionHeader
+                title={t('bestSellers')}
+                subtitle={t('bestSellersSub')}
+                onViewAll={() => router.push('/products')}
+                tokens={tokens}
+                styles={styles}
+                t={t}
+              />
+              {loading ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
+                  {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
+                </ScrollView>
+              ) : (
+                <ProductCarousel
+                  products={popularProducts}
+                  onProductPress={handleProductPress}
+                  onAddToCart={handleAddToCart}
+                  onFavorite={handleFavorite}
+                  isFavorite={isFavorite}
+                  styles={styles}
+                />
+              )}
+            </View>
+
+            {/* 🕒 Recently Viewed */}
+            {recentlyViewed.length > 0 && (
+              <View style={styles.section}>
+                <ElegantSectionHeader
+                  title={t('recentlyViewed') || 'تمت مشاهدتها مؤخراً'}
+                  subtitle={t('recentlyViewedSub') || 'المنتجات التي اهتممت بها'}
+                  onViewAll={() => { }}
+                  tokens={tokens}
+                  styles={styles}
+                  t={t}
+                />
+                <ProductCarousel
+                  products={recentlyViewed}
+                  onProductPress={handleProductPress}
+                  onAddToCart={handleAddToCart}
+                  onFavorite={handleFavorite}
+                  isFavorite={isFavorite}
+                  styles={styles}
+                />
+              </View>
+            )}
+
+            {/* 🌟 Why Shop With Us */}
+            <WhyShopWithUs tokens={tokens} styles={styles} t={t} isDark={isDark} />
+
+            {/* 💜 More Products */}
+            <View style={styles.section}>
+              <ElegantSectionHeader
+                title={t('discoverMore')}
+                subtitle={t('discoverMoreSub')}
+                onViewAll={() => router.push('/products')}
+                tokens={tokens}
+                styles={styles}
+                t={t}
+              />
+              {loading ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
+                  {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
+                </ScrollView>
+              ) : (
+                <ProductCarousel
+                  products={products.slice(12, 24)}
+                  onProductPress={handleProductPress}
+                  onAddToCart={handleAddToCart}
+                  onFavorite={handleFavorite}
+                  isFavorite={isFavorite}
+                  styles={styles}
+                />
+              )}
+            </View>
+
+            {/* Newsletter CTA - Glass Style */}
+            <View style={styles.newsletterSection}>
+              <BlurView intensity={isDark ? 40 : 60} tint={isDark ? "dark" : "light"} style={styles.newsletterBlur}>
                 <LinearGradient
-                  colors={[tokens.colors.primary, tokens.colors.primaryDark]}
-                  style={styles.newsletterBtnGradient}
+                  colors={[tokens.colors.primary + '20', tokens.colors.primaryDark + '30']}
+                  style={styles.newsletterGradient}
                 >
-                  <Text style={styles.newsletterBtnText}>{t('subscribe')}</Text>
+                  <Text style={styles.newsletterEmoji}>💌</Text>
+                  <Text variant="title" style={{ color: tokens.colors.text, marginBottom: 8 }}>{t('joinFamily')}</Text>
+                  <Text variant="body" style={{ color: tokens.colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>{t('joinFamilySub')}</Text>
+                  <TouchableOpacity style={styles.newsletterBtn}>
+                    <LinearGradient
+                      colors={[tokens.colors.primary, tokens.colors.primaryDark]}
+                      style={styles.newsletterBtnGradient}
+                    >
+                      <Text style={styles.newsletterBtnText}>{t('subscribe')}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </LinearGradient>
-              </TouchableOpacity>
-            </LinearGradient>
-          </BlurView>
-        </View>
+              </BlurView>
+            </View>
 
-        {/* Footer Space */}
-        <View style={{ height: 120 }} />
+            {/* Footer Space */}
+            <View style={{ height: 120 }} />
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -895,5 +1017,16 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
     letterSpacing: 0.5,
+  },
+  indicatorContainer: {
+    flexDirection: 'row',
+    position: 'absolute',
+    bottom: -30,
+    gap: 8,
+  },
+  indicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 });

@@ -40,6 +40,8 @@ import {
 } from '../../src/services/adminOrderService';
 import { getAllProducts } from '../../src/services/adminProductService';
 import currencyService from '../../src/services/currencyService';
+import Animated, { FadeInDown, FadeInRight, Layout } from 'react-native-reanimated';
+import Surface from '../../src/components/ui/Surface';
 
 const { width } = Dimensions.get('window');
 
@@ -257,200 +259,221 @@ export default function AdminOrders() {
         });
 
         return (
-            <View style={[styles.orderCard, { backgroundColor: theme.backgroundCard }]}>
-                {/* Header */}
-                <View style={[styles.orderHeader, { borderBottomWidth: 1, borderBottomColor: theme.border, paddingBottom: 12, marginBottom: 12 }]}>
-                    <View>
-                        <Text style={[styles.orderId, { color: theme.primary }]}>
-                            {formatOrderId(item.id)}
-                        </Text>
-                        <Text style={[styles.orderTime, { color: theme.textMuted }]}>
-                            {timeAgo}
-                        </Text>
+            <Animated.View
+                entering={FadeInDown.duration(600)}
+                layout={Layout.springify()}
+            >
+                <Surface variant="glass" padding="none" style={styles.orderCardGlass}>
+                    {/* Header */}
+                    <View style={[styles.orderHeader, { borderBottomWidth: 1, borderBottomColor: theme.border, padding: 12 }]}>
+                        <View>
+                            <Text style={[styles.orderId, { color: theme.primary }]}>
+                                {formatOrderId(item.id)}
+                            </Text>
+                            <Text style={[styles.orderTime, { color: theme.textMuted }]}>
+                                {timeAgo}
+                            </Text>
+                        </View>
+                        <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
+                            <Ionicons name={statusConfig.icon} size={14} color={statusConfig.color} />
+                            <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                                {statusConfig.label}
+                            </Text>
+                        </View>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
-                        <Ionicons name={statusConfig.icon} size={14} color={statusConfig.color} />
-                        <Text style={[styles.statusText, { color: statusConfig.color }]}>
-                            {statusConfig.label}
-                        </Text>
-                    </View>
-                </View>
 
-                {/* Customer Profile Section */}
-                <View style={styles.customerProfileRow}>
-                    <View style={[styles.avatarContainer, { backgroundColor: theme.primary + '20' }]}>
-                        {customer.photoURL ? (
-                            <Image source={{ uri: customer.photoURL }} style={styles.customerAvatar} />
-                        ) : (
-                            <Ionicons name="person" size={24} color={theme.primary} />
-                        )}
+                    {/* Customer Profile Section */}
+                    <View style={styles.customerProfileRow}>
+                        <View style={[styles.avatarContainer, { backgroundColor: theme.primary + '20' }]}>
+                            {customer.photoURL ? (
+                                <Image source={{ uri: customer.photoURL }} style={styles.customerAvatar} />
+                            ) : (
+                                <Ionicons name="person" size={24} color={theme.primary} />
+                            )}
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={[styles.customerFullName, { color: theme.text }]}>{customer.displayName || shipping.first_name || item.customerName || item.customer || 'زبون'}</Text>
+                            <Text style={[styles.customerEmail, { color: theme.textMuted }]}>{customer.email || item.email || 'guest@kataraa.com'}</Text>
+                            <TouchableOpacity
+                                style={styles.phoneLink}
+                                onPress={() => Linking.openURL(`tel:${shipping.phone}`)}
+                            >
+                                <Ionicons name="call" size={14} color={theme.primary} />
+                                <Text style={[styles.phoneText, { color: theme.primary }]}>{shipping.phone}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={[styles.customerFullName, { color: theme.text }]}>{customer.displayName || shipping.first_name || item.customerName || item.customer || 'زبون'}</Text>
-                        <Text style={[styles.customerEmail, { color: theme.textMuted }]}>{customer.email || item.email || 'guest@kataraa.com'}</Text>
-                        <TouchableOpacity
-                            style={styles.phoneLink}
-                            onPress={() => Linking.openURL(`tel:${shipping.phone}`)}
-                        >
-                            <Ionicons name="call" size={14} color={theme.primary} />
-                            <Text style={[styles.phoneText, { color: theme.primary }]}>{shipping.phone}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
 
-                {/* Shipping Location Details */}
-                <View style={[styles.locationCard, { backgroundColor: theme.background + '50' }]}>
-                    <View style={styles.locationHeader}>
-                        <Ionicons name="location" size={16} color={theme.primary} />
-                        <Text style={[styles.locationTitle, { color: theme.textSecondary }]}>عنوان التوصيل:</Text>
-                    </View>
-                    <Text style={[styles.fullAddress, { color: theme.text }]}>
-                        {shipping.city || item.city || 'غ/م'} - {shipping.state || shipping.governorate || 'غ/م'}
-                    </Text>
-                    <Text style={[styles.addressDetails, { color: theme.textSecondary }]}>
-                        القطعة: {shipping.block || 'غ/م'} | الشارع: {shipping.street || shipping.address_1 || 'غ/م'}
-                    </Text>
-                    {(shipping.building || shipping.floor || shipping.apartment) && (
+                    {/* Shipping Location Details */}
+                    <View style={[styles.locationCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC' }]}>
+                        <View style={styles.locationHeader}>
+                            <Ionicons name="location" size={16} color={theme.primary} />
+                            <Text style={[styles.locationTitle, { color: theme.textSecondary }]}>عنوان التوصيل:</Text>
+                        </View>
+                        <Text style={[styles.fullAddress, { color: theme.text }]}>
+                            {shipping.city || item.city || 'غ/م'} - {shipping.state || shipping.governorate || 'غ/م'}
+                        </Text>
                         <Text style={[styles.addressDetails, { color: theme.textSecondary }]}>
-                            بناية: {shipping.building || '-'} | دور: {shipping.floor || '-'} | شقة: {shipping.apartment || '-'}
+                            القطعة: {shipping.block || 'غ/م'} | الشارع: {shipping.street || shipping.address_1 || 'غ/م'}
                         </Text>
-                    )}
-                    {shipping.notes && (
-                        <View style={styles.notesContainer}>
-                            <Text style={[styles.notesLabel, { color: theme.error }]}>ملاحظات:</Text>
-                            <Text style={[styles.notesText, { color: theme.text }]}>{shipping.notes}</Text>
-                        </View>
-                    )}
-                </View>
-
-                {/* Product List Section */}
-                <View style={styles.productsSection}>
-                    <View style={styles.sectionHeader}>
-                        <Ionicons name="list" size={16} color={theme.textSecondary} />
-                        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>المنتجات ({items.length}):</Text>
-                    </View>
-                    {items.map((prod, idx) => (
-                        <View key={idx} style={styles.productItemRow}>
-                            <View style={[styles.productImageContainer, { backgroundColor: theme.background }]}>
-                                {prod.image ? (
-                                    <Image source={{ uri: prod.image }} style={styles.productThumb} />
-                                ) : (
-                                    <Ionicons name="image-outline" size={20} color={theme.textMuted} />
-                                )}
-                            </View>
-                            <View style={{ flex: 1, marginLeft: 10 }}>
-                                <Text style={[styles.productName, { color: theme.text }]} numberOfLines={1}>{prod.name || 'منتج غير معروف'}</Text>
-                                <Text style={[styles.productPrice, { color: theme.textMuted }]}>{currencyService.formatAdminPrice(prod.price)}</Text>
-                            </View>
-                            <View style={[styles.qtyBadge, { backgroundColor: theme.primary }]}>
-                                <Text style={styles.qtyText}>x{prod.quantity}</Text>
-                            </View>
-                        </View>
-                    ))}
-                </View>
-
-                {/* Footer and Actions */}
-                <View style={[styles.orderFooter, { borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 12, marginTop: 12 }]}>
-                    <View style={styles.orderMeta}>
-                        <Text style={[styles.metaText, { color: theme.textSecondary }]}>
-                            الإجمالي:
-                        </Text>
-                        <Text style={[styles.orderTotal, { color: theme.primary }]}>
-                            {currencyService.formatAdminPrice(item.total)}
-                        </Text>
-                    </View>
-
-                    <View style={styles.orderActions}>
-                        {statusConfig.nextStatus && (
-                            <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: statusConfig.color }]}
-                                onPress={() => handleStatusUpdate(item.id, item.status)}
-                            >
-                                <Ionicons name="arrow-forward" size={18} color="#FFF" />
-                                <Text style={{ color: '#FFF', fontWeight: '600', marginLeft: 4 }}>{ORDER_STATUS_CONFIG[statusConfig.nextStatus].label}</Text>
-                            </TouchableOpacity>
+                        {(shipping.building || shipping.floor || shipping.apartment) && (
+                            <Text style={[styles.addressDetails, { color: theme.textSecondary }]}>
+                                بناية: {shipping.building || '-'} | دور: {shipping.floor || '-'} | شقة: {shipping.apartment || '-'}
+                            </Text>
                         )}
-                        {statusConfig.canCancel && (
-                            <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: '#EF444420', marginLeft: 8 }]}
-                                onPress={() => handleCancelOrder(item.id, customer.displayName || shipping.first_name)}
-                            >
-                                <Ionicons name="close" size={18} color="#EF4444" />
-                            </TouchableOpacity>
+                        {shipping.notes && (
+                            <View style={styles.notesContainer}>
+                                <Text style={[styles.notesLabel, { color: theme.error }]}>ملاحظات:</Text>
+                                <Text style={[styles.notesText, { color: theme.text }]}>{shipping.notes}</Text>
+                            </View>
                         )}
                     </View>
-                </View>
-            </View>
+
+                    {/* Product List Section */}
+                    <View style={styles.productsSection}>
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="list" size={16} color={theme.textSecondary} />
+                            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>المنتجات ({items.length}):</Text>
+                        </View>
+                        {items.map((prod, idx) => (
+                            <View key={idx} style={styles.productItemRow}>
+                                <View style={[styles.productImageContainer, { backgroundColor: isDark ? theme.background : '#F1F5F9' }]}>
+                                    {prod.image ? (
+                                        <Image source={{ uri: prod.image }} style={styles.productThumb} />
+                                    ) : (
+                                        <Ionicons name="image-outline" size={20} color={theme.textMuted} />
+                                    )}
+                                </View>
+                                <View style={{ flex: 1, marginLeft: 10 }}>
+                                    <Text style={[styles.productName, { color: theme.text }]} numberOfLines={1}>{prod.name || 'منتج غير معروف'}</Text>
+                                    <View style={styles.priceRow}>
+                                        <Text style={[styles.productPrice, { color: theme.primary }]}>{currencyService.formatAdminPrice(prod.price)}</Text>
+                                        <View style={[styles.qtyBadge, { backgroundColor: theme.primary + '15' }]}>
+                                            <Text style={[styles.qtyText, { color: theme.primary }]}>x{prod.quantity}</Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Footer and Actions */}
+                    <View style={[styles.orderFooter, { borderTopWidth: 1, borderTopColor: theme.border, padding: 12 }]}>
+                        <View style={styles.orderMeta}>
+                            <Text style={[styles.metaText, { color: theme.textSecondary }]}>الإجمالي:</Text>
+                            <Text style={[styles.orderTotal, { color: theme.text }]}>
+                                {currencyService.formatAdminPrice(item.total)}
+                            </Text>
+                        </View>
+
+                        <View style={styles.orderActions}>
+                            {statusConfig.nextStatus && (
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: statusConfig.color }]}
+                                    onPress={() => handleStatusUpdate(item.id, item.status)}
+                                >
+                                    <Ionicons name="arrow-forward" size={18} color="#FFF" />
+                                    <Text style={{ color: '#FFF', fontWeight: 'bold', marginLeft: 6 }}>
+                                        {ORDER_STATUS_CONFIG[statusConfig.nextStatus].label}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                            {statusConfig.canCancel && (
+                                <TouchableOpacity
+                                    style={[styles.cancelBtn, { backgroundColor: '#EF444415' }]}
+                                    onPress={() => handleCancelOrder(item.id, customer.displayName || shipping.first_name)}
+                                >
+                                    <Ionicons name="close" size={20} color="#EF4444" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </View>
+                </Surface>
+            </Animated.View>
         );
     };
 
     const renderStatsSection = () => (
-        <View style={styles.statsSection}>
-            {/* Quick Stats */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.statsSection}>
+            {/* Quick Stats Scroll */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
                 <View style={styles.quickStats}>
-                    <View style={[styles.quickStatCard, { backgroundColor: theme.backgroundCard }]}>
+                    <Surface variant="glass" padding="md" style={styles.quickStatCardGlass}>
                         <Text style={[styles.quickStatValue, { color: theme.text }]}>{stats.total}</Text>
                         <Text style={[styles.quickStatLabel, { color: theme.textSecondary }]}>إجمالي</Text>
-                    </View>
-                    <View style={[styles.quickStatCard, { backgroundColor: '#F59E0B20' }]}>
+                    </Surface>
+                    <Surface variant="glass" padding="md" style={[styles.quickStatCardGlass, { minWidth: 100 }]}>
                         <Text style={[styles.quickStatValue, { color: '#F59E0B' }]}>{stats.pending}</Text>
-                        <Text style={[styles.quickStatLabel, { color: '#F59E0B' }]}>في الانتظار</Text>
-                    </View>
-                    <View style={[styles.quickStatCard, { backgroundColor: '#8B5CF620' }]}>
+                        <View style={[styles.miniBadge, { backgroundColor: '#F59E0B20' }]}>
+                            <Text style={[styles.quickStatLabel, { color: '#F59E0B', fontSize: 10 }]}>في الانتظار</Text>
+                        </View>
+                    </Surface>
+                    <Surface variant="glass" padding="md" style={[styles.quickStatCardGlass, { minWidth: 100 }]}>
                         <Text style={[styles.quickStatValue, { color: '#8B5CF6' }]}>{stats.processing}</Text>
-                        <Text style={[styles.quickStatLabel, { color: '#8B5CF6' }]}>قيد التجهيز</Text>
-                    </View>
-                    <View style={[styles.quickStatCard, { backgroundColor: '#0EA5E920' }]}>
+                        <View style={[styles.miniBadge, { backgroundColor: '#8B5CF620' }]}>
+                            <Text style={[styles.quickStatLabel, { color: '#8B5CF6', fontSize: 10 }]}>قيد التجهيز</Text>
+                        </View>
+                    </Surface>
+                    <Surface variant="glass" padding="md" style={[styles.quickStatCardGlass, { minWidth: 100 }]}>
                         <Text style={[styles.quickStatValue, { color: '#0EA5E9' }]}>{stats.shipping}</Text>
-                        <Text style={[styles.quickStatLabel, { color: '#0EA5E9' }]}>في الشحن</Text>
-                    </View>
-                    <View style={[styles.quickStatCard, { backgroundColor: '#10B98120' }]}>
+                        <View style={[styles.miniBadge, { backgroundColor: '#0EA5E920' }]}>
+                            <Text style={[styles.quickStatLabel, { color: '#0EA5E9', fontSize: 10 }]}>في الشحن</Text>
+                        </View>
+                    </Surface>
+                    <Surface variant="glass" padding="md" style={[styles.quickStatCardGlass, { minWidth: 100 }]}>
                         <Text style={[styles.quickStatValue, { color: '#10B981' }]}>{stats.completed}</Text>
-                        <Text style={[styles.quickStatLabel, { color: '#10B981' }]}>مكتمل</Text>
-                    </View>
+                        <View style={[styles.miniBadge, { backgroundColor: '#10B98120' }]}>
+                            <Text style={[styles.quickStatLabel, { color: '#10B981', fontSize: 10 }]}>مكتمل</Text>
+                        </View>
+                    </Surface>
                 </View>
             </ScrollView>
 
             {/* City Distribution */}
-            <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
+            <Surface variant="glass" style={styles.chartCardGlass} padding="md">
                 <View style={styles.chartHeader}>
-                    <Ionicons name="location" size={18} color={theme.primary} />
+                    <View style={[styles.iconContainer, { backgroundColor: theme.primary + '20' }]}>
+                        <Ionicons name="location" size={16} color={theme.primary} />
+                    </View>
                     <Text style={[styles.chartTitle, { color: theme.text }]}>توزيع المدن</Text>
                 </View>
                 {cityDistribution.length > 0 ? cityDistribution.map((city, index) => (
                     <View key={city.id || index} style={styles.cityRow}>
                         <Text style={[styles.cityName, { color: theme.text }]}>{city.name}</Text>
-                        <View style={styles.cityBarContainer}>
-                            <View
+                        <View style={[styles.cityBarContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9' }]}>
+                            <LinearGradient
+                                colors={[theme.primary, theme.primaryDark]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
                                 style={[
                                     styles.cityBar,
                                     {
                                         width: `${cityDistribution.length > 0 ? (city.count / Math.max(...cityDistribution.map(c => c.count), 1)) * 100 : 0}%`,
-                                        backgroundColor: theme.primary,
                                     }
                                 ]}
                             />
                         </View>
-                        <Text style={[styles.cityCount, { color: theme.textSecondary }]}>{city.count}</Text>
+                        <Text style={[styles.cityCount, { color: theme.text }]}>{city.count}</Text>
                     </View>
                 )) : (
                     <Text style={[styles.noDataText, { color: theme.textMuted }]}>لا توجد طلبات بعد</Text>
                 )}
-            </View>
+            </Surface>
 
             {/* Daily Performance */}
-            <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
+            <Surface variant="glass" style={styles.chartCardGlass} padding="md">
                 <View style={styles.chartHeader}>
-                    <Ionicons name="trending-up" size={18} color={theme.primary} />
+                    <View style={[styles.iconContainer, { backgroundColor: '#10B98120' }]}>
+                        <Ionicons name="trending-up" size={16} color="#10B981" />
+                    </View>
                     <Text style={[styles.chartTitle, { color: theme.text }]}>الأداء اليومي</Text>
                 </View>
                 <View style={styles.performanceChart}>
                     {dailyPerformance.length > 0 ? dailyPerformance.map((day, index) => (
                         <View key={index} style={styles.performanceBar}>
-                            <View style={styles.barWrapper}>
+                            <View style={[styles.barWrapper, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9' }]}>
                                 <LinearGradient
-                                    colors={[theme.primary, theme.primaryDark]}
+                                    colors={['#10B981', '#34D399']}
                                     style={[
                                         styles.bar,
                                         { height: `${dailyPerformance.length > 0 ? (day.orders / Math.max(...dailyPerformance.map(d => d.orders), 1)) * 100 : 0}%` }
@@ -463,7 +486,7 @@ export default function AdminOrders() {
                         <Text style={[styles.noDataText, { color: theme.textMuted }]}>لا توجد بيانات</Text>
                     )}
                 </View>
-                <View style={styles.performanceSummary}>
+                <View style={[styles.performanceSummary, { borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 12 }]}>
                     <View style={styles.summaryItem}>
                         <Text style={[styles.summaryValue, { color: theme.text }]}>
                             {dailyPerformance.reduce((sum, d) => sum + (d.orders || 0), 0)}
@@ -477,8 +500,8 @@ export default function AdminOrders() {
                         <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>إيرادات الأسبوع</Text>
                     </View>
                 </View>
-            </View>
-        </View>
+            </Surface>
+        </Animated.View>
     );
 
     return (
@@ -502,9 +525,9 @@ export default function AdminOrders() {
             </LinearGradient>
 
             {/* Search */}
-            <View style={styles.searchContainer}>
-                <View style={[styles.searchBox, { backgroundColor: theme.backgroundCard }]}>
-                    <Ionicons name="search" size={20} color={theme.textMuted} />
+            <Animated.View entering={FadeInDown.delay(300).duration(600)} style={styles.searchContainer}>
+                <Surface variant="glass" padding="none" style={styles.searchBoxGlass}>
+                    <Ionicons name="search" size={20} color={theme.textMuted} style={{ marginLeft: 16 }} />
                     <TextInput
                         style={[styles.searchInput, { color: theme.text }]}
                         placeholder="البحث برقم الطلب أو اسم الزبون..."
@@ -513,12 +536,12 @@ export default function AdminOrders() {
                         onChangeText={setSearchQuery}
                     />
                     {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <TouchableOpacity onPress={() => setSearchQuery('')} style={{ marginRight: 16 }}>
                             <Ionicons name="close-circle" size={18} color={theme.textMuted} />
                         </TouchableOpacity>
                     )}
-                </View>
-            </View>
+                </Surface>
+            </Animated.View>
 
             {/* Status Filters */}
             <FlatList
@@ -809,10 +832,11 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flex: 1,
         paddingVertical: 30,
     },
-    orderCard: {
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
+    orderCardGlass: {
+        marginBottom: 16,
+        marginHorizontal: 16,
+        borderRadius: 24,
+        overflow: 'hidden',
     },
     orderHeader: {
         flexDirection: 'row',
@@ -899,8 +923,9 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
     locationCard: {
         padding: 12,
-        borderRadius: 12,
-        marginBottom: 16,
+        borderRadius: 16,
+        marginHorizontal: 12,
+        marginBottom: 12,
     },
     locationHeader: {
         flexDirection: 'row',
@@ -1019,5 +1044,50 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     emptyText: {
         fontSize: 16,
         marginTop: 16,
+    },
+    priceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 4,
+    },
+    cancelBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        marginLeft: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    quickStatCardGlass: {
+        borderRadius: 20,
+        marginRight: 12,
+        alignItems: 'center',
+        minWidth: 90,
+    },
+    miniBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 8,
+        marginTop: 6,
+    },
+    chartCardGlass: {
+        marginHorizontal: 16,
+        marginBottom: 16,
+        borderRadius: 24,
+        overflow: 'hidden',
+    },
+    iconContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    searchBoxGlass: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: 52,
+        borderRadius: 16,
     },
 });

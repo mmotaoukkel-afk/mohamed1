@@ -8,16 +8,17 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
   Linking,
   Platform,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -27,12 +28,13 @@ import Animated, {
   withSequence,
   FadeInDown,
 } from 'react-native-reanimated';
+import { useRecentlyViewed } from '../../src/context/RecentlyViewedContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import api from '../../src/services/api';
 import { useCart } from '../../src/context/CartContext';
 import { useFavorites } from '../../src/context/FavoritesContext';
 import { useAuth } from '../../src/context/AuthContext';
-import AddToCartSuccess from '../../src/components/AddToCartSuccess';
+import { useCartAnimation } from '../../src/context/CartAnimationContext';
 import ReviewSection from '../../src/components/ReviewSection';
 import ProductImageGallery from '../../src/components/ProductImageGallery';
 import RelatedProducts from '../../src/components/RelatedProducts';
@@ -56,8 +58,33 @@ export default function ProductDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [showAddedMessage, setShowAddedMessage] = useState(false);
   const [publicLikes, setPublicLikes] = useState(0);
+  const { triggerAddToCart } = useCartAnimation();
+  const { addProductToRecent } = useRecentlyViewed();
+
+  useEffect(() => {
+    if (product) {
+      addProductToRecent({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.images?.[0]?.src,
+      });
+    }
+  }, [product, addProductToRecent]);
+
+  const handleShare = async () => {
+    try {
+      const message = t('shareMessage', { name: product.name, url: `https://kataraa.com/product/${product.id}` });
+      await Share.share({
+        message: message,
+        title: product.name,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  };
+  const imageRef = React.useRef(null);
 
   // Animation values
   const heartScale = useSharedValue(1);
@@ -88,11 +115,11 @@ export default function ProductDetailsScreen() {
   }, [id]);
 
   // Normalize Firestore data to WooCommerce format
-  const normalizeProductData = (firestoreProduct) => {
-    if (!firestoreProduct) return null;
+  const normalizedProduct = React.useMemo(() => {
+    if (!product) return null;
 
     // Normalize images: Firestore uses array of strings, WooCommerce uses array of objects
-    const normalizedImages = (firestoreProduct.images || []).map(img => {
+    const normalizedImages = (product.images || []).map(img => {
       if (typeof img === 'string') {
         return { src: img };
       }
@@ -100,25 +127,24 @@ export default function ProductDetailsScreen() {
     });
 
     return {
-      ...firestoreProduct,
+      ...product,
       images: normalizedImages,
       // Map Firestore fields to WooCommerce compatible fields
-      price: firestoreProduct.price || 0,
-      sale_price: firestoreProduct.price || 0,
-      regular_price: firestoreProduct.compareAtPrice || firestoreProduct.price || 0,
-      on_sale: firestoreProduct.compareAtPrice && firestoreProduct.compareAtPrice > firestoreProduct.price,
-      stock_status: firestoreProduct.stock > 0 ? 'instock' : 'outofstock',
-      in_stock: firestoreProduct.stock > 0,
-      short_description: firestoreProduct.description || '',
-      categories: firestoreProduct.category ? [{ name: firestoreProduct.category }] : [],
+      price: product.price || 0,
+      sale_price: product.price || 0,
+      regular_price: product.compareAtPrice || product.price || 0,
+      on_sale: product.compareAtPrice && product.compareAtPrice > product.price,
+      stock_status: product.stock > 0 ? 'instock' : 'outofstock',
+      in_stock: product.stock > 0,
+      short_description: product.description || '',
+      categories: product.category ? [{ name: product.category }] : [],
     };
-  };
+  }, [product]);
 
   const fetchProduct = async () => {
     try {
       const data = await api.getProduct(id);
-      const normalized = normalizeProductData(data);
-      setProduct(normalized);
+      setProduct(data);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -132,20 +158,19 @@ export default function ProductDetailsScreen() {
 
   const handleAddToCart = () => {
     if (!product) return;
-    addToCart({
+    triggerAddToCart({
       id: product.id,
       name: product.name,
       price: product.sale_price || product.price,
       image: product.images?.[0]?.src,
       quantity,
-    });
-    setShowAddedMessage(true);
+    }, imageRef);
   };
 
   const handleBuyNow = () => {
     if (!product) return;
     handleAddToCart();
-    router.push('/checkout/shipping');
+    router.push('/checkout');
   };
 
   const handleHeartPress = async () => {
@@ -198,7 +223,7 @@ export default function ProductDetailsScreen() {
     );
   }
 
-  if (!product) {
+  if (!normalizedProduct) {
     return (
       <View style={styles.loadingContainer}>
         <Ionicons name="alert-circle" size={60} color={tokens.colors.primary} />
@@ -212,11 +237,11 @@ export default function ProductDetailsScreen() {
     );
   }
 
-  const images = product.images || [];
-  const isLiked = isFavorite(product.id);
-  const onSale = product.on_sale && product.regular_price;
-  const discount = onSale ? Math.round((1 - product.sale_price / product.regular_price) * 100) : 0;
-  const isInStock = product.stock_status === 'instock' || product.in_stock === true;
+  const images = normalizedProduct.images || [];
+  const isLiked = isFavorite(normalizedProduct.id);
+  const onSale = normalizedProduct.on_sale && normalizedProduct.regular_price;
+  const discount = onSale ? Math.round((1 - normalizedProduct.sale_price / normalizedProduct.regular_price) * 100) : 0;
+  const isInStock = normalizedProduct.stock_status === 'instock' || normalizedProduct.in_stock === true;
 
   return (
     <View style={styles.container}>
@@ -249,6 +274,13 @@ export default function ProductDetailsScreen() {
                   iconColor={isLiked ? tokens.colors.error : tokens.colors.text}
                 />
               </Animated.View>
+              <IconButton
+                icon="share-outline"
+                size="md"
+                variant="glass"
+                onPress={handleShare}
+                style={{ marginLeft: 8 }}
+              />
               {publicLikes > 0 && (
                 <View style={[styles.likeBadge, { backgroundColor: tokens.colors.primary }]}>
                   <Text style={styles.likeBadgeText}>{publicLikes}</Text>
@@ -276,6 +308,13 @@ export default function ProductDetailsScreen() {
                 iconColor={isLiked ? tokens.colors.error : tokens.colors.text}
               />
             </Animated.View>
+            <IconButton
+              icon="share-outline"
+              size="md"
+              variant="glass"
+              onPress={handleShare}
+              style={{ marginLeft: 8 }}
+            />
             {publicLikes > 0 && (
               <View style={[styles.likeBadge, { backgroundColor: tokens.colors.primary }]}>
                 <Text style={styles.likeBadgeText}>{publicLikes}</Text>
@@ -284,12 +323,13 @@ export default function ProductDetailsScreen() {
           </View>
         </SafeAreaView>
 
-        {/* Hero Image Gallery - Interactive with Zoom */}
-        <ProductImageGallery
-          images={images}
-          initialIndex={selectedImage}
-          tokens={tokens}
-        />
+        <View ref={imageRef}>
+          <ProductImageGallery
+            images={images}
+            initialIndex={selectedImage}
+            tokens={tokens}
+          />
+        </View>
 
         {/* Content Section */}
         <View style={styles.contentSection}>
@@ -395,12 +435,6 @@ export default function ProductDetailsScreen() {
           </TouchableOpacity>
         </Surface>
       </View>
-
-      {/* Success Modal */}
-      <AddToCartSuccess
-        visible={showAddedMessage}
-        onClose={() => setShowAddedMessage(false)}
-      />
     </View>
   );
 }

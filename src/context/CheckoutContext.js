@@ -6,6 +6,7 @@ import * as Linking from 'expo-linking';
 import PaymentService from '../services/PaymentService';
 import api from '../services/api';
 import { useCart } from './CartContext';
+import { validateCoupon, recordCouponUsage } from '../services/adminCouponService';
 
 const CheckoutContext = createContext();
 
@@ -42,6 +43,8 @@ export const CheckoutProvider = ({ children }) => {
   const [savedPaymentMethods, setSavedPaymentMethods] = useState([]);
   const [pendingOrderId, setPendingOrderId] = useState(null);
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
 
   // Load data from Storage
   useEffect(() => {
@@ -142,6 +145,27 @@ export const CheckoutProvider = ({ children }) => {
     setShippingInfo(prev => ({ ...prev, ...info }));
   };
 
+  const applyCouponCode = async (code, subtotal) => {
+    try {
+      const result = await validateCoupon(code, subtotal);
+      if (result.valid) {
+        setAppliedCoupon(result);
+        setDiscountAmount(result.discountAmount);
+        return { success: true };
+      } else {
+        return { success: false, message: result.message };
+      }
+    } catch (error) {
+      console.error('Apply coupon error:', error);
+      return { success: false, message: 'حدث خطأ أثناء تفعيل الكود' };
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setDiscountAmount(0);
+  };
+
   const resetCheckout = () => {
     setShippingInfo({
       fullName: '',
@@ -198,6 +222,12 @@ export const CheckoutProvider = ({ children }) => {
     if (user) {
       await storage.setItem(`orders_${user.email.toLowerCase()}`, newOrders);
     }
+
+    // Record coupon usage if one was applied
+    if (appliedCoupon?.couponId) {
+      await recordCouponUsage(appliedCoupon.couponId);
+      removeCoupon(); // Clear for next order
+    }
   };
 
   return (
@@ -222,7 +252,10 @@ export const CheckoutProvider = ({ children }) => {
       setPendingOrderId,
       isVerifyingPayment,
       verifyPayment,
-      // Add more as needed
+      appliedCoupon,
+      discountAmount,
+      applyCouponCode,
+      removeCoupon,
     }}>
       {children}
     </CheckoutContext.Provider>

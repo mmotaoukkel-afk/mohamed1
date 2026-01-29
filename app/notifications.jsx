@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { useTranslation } from '../src/hooks/useTranslation';
 import { useNotifications } from '../src/context/NotificationContext';
+import { EmptyState } from '../src/components/ui';
 
 export default function NotificationsScreen() {
     const router = useRouter();
@@ -60,13 +61,11 @@ export default function NotificationsScreen() {
                     <ActivityIndicator color={theme.primary} />
                 </View>
             ) : notifications.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                    <Ionicons name="notifications-off-outline" size={80} color={theme.textMuted} />
-                    <Text style={styles.emptyTitle}>{t('noNotifications')}</Text>
-                    <Text style={styles.emptySubtitle}>
-                        {t('notifEmptyMsg')}
-                    </Text>
-                </View>
+                <EmptyState
+                    title={t('noNotifications')}
+                    description={t('notifEmptyMsg')}
+                    icon="notifications-off-outline"
+                />
             ) : (
                 <FlatList
                     data={notifications}

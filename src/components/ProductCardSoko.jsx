@@ -56,8 +56,11 @@ const ProductCardSoko = React.memo(({
         return Math.round((1 - parseFloat(item.sale_price) / parseFloat(item.regular_price)) * 100);
     };
 
+    const containerRef = React.useRef(null);
+
     return (
         <TouchableOpacity
+            ref={containerRef}
             onPress={() => onPress?.(item)}
             activeOpacity={0.9}
         >
@@ -112,7 +115,7 @@ const ProductCardSoko = React.memo(({
                     {!isOutOfStock && (
                         <TouchableOpacity
                             style={styles.addToCartBtn}
-                            onPress={() => onAddToCart?.(item)}
+                            onPress={() => onAddToCart?.(item, containerRef)}
                         >
                             <LinearGradient
                                 colors={[tokens.colors.primary, tokens.colors.primaryDark]}

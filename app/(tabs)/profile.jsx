@@ -14,7 +14,8 @@ import {
   ActivityIndicator,
   Alert,
   I18nManager,
-  Switch
+  Switch,
+  Linking
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -31,16 +32,22 @@ import EditProfileModal from "../../src/components/EditProfileModal";
 import SavedAddresses from "../../src/components/SavedAddresses";
 import PaymentMethods from "../../src/components/PaymentMethods";
 import { ProfileSkeleton } from "../../src/components/SkeletonLoader";
+import { useRecentlyViewed } from "../../src/context/RecentlyViewedContext";
+import { useCartAnimation } from "../../src/context/CartAnimationContext";
+import ProductCardCinematic from "../../src/components/ProductCardCinematic";
+import { LinearGradient } from "expo-linear-gradient";
 
 const Profile = () => {
   const router = useRouter();
   const { user, logout, updateUser, isAdmin, loading } = useAuth();
   const { theme, isDark, toggleTheme } = useTheme();
   const { t } = useTranslation();
-  const { language, changeLanguage } = useSettings();
-  const { savedAddresses } = useCheckout();
-  const { favorites } = useFavorites();
+  const { language, changeLanguage, updateConsent } = useSettings();
+  const { savedAddresses, deleteAddress, saveAddress, deletePaymentMethod, savePaymentMethod } = useCheckout();
+  const { favorites, isFavorite, toggleFavorite } = useFavorites();
   const { savedPaymentMethods } = useCheckout();
+  const { recentlyViewed } = useRecentlyViewed();
+  const { triggerAddToCart } = useCartAnimation();
 
   const [loadingImage, setLoadingImage] = useState(false);
   const [showAddresses, setShowAddresses] = useState(false);
@@ -90,6 +97,88 @@ const Profile = () => {
     );
   };
 
+  const handleWhatsAppSupport = () => {
+    const message = t('supportMessage') || 'مرحباً، أحتاج إلى مساعدة بخصوص طلبي.';
+    const whatsappUrl = `https://wa.me/9659910326?text=${encodeURIComponent(message)}`;
+    Linking.openURL(whatsappUrl);
+  };
+
+  const handleProductPress = (item) => {
+    router.push(`/product/${item.id}`);
+  };
+
+  const handleAddToCart = (item, sourceRef) => {
+    triggerAddToCart({
+      id: item.id,
+      name: item.name,
+      price: item.sale_price || item.price,
+      image: item.images?.[0]?.src,
+      quantity: 1,
+    }, sourceRef);
+  };
+
+  const handleFavorite = (item) => {
+    toggleFavorite({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      image: item.images?.[0]?.src,
+      quantity: 1,
+    });
+  };
+
+  // Loyalty Card Component
+  const LoyaltyCard = () => (
+    <Surface style={styles.loyaltyCard} elevation={2}>
+      <LinearGradient
+        colors={[theme.primary, theme.primaryDark || theme.primary]}
+        style={styles.loyaltyGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.loyaltyLeft}>
+          <View style={styles.loyaltyIconBox}>
+            <Ionicons name="sparkles" size={24} color="#FFF" />
+          </View>
+          <View>
+            <Text style={styles.loyaltyTitle}>{t('loyaltyPoints')}</Text>
+            <Text style={styles.loyaltySub}>{t('kataraaRewards')}</Text>
+          </View>
+        </View>
+        <View style={styles.loyaltyRight}>
+          <Text style={styles.loyaltyPoints}>500</Text>
+          <Text style={styles.loyaltyUnit}>{t('pts')}</Text>
+        </View>
+      </LinearGradient>
+    </Surface>
+  );
+
+  // Product Carousel (Simplified version for Profile)
+  const SimpleProductCarousel = () => (
+    <View style={styles.recentSection}>
+      <View style={styles.sectionHeader}>
+        <Text variant="title" style={{ fontSize: 18 }}>{t('recentlyViewed')}</Text>
+        <TouchableOpacity onPress={() => router.push('/products')}>
+          <Text style={{ color: theme.primary, fontWeight: '600' }}>{t('viewAll')}</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselScroll}>
+        {recentlyViewed.map((item, index) => (
+          <View key={item.id} style={{ width: 160, marginRight: 12 }}>
+            <ProductCardCinematic
+              item={item}
+              onPress={handleProductPress}
+              onAddToCart={handleAddToCart}
+              onFavorite={handleFavorite}
+              isFavorite={isFavorite(item.id)}
+              index={index}
+            />
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
   // New Menu Items Config
   const menuItems = [
     {
@@ -101,8 +190,8 @@ const Profile = () => {
     },
     {
       id: 'orders',
-      label: t('orders'), // Was Downloads
-      icon: 'receipt-outline', // Was Cloud-download
+      label: t('orders'),
+      icon: 'receipt-outline',
       onPress: () => router.push('/orders'),
       showChevron: true
     },
@@ -139,19 +228,46 @@ const Profile = () => {
     },
     {
       id: 'payment',
-      label: t('paymentMethods'), // Was Subscription
+      label: t('paymentMethods'),
       icon: 'card-outline',
       onPress: () => setShowPayments(true),
       showChevron: true
     },
+    {
+      id: 'support',
+      label: t('contactSupport'),
+      icon: 'chatbubble-ellipses-outline',
+      onPress: handleWhatsAppSupport,
+      showChevron: true,
+      color: '#25D366'
+    },
     ...(isAdmin ? [{
       id: 'admin',
-      label: language === 'ar' ? 'لوحة التحكم' : 'Admin Dashboard',
+      label: t('adminDashboard'),
       icon: 'shield-checkmark-outline',
       onPress: () => router.push('/admin/overview'),
       showChevron: true,
       color: theme.primary
     }] : []),
+    {
+      id: 'privacy',
+      label: t('privacyPolicy') || (language === 'ar' ? 'الخصوصية والأمان' : 'Privacy & Safety'),
+      icon: 'shield-outline',
+      onPress: () => {
+        Alert.alert(
+          t('privacyPolicy') || (language === 'ar' ? 'إعدادات الخصوصية' : 'Privacy Settings'),
+          language === 'ar' ? 'هل تريد مراجعة تفضيلات الخصوصية الخاصة بك؟' : 'Would you like to review your privacy preferences?',
+          [
+            { text: t('cancel'), style: 'cancel' },
+            {
+              text: language === 'ar' ? 'مراجعة' : 'Review',
+              onPress: () => updateConsent(null)
+            }
+          ]
+        );
+      },
+      showChevron: true
+    },
     {
       id: 'about',
       label: t('aboutApp'),
@@ -165,7 +281,7 @@ const Profile = () => {
       icon: 'log-out-outline',
       onPress: handleLogout,
       showChevron: true,
-      color: '#EF4444' // Red color for logout
+      color: '#EF4444'
     }
   ];
 
@@ -207,11 +323,15 @@ const Profile = () => {
       {/* Header */}
       <View style={styles.header}>
         <Text variant="title" style={styles.headerTitle}>
-          {language === 'ar' ? 'ملفي الشخصي' : 'My Profile'}
+          {t('profile')}
         </Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <TouchableOpacity onPress={pickAndCropImage} style={styles.avatarContainer}>
@@ -240,6 +360,12 @@ const Profile = () => {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Loyalty Points */}
+        <LoyaltyCard />
+
+        {/* Recently Viewed */}
+        {recentlyViewed.length > 0 && <SimpleProductCarousel />}
 
         {/* Menu List */}
         <View style={styles.menuContainer}>
@@ -280,7 +406,12 @@ const Profile = () => {
         <View style={styles.modalOverlay}>
           <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           <View style={styles.modalContent}>
-            <SavedAddresses onClose={() => setShowAddresses(false)} addresses={savedAddresses} />
+            <SavedAddresses
+              onClose={() => setShowAddresses(false)}
+              addresses={savedAddresses}
+              onDelete={deleteAddress}
+              onAdd={saveAddress}
+            />
           </View>
         </View>
       </Modal>
@@ -289,7 +420,12 @@ const Profile = () => {
         <View style={styles.modalOverlay}>
           <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           <View style={styles.modalContent}>
-            <PaymentMethods onClose={() => setShowPayments(false)} cards={savedPaymentMethods} />
+            <PaymentMethods
+              onClose={() => setShowPayments(false)}
+              cards={savedPaymentMethods}
+              onDelete={deletePaymentMethod}
+              onAdd={savePaymentMethod}
+            />
           </View>
         </View>
       </Modal>
@@ -367,7 +503,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     marginBottom: 12,
   },
   editBtn: {
-    backgroundColor: '#EF4444', // Red color from design
+    backgroundColor: '#EF4444',
     paddingVertical: 8,
     paddingHorizontal: 24,
     borderRadius: 20,
@@ -406,7 +542,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     fontSize: 14,
     color: theme.textMuted,
   },
-  // Modal Styles
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalContent: {
     height: '85%',
@@ -415,6 +550,69 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     borderTopRightRadius: 30,
     overflow: 'hidden',
     paddingTop: 10
+  },
+  // Loyalty Card
+  loyaltyCard: {
+    marginHorizontal: 24,
+    marginBottom: 24,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  loyaltyGradient: {
+    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  loyaltyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loyaltyIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loyaltyTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  loyaltySub: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+  },
+  loyaltyRight: {
+    alignItems: 'center',
+  },
+  loyaltyPoints: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  loyaltyUnit: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: -4,
+  },
+  // Recent Section
+  recentSection: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  carouselScroll: {
+    paddingHorizontal: 24,
   }
 });
 

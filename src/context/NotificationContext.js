@@ -20,8 +20,9 @@ Notifications.setNotificationHandler({
 });
 
 // Direct Firebase import to avoid circular dependency with AuthContext
-import { auth } from '../services/firebaseConfig';
+import { auth, db } from '../services/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
+import { saveUserPushToken } from '../services/adminNotificationService';
 
 const NotificationContext = createContext();
 
@@ -32,6 +33,7 @@ export const NotificationProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [loadedUserEmail, setLoadedUserEmail] = useState(null);
     const [expoPushToken, setExpoPushToken] = useState('');
+    const [registrationError, setRegistrationError] = useState(null);
     const { t } = useTranslation();
     const notificationListener = useRef();
     const responseListener = useRef();
@@ -42,12 +44,20 @@ export const NotificationProvider = ({ children }) => {
         });
 
         // Initialize Push Notifications
-        registerForPushNotificationsAsync().then(token => {
-            if (token) {
-                setExpoPushToken(token);
-                console.log('📬 Push Token:', token);
-            }
-        });
+        registerForPushNotificationsAsync()
+            .then(token => {
+                if (token) {
+                    setExpoPushToken(token);
+                    setRegistrationError(null);
+                    console.log('📬 Push Token:', token);
+                } else {
+                    setRegistrationError('فشل الحصول على التوكن - قد يكون السبب عدم وجود Project ID في app.json');
+                }
+            })
+            .catch(err => {
+                console.error('Push Registration Error:', err);
+                setRegistrationError(err.message || 'خطأ غير معروف في التسجيل');
+            });
 
         // Listen for foreground notifications
         notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
@@ -77,10 +87,40 @@ export const NotificationProvider = ({ children }) => {
 
         return () => {
             unsubscribe();
-            Notifications.removeNotificationSubscription(notificationListener.current);
-            Notifications.removeNotificationSubscription(responseListener.current);
+            if (notificationListener.current) {
+                notificationListener.current.remove();
+            }
+            if (responseListener.current) {
+                responseListener.current.remove();
+            }
         };
     }, []);
+
+    // Sync token to Firestore whenever user or token changes
+    useEffect(() => {
+        const syncToken = async () => {
+            if (user?.uid && expoPushToken) {
+                // Determine role from Firestore or use a default
+                let userRole = 'customer';
+                try {
+                    const { getUserRole } = await import('../services/userService');
+                    userRole = await getUserRole(user.uid);
+                } catch (e) {
+                    console.error('Failed to get role for token sync:', e);
+                }
+
+                saveUserPushToken(user.uid, expoPushToken, {
+                    email: user.email,
+                    displayName: user.displayName,
+                    role: userRole, // CRITICAL: Save role so getAdminPushTokens picks it up
+                    platform: Platform.OS,
+                    model: Device.modelName,
+                    lastActive: new Date().toISOString()
+                });
+            }
+        };
+        syncToken();
+    }, [user, expoPushToken]);
 
     useEffect(() => {
         loadNotifications();
@@ -183,7 +223,8 @@ export const NotificationProvider = ({ children }) => {
             clearNotifications,
             unreadCount,
             loading,
-            expoPushToken
+            expoPushToken,
+            registrationError
         }}>
             {children}
         </NotificationContext.Provider>

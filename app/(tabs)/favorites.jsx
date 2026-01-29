@@ -23,7 +23,7 @@ import { useCart } from '../../src/context/CartContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { useSettings } from '../../src/context/SettingsContext';
-import { Surface } from '../../src/components/ui';
+import { Surface, EmptyState } from '../../src/components/ui';
 import { BlurView } from 'expo-blur';
 import Animated, {
   FadeInDown,
@@ -162,25 +162,13 @@ export default function FavoritesScreen() {
       </View>
 
       {favorites.length === 0 ? (
-        <Animated.View
-          entering={FadeInDown}
-          style={styles.emptyContainer}
-        >
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="heart-outline" size={56} color={theme.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>{t('noFavorites')}</Text>
-          <Text style={styles.emptySubtitle}>{t('addFavoritesHint')}</Text>
-          <TouchableOpacity
-            style={styles.browseBtn}
-            onPress={() => router.push('/')}
-          >
-            <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.browseBtnGradient}>
-              <Text style={styles.browseBtnText}>{t('browseProducts')}</Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
+        <EmptyState
+          title={t('noFavorites')}
+          description={t('addFavoritesHint')}
+          icon="heart-outline"
+          actionLabel={t('browseProducts')}
+          onAction={() => router.push('/')}
+        />
       ) : (
         <FlatList
           data={favorites}

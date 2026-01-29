@@ -10,6 +10,7 @@ import {
   FlatList,
   Dimensions,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,10 +21,12 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 
 import { useCart } from '../../src/context/CartContext';
+import { useFavorites } from '../../src/context/FavoritesContext';
+import { useCheckout } from '../../src/context/CheckoutContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import currencyService from '../../src/services/currencyService';
-import { Text, Button, Surface, IconButton } from '../../src/components/ui';
+import { Text, Button, Surface, IconButton, EmptyState } from '../../src/components/ui';
 import { CartItemSkeleton } from '../../src/components/SkeletonLoader';
 
 const { width } = Dimensions.get('window');
@@ -32,9 +35,18 @@ export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart, loading } = useCart();
-  const { tokens, isDark } = useTheme(); // Use tokens
+  const { toggleFavorite, isFavorite } = useFavorites();
+  const {
+    appliedCoupon,
+    discountAmount,
+    applyCouponCode,
+    removeCoupon
+  } = useCheckout();
+  const { tokens, isDark } = useTheme();
   const { t } = useTranslation();
   const styles = getStyles(tokens, isDark, insets);
+
+  const [couponCode, setCouponCode] = React.useState('');
 
   const formatPrice = (price) => {
     return currencyService.formatPrice(price);
@@ -42,7 +54,15 @@ export default function CartScreen() {
 
   const cartTotal = getCartTotal();
   const shippingFee = cartTotal >= 25 ? 0 : 2;
-  const finalTotal = cartTotal + shippingFee;
+  const finalTotal = Math.max(0, cartTotal - discountAmount + shippingFee);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    const result = await applyCouponCode(couponCode, cartTotal);
+    if (!result.success) {
+      alert(result.message);
+    }
+  };
 
   const renderItem = ({ item, index }) => (
     <Animated.View
@@ -65,9 +85,27 @@ export default function CartScreen() {
               <Text variant="body" weight="bold" numberOfLines={2} style={{ flex: 1, marginRight: 8 }}>
                 {item.name}
               </Text>
-              <TouchableOpacity onPress={() => removeFromCart(item.id)}>
-                <Ionicons name="trash-outline" size={20} color={tokens.colors.error} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity onPress={() => {
+                  const favoritesItem = {
+                    id: item.id,
+                    name: item.name,
+                    price: item.price,
+                    image: item.image,
+                  };
+                  toggleFavorite(favoritesItem);
+                  removeFromCart(item.id);
+                }}>
+                  <Ionicons
+                    name={isFavorite(item.id) ? "heart" : "heart-outline"}
+                    size={20}
+                    color={isFavorite(item.id) ? tokens.colors.error : tokens.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => removeFromCart(item.id)}>
+                  <Ionicons name="trash-outline" size={20} color={tokens.colors.error} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <Text variant="title" style={{ color: tokens.colors.primary, marginVertical: 4 }}>
@@ -128,27 +166,22 @@ export default function CartScreen() {
             <CartItemSkeleton />
           </View>
         ) : cartItems.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <View style={[styles.emptyIconCircle, { backgroundColor: tokens.colors.primary + '15' }]}>
-              <Ionicons name="cart-outline" size={64} color={tokens.colors.primary} />
-            </View>
-            <Text variant="title" style={{ marginTop: 24, marginBottom: 8 }}>{t('emptyCartTitle')}</Text>
-            <Text variant="body" style={{ color: tokens.colors.textSecondary, marginBottom: 32 }}>{t('emptyCartSubtitle')}</Text>
-            <Button
-              title={t('shopNow')}
-              onPress={() => router.push('/')}
-              style={{ width: 200 }}
-              icon={<Ionicons name="bag-handle-outline" size={20} color="#FFF" />}
-            />
-          </View>
+          <EmptyState
+            title={t('emptyCartTitle')}
+            description={t('emptyCartSubtitle')}
+            icon="cart-outline"
+            actionLabel={t('shopNow')}
+            onAction={() => router.push('/')}
+          />
         ) : (
-          <>
+          <View style={{ flex: 1 }}>
             <FlatList
               data={cartItems}
               renderItem={renderItem}
               keyExtractor={(item) => item.id.toString()}
               contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
+              style={{ flex: 1 }}
             />
 
             <Surface variant="glass" style={styles.summaryFooter} padding="md" intensity={isDark ? 60 : 80}>
@@ -156,6 +189,42 @@ export default function CartScreen() {
                 <Text variant="body" style={{ color: tokens.colors.textSecondary }}>{t('subtotal')}</Text>
                 <Text variant="body" weight="bold">{formatPrice(cartTotal)}</Text>
               </View>
+
+              {/* Coupon UI */}
+              {!appliedCoupon ? (
+                <View style={styles.couponInputRow}>
+                  <TextInput
+                    style={[styles.couponInput, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', color: tokens.colors.text }]}
+                    placeholder={t('enterCoupon') || 'Enter Promo Code'}
+                    value={couponCode}
+                    onChangeText={setCouponCode}
+                    autoCapitalize="characters"
+                  />
+                  <TouchableOpacity
+                    style={[styles.applyBtn, { backgroundColor: tokens.colors.primary }]}
+                    onPress={handleApplyCoupon}
+                  >
+                    <Text variant="label" weight="bold" style={{ color: '#FFF' }}>{t('apply') || 'Apply'}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={[styles.couponApplied, { backgroundColor: tokens.colors.success + '10' }]}>
+                  <Ionicons name="checkmark-circle" size={18} color={tokens.colors.success} />
+                  <Text variant="body" weight="bold" style={{ color: tokens.colors.success, flex: 1, marginLeft: 8 }}>
+                    {appliedCoupon.code}
+                  </Text>
+                  <TouchableOpacity onPress={removeCoupon}>
+                    <Ionicons name="close-circle" size={20} color={tokens.colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {discountAmount > 0 && (
+                <View style={[styles.summaryRow, { marginTop: 8 }]}>
+                  <Text variant="body" style={{ color: tokens.colors.success }}>{t('discount') || 'Discount'}</Text>
+                  <Text variant="body" weight="bold" style={{ color: tokens.colors.success }}>-{formatPrice(discountAmount)}</Text>
+                </View>
+              )}
 
               <View style={styles.summaryRow}>
                 <Text variant="body" style={{ color: tokens.colors.textSecondary }}>{t('shipping')}</Text>
@@ -188,7 +257,7 @@ export default function CartScreen() {
                 icon={<Ionicons name="card-outline" size={20} color="#FFF" />}
               />
             </Surface>
-          </>
+          </View>
         )}
       </SafeAreaView>
     </View>
@@ -309,5 +378,32 @@ const getStyles = (tokens, isDark, insets) => StyleSheet.create({
   divider: {
     height: 1,
     marginVertical: 12,
+  },
+  couponInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  couponInput: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 14,
+  },
+  applyBtn: {
+    paddingHorizontal: 16,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  couponApplied: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
   },
 });

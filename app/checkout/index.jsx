@@ -28,7 +28,8 @@ import { useTranslation } from '../../src/hooks/useTranslation';
 import api from '../../src/services/api';
 import PaymentService from '../../src/services/PaymentService';
 import { getAllCoupons, validateCoupon, updateCouponUsage, getAllCountries, getDeliveryPrice, ARAB_COUNTRIES } from '../../src/services/adminSettingsService';
-import { kuwaitGovernorates, kuwaitCities, calculateShipping } from '../../src/data/kuwaitLocations';
+import { calculateShipping } from '../../src/data/kuwaitLocations';
+import { countryLocations } from '../../src/data/gccSyriaLocations';
 
 // UI Kit
 import { Text, Input, Button, Surface, IconButton } from '../../src/components/ui';
@@ -73,6 +74,7 @@ export default function CheckoutScreen() {
     const [activeZones, setActiveZones] = useState([]);
     const [showCountryDropdown, setShowCountryDropdown] = useState(false);
     const [suggestedCities, setSuggestedCities] = useState([]);
+    const [availableGovernorates, setAvailableGovernorates] = useState([]);
 
     // Initial data loading
     useEffect(() => {
@@ -84,11 +86,16 @@ export default function CheckoutScreen() {
                 ]);
                 setCoupons(couponsData);
 
-                // Merge Firestore countries with Arab suggestions
+                // Merge Firestore countries with Arab suggestions (Keep restricted to GCC/Syria)
                 if (countriesData && countriesData.length > 0) {
                     const combined = [...ARAB_COUNTRIES];
+                    const allowedCodes = ARAB_COUNTRIES.map(c => c.code);
+
                     countriesData.forEach(c => {
-                        if (!combined.find(ac => ac.id === c.id || ac.code === c.code)) {
+                        const isAlreadyPresent = combined.find(ac => ac.id === c.id || ac.code === c.code);
+                        const isAllowed = allowedCodes.includes(c.code);
+
+                        if (!isAlreadyPresent && isAllowed) {
                             combined.push(c);
                         }
                     });
@@ -113,15 +120,23 @@ export default function CheckoutScreen() {
     const getShippingFee = () => {
         if (appliedCoupon?.type === 'free_shipping') return 0;
 
-        // Specialized logic for Kuwait
+        // Global shipping logic (Simplified for GCC/Syria if not Kuwait)
         if (shippingInfo.country === 'kuwait' || shippingInfo.country === 'KW') {
             const res = calculateShipping(shippingInfo.governorate, cartTotal, shippingInfo.city);
             return res.fee;
         }
 
-        // Firestore dynamic zones
+        // For other countries (SA, UAE, QA, BH, OM, SY), check Firestore zones first
         const res = getDeliveryPrice(shippingInfo.city, cartTotal, activeZones);
-        return res?.price || 0;
+
+        // If it's a dynamic zone from Firestore, use it
+        if (activeZones.length > 0 && res && res.price !== undefined) {
+            return res.price;
+        }
+
+        // Default logic for GCC/Syria: Free above 50 KWD, otherwise 5 KWD
+        const isFree = cartTotal >= 50;
+        return isFree ? 0 : 5;
     };
 
     const currentShippingFee = getShippingFee();
@@ -143,22 +158,14 @@ export default function CheckoutScreen() {
         updateField('city', '');
         updateField('governorate', '');
 
-        // Update suggested cities
-        if (country.id === 'kuwait') {
-            setSuggestedCities([]); // We show governorates first for Kuwait
-        } else if (country.id === 'morocco') {
-            // Use DELIVERY_ZONES from admin service (already handled by getDeliveryPrice fallback if we want)
-            // But for suggestions we can just map them
-            setSuggestedCities(['الدار البيضاء', 'الرباط', 'مراكش', 'طنجة', 'فاس', 'أكادير']);
+        // Load governorates and cities from global data
+        const countryData = countryLocations[country.id];
+        if (countryData) {
+            setAvailableGovernorates(countryData.governorates || []);
+            setSuggestedCities([]); // Reset cities until governorate is selected
         } else {
-            // Basic suggestions for other Arab countries
-            const citySuggestions = {
-                saudi: ['الرياض', 'جددة', 'الدمام', 'مكة المكرمة', 'المدينة المنورة'],
-                uae: ['دبي', 'أبو ظبي', 'الشارقة', 'عجمان'],
-                qatar: ['الدوحة', 'الوكرة', 'الخور'],
-                egypt: ['القاهرة', 'الإسكندرية', 'الجيزة'],
-            };
-            setSuggestedCities(citySuggestions[country.id] || []);
+            setAvailableGovernorates([]);
+            setSuggestedCities([]);
         }
 
         setActiveZones(country.zones || []);
@@ -172,8 +179,14 @@ export default function CheckoutScreen() {
 
     const selectGovernorate = (govId) => {
         updateField('governorate', govId);
-        const cities = kuwaitCities[govId] || [];
-        setSuggestedCities(cities);
+
+        const countryData = countryLocations[shippingInfo.country];
+        if (countryData && countryData.cities) {
+            const cities = countryData.cities[govId] || [];
+            setSuggestedCities(cities);
+        } else {
+            setSuggestedCities([]);
+        }
     };
 
     const getCountryName = () => {
@@ -257,6 +270,22 @@ export default function CheckoutScreen() {
         setIsValidatingCoupon(false);
     };
 
+    const validateCardNumber = (number) => {
+        const sanitized = number.replace(/\s+/g, '');
+        if (!/^\d{13,19}$/.test(sanitized)) return false;
+        let sum = 0;
+        let shouldDouble = false;
+        for (let i = sanitized.length - 1; i >= 0; i--) {
+            let digit = parseInt(sanitized.charAt(i));
+            if (shouldDouble) {
+                if ((digit *= 2) > 9) digit -= 9;
+            }
+            sum += digit;
+            shouldDouble = !shouldDouble;
+        }
+        return (sum % 10) === 0;
+    };
+
     const handlePlaceOrder = async () => {
         setIsProcessing(true);
         try {
@@ -265,6 +294,25 @@ export default function CheckoutScreen() {
             if (!isStockValid) {
                 setIsProcessing(false);
                 return;
+            }
+
+            // 0.1 Validate Card if applicable
+            if (paymentMethod === 'card') {
+                if (!cardInfo.number || !validateCardNumber(cardInfo.number)) {
+                    Alert.alert(t('error'), t('invalidCardNumber') || 'شميرة البطاقة غير صحيحة');
+                    setIsProcessing(false);
+                    return;
+                }
+                if (!cardInfo.expiry || !/^\d{2}\/\d{2}$/.test(cardInfo.expiry)) {
+                    Alert.alert(t('error'), t('invalidExpiry') || 'تاريخ انتهاء الصلاحية غير صحيح');
+                    setIsProcessing(false);
+                    return;
+                }
+                if (!cardInfo.cvv || !/^\d{3,4}$/.test(cardInfo.cvv)) {
+                    Alert.alert(t('error'), t('invalidCVV') || 'الرمز السري غير صحيح');
+                    setIsProcessing(false);
+                    return;
+                }
             }
 
             // 1. Construct Order Data
@@ -351,6 +399,16 @@ export default function CheckoutScreen() {
 
                 if (paymentResponse.success) {
                     setPendingOrderId(orderId.toString());
+
+                    // Persistence for Card
+                    if (paymentMethod === 'card' && saveCardChecked) {
+                        await savePaymentMethod({
+                            id: Date.now(),
+                            last4: cardInfo.number.slice(-4),
+                            data: { ...cardInfo }
+                        });
+                    }
+
                     // 4. Redirect to Payment Gateway
                     if (paymentResponse.paymentUrl) {
                         Linking.openURL(paymentResponse.paymentUrl);
@@ -424,6 +482,46 @@ export default function CheckoutScreen() {
                             <View style={styles.formContainer}>
                                 <Text variant="subtitle" style={{ marginBottom: 20, textAlign: 'center' }}>{t('shippingAddress')}</Text>
 
+                                {/* Saved Addresses Selection */}
+                                {savedAddresses.length > 0 && (
+                                    <View style={{ marginBottom: 28 }}>
+                                        <Text variant="label" weight="bold" style={{ marginBottom: 12 }}>{t('savedAddresses') || 'Saved Addresses'}</Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+                                            {savedAddresses.map((addr) => (
+                                                <TouchableOpacity
+                                                    key={addr.id}
+                                                    style={[
+                                                        styles.savedAddressCard,
+                                                        { borderColor: tokens.colors.border }
+                                                    ]}
+                                                    onPress={() => {
+                                                        const countryObj = allCountries.find(c => c.id === addr.data.country);
+                                                        if (countryObj) selectCountry(countryObj);
+                                                        setShippingInfo(addr.data);
+                                                        // After setting shipping info, we need to ensure governorate/city are updated
+                                                        if (countryObj) {
+                                                            const countryData = countryLocations[countryObj.id];
+                                                            if (countryData) {
+                                                                setAvailableGovernorates(countryData.governorates || []);
+                                                                const cities = countryData.cities[addr.data.governorate] || [];
+                                                                setSuggestedCities(cities);
+                                                            }
+                                                        }
+                                                    }}
+                                                >
+                                                    <Ionicons name="location" size={20} color={tokens.colors.primary} />
+                                                    <View style={{ marginLeft: 10 }}>
+                                                        <Text variant="bodySmall" weight="bold" numberOfLines={1}>{addr.title || addr.data.fullName}</Text>
+                                                        <Text variant="caption" numberOfLines={1} style={{ color: tokens.colors.textSecondary }}>
+                                                            {addr.data.city}, {addr.data.street}
+                                                        </Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                )}
+
                                 {/* Arab Country Suggestions - Horizontal Scroll */}
                                 <View style={{ marginBottom: 24 }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -495,12 +593,12 @@ export default function CheckoutScreen() {
 
                                 {/* Location Details Suggestions */}
                                 <Surface variant="glass" padding="md" style={{ marginBottom: 32, borderRadius: 24 }}>
-                                    {/* Kuwait Specialized Governorate Select */}
-                                    {shippingInfo.country === 'kuwait' && (
+                                    {/* Dynamic Governorate/Province Select */}
+                                    {availableGovernorates.length > 0 && (
                                         <View style={{ marginBottom: 24 }}>
                                             <Text variant="label" style={{ marginBottom: 16 }}>{t('governorate')}</Text>
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                                {kuwaitGovernorates.map(gov => (
+                                                {availableGovernorates.map(gov => (
                                                     <TouchableOpacity
                                                         key={gov.id}
                                                         style={[
@@ -588,6 +686,30 @@ export default function CheckoutScreen() {
                                         </View>
                                         <Text variant="caption" style={{ color: tokens.colors.textMuted }}>({t('optional')})</Text>
                                     </View>
+
+                                    {/* Saved Cards Selection */}
+                                    {paymentMethod === 'card' && savedPaymentMethods.length > 0 && (
+                                        <View style={{ marginBottom: 20 }}>
+                                            <Text variant="label" weight="bold" style={{ marginBottom: 12 }}>{t('savedCards') || 'Saved Cards'}</Text>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                                {savedPaymentMethods.map(card => (
+                                                    <TouchableOpacity
+                                                        key={card.id}
+                                                        style={[
+                                                            styles.savedCardBtn,
+                                                            { borderColor: tokens.colors.border }
+                                                        ]}
+                                                        onPress={() => setCardInfo(card.data)}
+                                                    >
+                                                        <Ionicons name="card" size={20} color={tokens.colors.primary} />
+                                                        <Text variant="bodySmall" weight="bold" style={{ marginLeft: 8 }}>
+                                                            **** {card.last4}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </ScrollView>
+                                        </View>
+                                    )}
 
                                     <View style={styles.promoInputRow}>
                                         <View style={{ flex: 1 }}>
@@ -886,10 +1008,33 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: 20,
+        height: 80,
+        borderRadius: 40,
         borderWidth: 1,
-        borderColor: tokens.colors.border,
-        backgroundColor: tokens.colors.card,
+        borderColor: 'transparent',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 16,
+    },
+    savedAddressCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 16,
+        borderWidth: 1,
         marginRight: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        minWidth: 160,
+    },
+    savedCardBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        marginRight: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        minWidth: 120,
     },
     flagWrapper: {
         width: 50,

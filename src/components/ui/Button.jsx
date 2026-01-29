@@ -142,7 +142,7 @@ export const Button = ({
     const renderContent = () => (
         <View style={styles.content}>
             {loading ? (
-                <ActivityIndicator color={variantStyles.textColor} size="small" />
+                <ActivityIndicator testID="activity-indicator" color={variantStyles.textColor} size="small" />
             ) : (
                 <>
                     {icon && iconPosition === 'left' && (

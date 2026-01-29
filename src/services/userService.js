@@ -6,6 +6,7 @@
 
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, deleteDoc, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { triggerAdminAlert } from './adminNotificationService';
 
 // User roles
 export const USER_ROLES = {
@@ -146,6 +147,15 @@ export const ensureUserDocument = async (userData) => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             });
+
+            // 🚨 Trigger Admin Alert
+            triggerAdminAlert({
+                type: 'user',
+                title: 'زبون جديد! ✨',
+                body: `انضم ${displayName || userData.email} إلى عائلة كتارا الآن.`,
+                data: { userId: userData.uid }
+            });
+
             console.log(`Created new user document for: ${userData.email} with role: ${role}`);
         } else {
             // Update last login
@@ -242,6 +252,29 @@ export const addOrUpdateAdmin = async (adminData) => {
  * Remove admin status from a user
  * @param {string} uid 
  */
+/**
+ * Find user document by email
+ * @param {string} email 
+ * @returns {Promise<object|null>} User document data with id or null
+ */
+export const findUserByEmail = async (email) => {
+    if (!email) return null;
+    try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', email.toLowerCase()));
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+            const userDoc = snapshot.docs[0];
+            return { id: userDoc.id, ...userDoc.data() };
+        }
+        return null;
+    } catch (error) {
+        console.error('Error finding user by email:', error);
+        return null;
+    }
+};
+
 export const removeAdmin = async (uid) => {
     try {
         // We don't delete the user, just set their role to customer
@@ -255,3 +288,4 @@ export const removeAdmin = async (uid) => {
         return false;
     }
 };
+

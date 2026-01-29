@@ -15,7 +15,8 @@ import {
     arrayUnion,
     arrayRemove
 } from 'firebase/firestore';
-import { db } from './firebaseConfig';
+import { db, storage } from './firebaseConfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 /**
  * Social Service - Handle Public Reviews & Product Likes
@@ -26,17 +27,26 @@ const socialService = {
     /**
      * Post a public review for a product
      */
-    async addComment(productId, user, text, rating) {
+    async addComment(productId, user, text, rating, images = []) {
         try {
             if (!text || text.trim() === '') return;
+
+            // Upload images first if any
+            const imageUrls = [];
+            if (images && images.length > 0) {
+                for (const imageUri of images) {
+                    const downloadUrl = await this.uploadReviewImage(productId, imageUri);
+                    if (downloadUrl) imageUrls.push(downloadUrl);
+                }
+            }
 
             const commentData = {
                 productId: productId.toString(),
                 userId: user.uid,
                 userName: user.displayName || user.email?.split('@')[0] || 'Unknown User',
                 userPhoto: user.photoURL || null,
-                userPhoto: user.photoURL || null,
                 text: text.trim(),
+                images: imageUrls,
                 rating: rating || 5,
                 createdAt: serverTimestamp(),
             };
@@ -78,6 +88,27 @@ const socialService = {
         } catch (error) {
             console.error('Error deleting comment:', error);
             throw error;
+        }
+    },
+
+    /**
+     * Upload an image to Firebase Storage for a review
+     */
+    async uploadReviewImage(productId, uri) {
+        try {
+            const filename = uri.substring(uri.lastIndexOf('/') + 1);
+            const extension = filename.split('.').pop();
+            const storagePath = `reviews/${productId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
+            const storageRef = ref(storage, storagePath);
+
+            const response = await fetch(uri);
+            const blob = await response.blob();
+
+            await uploadBytes(storageRef, blob);
+            return await getDownloadURL(storageRef);
+        } catch (error) {
+            console.error('Error uploading review image:', error);
+            return null;
         }
     },
 

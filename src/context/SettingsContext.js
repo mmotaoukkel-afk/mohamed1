@@ -9,6 +9,7 @@ const SettingsContext = createContext();
 export const SettingsProvider = ({ children }) => {
     const [notifications, setNotifications] = useState(true);
     const [language, setLanguage] = useState('ar');
+    const [consentGiven, setConsentGiven] = useState(null); // null means not answered yet
 
     useEffect(() => {
         loadSettings();
@@ -18,8 +19,10 @@ export const SettingsProvider = ({ children }) => {
         try {
             const savedNotifs = await storage.getItem('notifications');
             const savedLang = await storage.getItem('language');
+            const savedConsent = await storage.getItem('consentGiven');
 
             if (savedNotifs !== null) setNotifications(savedNotifs);
+            if (savedConsent !== null) setConsentGiven(savedConsent);
 
             if (savedLang !== null) {
                 setLanguage(savedLang);
@@ -67,12 +70,20 @@ export const SettingsProvider = ({ children }) => {
         }
     };
 
+    const updateConsent = async (given) => {
+        setConsentGiven(given);
+        await storage.setItem('consentGiven', given);
+        await storage.setItem('consentDate', new Date().toISOString());
+    };
+
     return (
         <SettingsContext.Provider value={{
             notifications,
             toggleNotifications,
             language,
-            changeLanguage
+            changeLanguage,
+            consentGiven,
+            updateConsent
         }}>
             {children}
         </SettingsContext.Provider>

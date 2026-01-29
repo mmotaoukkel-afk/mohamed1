@@ -1,6 +1,7 @@
 import { getAllProducts, getProductById, PRODUCT_CATEGORIES } from './adminProductService';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { triggerAdminAlert } from './adminNotificationService';
 
 const api = {
   // Get Products from Firestore
@@ -22,9 +23,10 @@ const api = {
 
       // 1. Filter by Skin Type (using tags)
       if (options.skin) {
-        const skinType = options.skin.toLowerCase();
+        const skinType = options.skin.trim().toLowerCase();
         allProducts = allProducts.filter(p =>
-          p.tags && p.tags.some(tag => tag.toLowerCase() === skinType)
+          p.tags && p.tags.some(tag => tag.trim().toLowerCase() === skinType) ||
+          p.skinType && p.skinType.trim().toLowerCase() === skinType
         );
       }
 
@@ -111,6 +113,15 @@ const api = {
         createdAt: serverTimestamp(),
         status: 'pending', // Default status
       });
+
+      // 🚨 Trigger Admin Alert
+      triggerAdminAlert({
+        type: 'order',
+        title: 'طلب جديد! 🛍️',
+        body: `قام ${orderData.billing?.first_name || 'زبون'} بطلب جديد بقيمة ${orderData.total || ''} د.م`,
+        data: { orderId: docRef.id }
+      });
+
       return { id: docRef.id, ...orderData };
     } catch (error) {
       console.error('❌ API Error (createOrder):', error.message);

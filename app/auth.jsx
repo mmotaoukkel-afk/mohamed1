@@ -29,6 +29,8 @@ const { width } = Dimensions.get("window");
 
 import { useTranslation } from "../src/hooks/useTranslation";
 
+import { findUserByEmail } from "../src/services/userService";
+
 export default function AuthScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
@@ -52,8 +54,18 @@ export default function AuthScreen() {
 
         setLoading(true);
         try {
-            const userData = {
-                email: email.trim().toLowerCase(),
+            const normalizedEmail = email.trim().toLowerCase();
+
+            // Check if user already exists in Firestore by email
+            const existingUser = await findUserByEmail(normalizedEmail);
+
+            const userData = existingUser ? {
+                ...existingUser,
+                // Ensure we have properties needed by AuthContext
+                email: normalizedEmail,
+                uid: existingUser.uid || existingUser.id,
+            } : {
+                email: normalizedEmail,
                 displayName: name || email.split("@")[0],
                 phone: phone,
                 photoURL: null,
@@ -64,7 +76,7 @@ export default function AuthScreen() {
             if (isLogin) {
                 const role = await login(userData);
                 if (role === 'admin') {
-                    router.replace('/admin/analytics-dashboard');
+                    router.replace('/admin/overview');
                 } else {
                     router.back();
                 }
@@ -79,6 +91,7 @@ export default function AuthScreen() {
             setLoading(false);
         }
     };
+
 
     const handleSocialLogin = async (provider) => {
         setSocialLoading(provider);

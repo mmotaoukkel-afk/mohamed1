@@ -175,16 +175,51 @@ export const AuthProvider = ({ children }) => {
 
     const updateUser = async (updates) => {
         if (!user) return;
-        const newUser = { ...user, ...updates };
-        setUser(newUser);
-        await storage.setItem('user', newUser);
-        await saveToProfiles(newUser);
 
-        // 🔐 Sync with Firestore
-        if (newUser.uid) {
-            await updateProfileInFirestore(newUser.uid, updates);
+        try {
+            // Special handling for email update
+            if (updates.email && updates.email !== user.email) {
+                // If it's a social user (e.g. Google), we usually can't change email via Firebase Auth directly this way
+                if (user.provider === 'google') {
+                    throw new Error('Social login emails cannot be changed directly.');
+                }
+
+                // If it's a real Firebase user (not just local_), try to update email in Firebase Auth
+                if (firebaseAuth.currentUser && !user.uid?.startsWith('local_')) {
+                    try {
+                        const { verifyBeforeUpdateEmail } = await import('firebase/auth');
+                        await verifyBeforeUpdateEmail(firebaseAuth.currentUser, updates.email);
+                        // Inform user that verification is required
+                        addNotification('notifEmailVerifyTitle', 'notifEmailVerifyMsg', 'info', { email: updates.email });
+                    } catch (authError) {
+                        console.error('Firebase Auth email update failed:', authError);
+                        // If it's a recent login requirement, propagate it
+                        if (authError.code === 'auth/requires-recent-login') {
+                            throw new Error('Please log in again to change your email.');
+                        }
+                        if (authError.code === 'auth/operation-not-allowed') {
+                            throw new Error('Email update is currently restricted. Please contact support.');
+                        }
+                        // Continue to update Firestore even if Auth fails (for local accounts)
+                    }
+                }
+            }
+
+            const newUser = { ...user, ...updates };
+            setUser(newUser);
+            await storage.setItem('user', newUser);
+            await saveToProfiles(newUser);
+
+            // 🔐 Sync with Firestore
+            if (newUser.uid) {
+                await updateProfileInFirestore(newUser.uid, updates);
+            }
+        } catch (error) {
+            console.error('Error updating user:', error);
+            throw error;
         }
     };
+
 
 
     const resetPassword = async (email) => {

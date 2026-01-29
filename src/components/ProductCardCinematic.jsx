@@ -8,11 +8,11 @@ import React, { useRef } from 'react';
 import {
     View,
     StyleSheet,
-    Image,
     Text,
     TouchableOpacity,
     Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -42,30 +42,40 @@ const COLORS = {
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export default function ProductCardCinematic({
-    item,
-    onPress,
-    onAddToCart,
-    onFavorite,
-    isFavorite = false,
-    index = 0,
-}) {
-    const { t } = useTranslation();
+const ProductCardCinematic = React.memo((props) => {
+    const item = props.item;
+    const onPress = props.onPress;
+    const onAddToCart = props.onAddToCart;
+    const onFavorite = props.onFavorite;
+    const isFavorite = props.isFavorite || false;
+    const index = props.index || 0;
+
+    const { t, locale } = useTranslation();
+
     // Handle multiple image data formats
-    const getImageSource = () => {
+    const imageSource = React.useMemo(() => {
         const firstImage = item.images?.[0];
-        const placeholder = { uri: 'https://images.unsplash.com/photo-1612817288484-6f916006741a?w=400' };
-        if (!firstImage) return placeholder;
+        const placeholder = 'https://images.unsplash.com/photo-1612817288484-6f916006741a?w=400';
+        if (!firstImage) return { uri: placeholder };
         if (typeof firstImage === 'string') return { uri: firstImage };
         if (firstImage.src) return { uri: firstImage.src };
-        return placeholder;
-    };
-    const imageSource = getImageSource();
+        return { uri: placeholder };
+    }, [item.images]);
 
-    const onSale = item.on_sale && item.regular_price && item.sale_price;
-    const discount = onSale
-        ? Math.round((1 - item.sale_price / item.regular_price) * 100)
-        : 0;
+    const { onSale, discount, formattedPrice, formattedSalePrice, formattedRegularPrice } = React.useMemo(() => {
+        const onSale = item.on_sale && item.regular_price && item.sale_price;
+        const discount = onSale
+            ? Math.round((1 - item.sale_price / item.regular_price) * 100)
+            : 0;
+
+        return {
+            onSale,
+            discount,
+            formattedPrice: parseFloat(item.price || 0).toFixed(3),
+            formattedSalePrice: onSale ? parseFloat(item.sale_price).toFixed(3) : null,
+            formattedRegularPrice: onSale ? parseFloat(item.regular_price).toFixed(3) : null,
+        };
+    }, [item.on_sale, item.regular_price, item.sale_price, item.price]);
 
     // Animation values
     const scale = useSharedValue(1);
@@ -122,10 +132,13 @@ export default function ProductCardCinematic({
         transform: [{ scale: heartScale.value }],
     }));
 
+    const containerRef = useRef(null);
+
     return (
         <AnimatedTouchable
+            ref={containerRef}
             style={[styles.card, cardStyle]}
-            onPress={onPress}
+            onPress={() => onPress && onPress(item)}
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
             activeOpacity={1}
@@ -137,7 +150,9 @@ export default function ProductCardCinematic({
                     <Image
                         source={imageSource}
                         style={styles.image}
-                        resizeMode="cover"
+                        contentFit="cover"
+                        transition={300}
+                        cachePolicy="memory-disk"
                     />
 
                     {/* Sale Badge */}
@@ -164,7 +179,7 @@ export default function ProductCardCinematic({
                     {/* Add to Cart Button */}
                     <TouchableOpacity
                         style={styles.addButton}
-                        onPress={() => onAddToCart && onAddToCart(item)}
+                        onPress={() => onAddToCart && onAddToCart(item, containerRef)}
                     >
                         <LinearGradient
                             colors={[COLORS.primary, COLORS.accent]}
@@ -177,22 +192,22 @@ export default function ProductCardCinematic({
 
                 {/* Product Info */}
                 <View style={styles.info}>
-                    <Text style={[styles.name, { textAlign: t('locale') === 'ar' ? 'right' : 'left' }]} numberOfLines={2}>
+                    <Text style={[styles.name, { textAlign: locale === 'ar' ? 'right' : 'left' }]} numberOfLines={2}>
                         {item.name}
                     </Text>
                     <View style={styles.priceRow}>
                         {onSale ? (
                             <>
                                 <Text style={styles.salePrice}>
-                                    {parseFloat(item.sale_price).toFixed(3)} {t('currency')}
+                                    {formattedSalePrice} {t('currency')}
                                 </Text>
                                 <Text style={styles.oldPrice}>
-                                    {parseFloat(item.regular_price).toFixed(3)}
+                                    {formattedRegularPrice}
                                 </Text>
                             </>
                         ) : (
                             <Text style={styles.price}>
-                                {parseFloat(item.price || 0).toFixed(3)} {t('currency')}
+                                {formattedPrice} {t('currency')}
                             </Text>
                         )}
                     </View>
@@ -200,7 +215,9 @@ export default function ProductCardCinematic({
             </View>
         </AnimatedTouchable>
     );
-}
+});
+
+export default ProductCardCinematic;
 
 const styles = StyleSheet.create({
     card: {

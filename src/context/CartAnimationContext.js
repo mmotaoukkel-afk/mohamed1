@@ -4,9 +4,10 @@
  */
 
 import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import AddToCartAnimation from '../components/AddToCartAnimation';
 import { useCart } from './CartContext';
+import { useRouter } from 'expo-router';
 
 const CartAnimationContext = createContext();
 
@@ -19,6 +20,7 @@ export const useCartAnimation = () => {
 };
 
 export const CartAnimationProvider = ({ children }) => {
+    const router = useRouter();
     const { addToCart } = useCart();
 
     const [animationVisible, setAnimationVisible] = useState(false);
@@ -48,29 +50,41 @@ export const CartAnimationProvider = ({ children }) => {
 
     // Trigger the epic animation with product data
     const triggerAddToCart = useCallback((product, sourceRef = null) => {
+        console.log('🚀 [CartAnimation] Triggering AddToCart for:', product.name);
 
         // First measure cart icon position
         measureCartIcon();
 
-        // Get source position if provided
-        let sourcePos = null;
-        if (sourceRef?.current) {
-            sourceRef.current.measureInWindow((x, y, width, height) => {
-                sourcePos = { x: x + width / 2, y: y + height / 2, width, height };
+        // Helper to trigger the UI state
+        const startState = (pos) => {
+            console.log('✅ [CartAnimation] Position locked, starting UI state');
+            setAnimationData({
+                productImage: product.image || product.images?.[0]?.src,
+                productName: product.name,
+                sourcePosition: pos,
             });
+
+            // Small stabilization delay to ensure coordinates are registered by the view
+            setTimeout(() => {
+                console.log('🎬 [CartAnimation] SetAnimationVisible(true)');
+                setAnimationVisible(true);
+            }, 50);
+        };
+
+        // Get source position if provided
+        if (sourceRef?.current) {
+            console.log('🔍 [CartAnimation] Measuring source interaction position...');
+            sourceRef.current.measureInWindow((x, y, width, height) => {
+                const pos = { x: x + width / 2, y: y + height / 2, width, height };
+                console.log('📍 [CartAnimation] Measured at:', pos);
+                startState(pos);
+            });
+        } else {
+            console.log('⚠️ [CartAnimation] No sourceRef provided, using center screen');
+            startState(null);
         }
 
-        // Set animation data
-        setAnimationData({
-            productImage: product.image || product.images?.[0]?.src,
-            productName: product.name,
-            sourcePosition: sourcePos,
-        });
-
-        // Show animation
-        setAnimationVisible(true);
-
-        // Add to cart (will update after animation via context)
+        // Add to cart (business logic)
         addToCart({
             id: product.id,
             name: product.name,
@@ -88,28 +102,35 @@ export const CartAnimationProvider = ({ children }) => {
             productName: '',
             sourcePosition: null,
         });
+
+        // No automatic navigation - just complete the animation
+        console.log('✅ [CartAnimation] Animation complete, staying on page');
     }, []);
 
     return (
-        <CartAnimationContext.Provider
-            value={{
-                triggerAddToCart,
-                registerCartIcon,
-                cartIconRef,
-            }}
-        >
-            {children}
+        <View style={{ flex: 1, position: 'relative' }}>
+            <CartAnimationContext.Provider
+                value={{
+                    triggerAddToCart,
+                    registerCartIcon,
+                    cartIconRef,
+                }}
+            >
+                {children}
 
-            {/* Global Animation Overlay */}
-            <AddToCartAnimation
-                visible={animationVisible}
-                productImage={animationData.productImage}
-                productName={animationData.productName}
-                sourcePosition={animationData.sourcePosition}
-                targetPosition={cartPosition}
-                onComplete={handleAnimationComplete}
-            />
-        </CartAnimationContext.Provider>
+                {/* Global Animation Overlay - Forced to absolute top */}
+                <View style={[StyleSheet.absoluteFill, { zIndex: 999999, elevation: 999999 }]} pointerEvents="none">
+                    <AddToCartAnimation
+                        visible={animationVisible}
+                        productImage={animationData.productImage}
+                        productName={animationData.productName}
+                        sourcePosition={animationData.sourcePosition}
+                        targetPosition={cartPosition}
+                        onComplete={handleAnimationComplete}
+                    />
+                </View>
+            </CartAnimationContext.Provider>
+        </View>
     );
 };
 

@@ -5,6 +5,8 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSettings } from '../src/context/SettingsContext';
+import { ConsentModal } from '../src/components/ui';
 
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +19,7 @@ import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { AuthProvider } from '../src/context/AuthContext';
 import { SettingsProvider } from '../src/context/SettingsContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
+import { RecentlyViewedProvider } from '../src/context/RecentlyViewedContext';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../src/components/GlobalErrorBoundary';
 import { PatternBackground } from '../src/components/ui';
@@ -77,9 +80,11 @@ export default function RootLayout() {
                   <CartProvider>
                     <CartAnimationProvider>
                       <FavoritesProvider>
-                        <CheckoutProvider>
-                          <AppNavigator />
-                        </CheckoutProvider>
+                        <RecentlyViewedProvider>
+                          <CheckoutProvider>
+                            <AppNavigator />
+                          </CheckoutProvider>
+                        </RecentlyViewedProvider>
                       </FavoritesProvider>
                     </CartAnimationProvider>
                   </CartProvider>
@@ -95,6 +100,7 @@ export default function RootLayout() {
 
 function AppNavigator() {
   const { theme } = useTheme();
+  const { consentGiven } = useSettings();
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -107,13 +113,13 @@ function AppNavigator() {
       }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="product/[id]" />
-        <Stack.Screen name="checkout/shipping" />
-        <Stack.Screen name="checkout/payment" />
+        <Stack.Screen name="checkout/index" options={{ title: 'Checkout' }} />
         <Stack.Screen name="checkout/success" />
         <Stack.Screen name="auth" options={{ animation: 'fade_from_bottom' }} />
         <Stack.Screen name="orders" />
         <Stack.Screen name="voice-search" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
+      <ConsentModal visible={consentGiven === null} />
     </View>
   );
 }

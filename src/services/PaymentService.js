@@ -20,6 +20,15 @@ class PaymentService {
      */
     async initiatePayment(paymentData) {
         try {
+            if (!this.apiKey) {
+                console.error('❌ MyFatoorah API Key is missing! Please set EXPO_PUBLIC_MYFATOORAH_API_KEY in your .env file.');
+                return {
+                    success: false,
+                    error: 'Payment gateway configuration is missing'
+                };
+            }
+
+            console.log(`💳 Initiating payment for order ${paymentData.orderId} via ${this.baseUrl}`);
             const response = await fetch(`${this.baseUrl}/v2/SendPayment`, {
                 method: 'POST',
                 headers: {
@@ -33,16 +42,28 @@ class PaymentService {
                     DisplayCurrencyIso: 'KWD',
                     CustomerEmail: paymentData.email,
                     CallBackUrl: 'kataraa://checkout/success',
-                    ErrorUrl: 'kataraa://checkout/payment?error=true',
+                    ErrorUrl: 'kataraa://checkout?paymentError=true',
                     Language: 'ar',
                     CustomerMobile: paymentData.mobile,
                     CustomerReference: paymentData.orderId,
                     UserDefinedField: paymentData.orderId,
-                    // PaymentMethods: [{ PaymentMethodId: 1 }] // 1 = KNET
                 })
             });
 
-            const result = await response.json();
+            const responseText = await response.text();
+
+            if (!responseText) {
+                console.error(`❌ Empty response from MyFatoorah (Status: ${response.status})`);
+                throw new Error(`Empty response from payment gateway (Status: ${response.status})`);
+            }
+
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch (e) {
+                console.error('❌ Failed to parse MyFatoorah response:', responseText);
+                throw new Error(`Invalid JSON response from gateway (Status: ${response.status})`);
+            }
 
             if (result.IsSuccess) {
                 return {
@@ -61,7 +82,7 @@ class PaymentService {
             console.error('PaymentService error:', error);
             return {
                 success: false,
-                error: 'Connection error with payment gateway'
+                error: error.message || 'Connection error with payment gateway'
             };
         }
     }
@@ -74,6 +95,7 @@ class PaymentService {
      */
     async getPaymentStatus(keyId, keyType = 'PaymentId') {
         try {
+            console.log(`🔍 Checking payment status for ${keyId}`);
             const response = await fetch(`${this.baseUrl}/v2/GetPaymentStatus`, {
                 method: 'POST',
                 headers: {
@@ -86,8 +108,13 @@ class PaymentService {
                 })
             });
 
-            const result = await response.json();
-            return result;
+            const responseText = await response.text();
+            try {
+                return JSON.parse(responseText);
+            } catch (e) {
+                console.error('❌ Failed to parse status response:', responseText);
+                return { IsSuccess: false, Message: `Invalid server response (${response.status})` };
+            }
         } catch (error) {
             console.error('Status check error:', error);
             return { IsSuccess: false, Message: 'Failed to verify payment status' };

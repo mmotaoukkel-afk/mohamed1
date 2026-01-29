@@ -14,6 +14,7 @@ import {
     Dimensions,
     RefreshControl,
     Image,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +25,9 @@ import { useAuth } from '../../src/context/AuthContext';
 import { getDashboardStats, getRecentOrders, getWeeklyRevenue, getCategorySales } from '../../src/services/adminAnalytics';
 import { getAllCustomers } from '../../src/services/adminCustomerService';
 import currencyService from '../../src/services/currencyService';
+import { useNotifications } from '../../src/context/NotificationContext';
+import Animated, { FadeInDown, FadeInRight, FadeInUp } from 'react-native-reanimated';
+import Surface from '../../src/components/ui/Surface';
 
 const { width } = Dimensions.get('window');
 
@@ -36,7 +40,8 @@ const getFormattedDate = () => {
 export default function AdminOverview() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
-    const { user } = useAuth();
+    const { user, role } = useAuth();
+    const { expoPushToken, registrationError } = useNotifications();
     const styles = getStyles(theme, isDark);
 
     const [stats, setStats] = useState({
@@ -114,7 +119,7 @@ export default function AdminOverview() {
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.headerBtn, { backgroundColor: theme.backgroundCard }]}
-                            onPress={() => router.push('/notifications')}
+                            onPress={() => router.push('/admin/notifications')}
                         >
                             <Ionicons name="notifications-outline" size={20} color={theme.textSecondary} />
                             <View style={styles.notificationDot} />
@@ -130,7 +135,26 @@ export default function AdminOverview() {
                         )}
                     </View>
                 </View>
-            </SafeAreaView>
+
+                {/* System Connection Diagnostic */}
+                <View style={[styles.statusBanner, { backgroundColor: expoPushToken ? '#D1FAE5' : '#FEE2E2' }]}>
+                    <Ionicons
+                        name={expoPushToken ? "wifi" : "alert-circle-outline"}
+                        size={14}
+                        color={expoPushToken ? '#059669' : '#DC2626'}
+                    />
+                    <Text style={[styles.statusText, { color: expoPushToken ? '#059669' : '#DC2626' }]}>
+                        {expoPushToken
+                            ? 'الجهاز مسجل في نظام الإشعارات'
+                            : (registrationError || 'الجهاز غير متصل بنظام الإشعارات')}
+                    </Text>
+                    {expoPushToken && (
+                        <View style={[styles.roleBadge, { backgroundColor: '#6366F1' }]}>
+                            <Text style={styles.roleText}>{role}</Text>
+                        </View>
+                    )}
+                </View>
+            </SafeAreaView >
 
             <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -141,249 +165,300 @@ export default function AdminOverview() {
                 {/* KPI Cards Row 1 */}
                 <View style={styles.kpiRow}>
                     {/* Total Revenue - Featured */}
-                    <View style={[styles.kpiCardLarge, { backgroundColor: '#EEF2FF' }]}>
-                        <View style={styles.kpiHeader}>
-                            <Text style={[styles.kpiLabel, { color: '#6366F1' }]}>إجمالي الإيرادات</Text>
-                            <TouchableOpacity>
-                                <Ionicons name="open-outline" size={16} color="#6366F1" />
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={[styles.kpiValueLarge, { color: '#1E1B4B' }]}>{stats.revenue.value}</Text>
-                        <View style={styles.kpiFooter}>
-                            <Text style={[styles.kpiSubtext, { color: '#6366F1' }]}>هذا الشهر مقابل الماضي</Text>
-                            <View style={[styles.changeBadge, { backgroundColor: stats.revenue.isPositive ? '#D1FAE5' : '#FEE2E2' }]}>
-                                <Ionicons
-                                    name={stats.revenue.isPositive ? "trending-up" : "trending-down"}
-                                    size={12}
-                                    color={stats.revenue.isPositive ? '#059669' : '#DC2626'}
-                                />
-                                <Text style={[styles.changeText, { color: stats.revenue.isPositive ? '#059669' : '#DC2626' }]}>
-                                    {stats.revenue.change}
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
+                    <Animated.View
+                        entering={FadeInDown.delay(100).duration(600)}
+                        style={{ flex: 1.5 }}
+                    >
+                        <Surface variant="glass" padding="none" style={styles.kpiCardLargeGlass}>
+                            <LinearGradient
+                                colors={isDark ? ['rgba(99, 102, 241, 0.15)', 'rgba(129, 140, 248, 0.05)'] : ['#EEF2FF', '#F5F7FF']}
+                                style={{ padding: 16, flex: 1 }}
+                            >
+                                <View style={styles.kpiHeader}>
+                                    <View style={[styles.iconBox, { backgroundColor: '#6366F1' }]}>
+                                        <Ionicons name="stats-chart" size={16} color="#FFF" />
+                                    </View>
+                                    <Text style={[styles.kpiLabel, { color: isDark ? theme.textSecondary : '#6366F1' }]}>إجمالي الإيرادات</Text>
+                                    <TouchableOpacity onPress={() => router.push('/admin/analytics')}>
+                                        <Ionicons name="chevron-forward" size={16} color={isDark ? theme.textMuted : "#6366F1"} />
+                                    </TouchableOpacity>
+                                </View>
+                                <Text style={[styles.kpiValueLarge, { color: theme.text }]}>{stats.revenue.value}</Text>
+                                <View style={styles.kpiFooter}>
+                                    <Text style={[styles.kpiSubtext, { color: theme.textSecondary }]}>مقارنة بالشهر الماضي</Text>
+                                    <View style={[styles.changeBadge, { backgroundColor: stats.revenue.isPositive ? '#D1FAE530' : '#FEE2E230' }]}>
+                                        <Ionicons
+                                            name={stats.revenue.isPositive ? "trending-up" : "trending-down"}
+                                            size={12}
+                                            color={stats.revenue.isPositive ? '#10B981' : '#EF4444'}
+                                        />
+                                        <Text style={[styles.changeText, { color: stats.revenue.isPositive ? '#10B981' : '#EF4444' }]}>
+                                            {stats.revenue.change}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </LinearGradient>
+                        </Surface>
+                    </Animated.View>
 
                     {/* Total Orders */}
-                    <View style={[styles.kpiCardSmall, { backgroundColor: '#FAF5FF' }]}>
-                        <View style={styles.kpiHeader}>
-                            <Text style={[styles.kpiLabel, { color: '#7C3AED' }]}>إجمالي الطلبات</Text>
-                            <TouchableOpacity>
-                                <Ionicons name="open-outline" size={14} color="#7C3AED" />
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={[styles.kpiValue, { color: '#1E1B4B' }]}>{stats.orders.value}</Text>
-                        <View style={[styles.changeBadge, { backgroundColor: stats.orders.isPositive ? '#D1FAE5' : '#FEE2E2', marginTop: 8 }]}>
-                            <Ionicons
-                                name={stats.orders.isPositive ? "trending-up" : "trending-down"}
-                                size={10}
-                                color={stats.orders.isPositive ? '#059669' : '#DC2626'}
-                            />
-                            <Text style={[styles.changeTextSmall, { color: stats.orders.isPositive ? '#059669' : '#DC2626' }]}>
-                                {stats.orders.change}
-                            </Text>
-                        </View>
-                    </View>
+                    <Animated.View
+                        entering={FadeInDown.delay(200).duration(600)}
+                        style={{ flex: 1 }}
+                    >
+                        <Surface variant="glass" padding="none" style={styles.kpiCardSmallGlass}>
+                            <LinearGradient
+                                colors={isDark ? ['rgba(124, 58, 237, 0.15)', 'rgba(139, 92, 246, 0.05)'] : ['#FAF5FF', '#FDFBFF']}
+                                style={{ padding: 16, flex: 1 }}
+                            >
+                                <View style={styles.kpiHeader}>
+                                    <View style={[styles.iconBox, { backgroundColor: '#7C3AED' }]}>
+                                        <Ionicons name="receipt" size={14} color="#FFF" />
+                                    </View>
+                                    <Text style={[styles.kpiLabel, { color: isDark ? theme.textSecondary : '#7C3AED' }]}>الطلبات</Text>
+                                </View>
+                                <Text style={[styles.kpiValue, { color: theme.text }]}>{stats.orders.value}</Text>
+                                <View style={[styles.changeBadge, { backgroundColor: stats.orders.isPositive ? '#D1FAE530' : '#FEE2E230', marginTop: 8 }]}>
+                                    <Text style={[styles.changeTextSmall, { color: stats.orders.isPositive ? '#10B981' : '#EF4444' }]}>
+                                        {stats.orders.change}
+                                    </Text>
+                                </View>
+                            </LinearGradient>
+                        </Surface>
+                    </Animated.View>
                 </View>
 
                 {/* KPI Cards Row 2 */}
                 <View style={styles.kpiRow}>
                     {/* Customers */}
-                    <View style={[styles.kpiCardHalf, { backgroundColor: theme.backgroundCard }]}>
-                        <View style={styles.kpiHeader}>
-                            <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>إجمالي الزبناء</Text>
-                            <TouchableOpacity onPress={() => router.push('/admin/customers')}>
-                                <Ionicons name="open-outline" size={14} color={theme.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={[styles.kpiValue, { color: theme.text }]}>{stats.customers.value}</Text>
-                        <View style={[styles.changeBadge, { backgroundColor: '#FEE2E2', marginTop: 8 }]}>
-                            <Ionicons name="trending-down" size={10} color="#DC2626" />
-                            <Text style={[styles.changeTextSmall, { color: '#DC2626' }]}>-2.1%</Text>
-                        </View>
-                    </View>
+                    <Animated.View
+                        entering={FadeInDown.delay(300).duration(600)}
+                        style={{ flex: 1 }}
+                    >
+                        <Surface variant="glass" padding="md" style={styles.kpiCardHalf}>
+                            <View style={styles.kpiHeader}>
+                                <View style={[styles.iconBoxSmall, { backgroundColor: '#F59E0B' }]}>
+                                    <Ionicons name="people" size={14} color="#FFF" />
+                                </View>
+                                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>الزبناء</Text>
+                                <TouchableOpacity onPress={() => router.push('/admin/customers')}>
+                                    <Ionicons name="chevron-forward" size={14} color={theme.textMuted} />
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={[styles.kpiValue, { color: theme.text }]}>{stats.customers.value}</Text>
+                        </Surface>
+                    </Animated.View>
 
                     {/* Products */}
-                    <View style={[styles.kpiCardHalf, { backgroundColor: theme.backgroundCard }]}>
-                        <View style={styles.kpiHeader}>
-                            <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>إجمالي المنتجات</Text>
-                            <TouchableOpacity>
-                                <Ionicons name="open-outline" size={14} color={theme.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={[styles.kpiValue, { color: theme.text }]}>{stats.products.value}</Text>
-                        <View style={[styles.changeBadge, { backgroundColor: '#D1FAE5', marginTop: 8 }]}>
-                            <Ionicons name="trending-up" size={10} color="#059669" />
-                            <Text style={[styles.changeTextSmall, { color: '#059669' }]}>+5.4%</Text>
-                        </View>
-                    </View>
+                    <Animated.View
+                        entering={FadeInDown.delay(400).duration(600)}
+                        style={{ flex: 1 }}
+                    >
+                        <Surface variant="glass" padding="md" style={styles.kpiCardHalf}>
+                            <View style={styles.kpiHeader}>
+                                <View style={[styles.iconBoxSmall, { backgroundColor: '#10B981' }]}>
+                                    <Ionicons name="cube" size={14} color="#FFF" />
+                                </View>
+                                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>المنتجات</Text>
+                            </View>
+                            <Text style={[styles.kpiValue, { color: theme.text }]}>{stats.products.value}</Text>
+                        </Surface>
+                    </Animated.View>
                 </View>
 
                 {/* Revenue Chart */}
-                <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
-                    <View style={styles.chartHeader}>
-                        <View>
-                            <Text style={[styles.chartTitle, { color: theme.text }]}>الإيرادات</Text>
-                            <Text style={[styles.chartSubtitle, { color: theme.textSecondary }]}>هذا الشهر مقابل الماضي</Text>
-                        </View>
-                        <TouchableOpacity>
-                            <Ionicons name="open-outline" size={18} color={theme.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Bar Chart */}
-                    <View style={styles.barChart}>
-                        {weeklyRevenue.length > 0 ? weeklyRevenue.map((item, index) => (
-                            <View key={index} style={styles.barItem}>
-                                <View style={styles.barContainer}>
-                                    <LinearGradient
-                                        colors={['#6366F1', '#818CF8']}
-                                        style={[
-                                            styles.bar,
-                                            { height: `${weeklyRevenue.length > 0 ? (item.value / (Math.max(...weeklyRevenue.map(d => d.value)) || 1)) * 100 : 0}%` }
-                                        ]}
-                                    />
+                <Animated.View entering={FadeInDown.delay(500).duration(600)}>
+                    <Surface variant="glass" style={styles.chartCardGlass} padding="none">
+                        <View style={{ padding: 20 }}>
+                            <View style={styles.chartHeader}>
+                                <View>
+                                    <Text style={[styles.chartTitle, { color: theme.text }]}>الإيرادات</Text>
+                                    <Text style={[styles.chartSubtitle, { color: theme.textSecondary }]}>تحليل الأداء الأسبوعي</Text>
                                 </View>
-                                <Text style={[styles.barLabel, { color: theme.textSecondary }]}>{item.day}</Text>
+                                <TouchableOpacity
+                                    style={[styles.iconBoxSmall, { backgroundColor: '#6366F1' }]}
+                                    onPress={() => router.push('/admin/analytics')}
+                                >
+                                    <Ionicons name="bar-chart" size={14} color="#FFF" />
+                                </TouchableOpacity>
                             </View>
-                        )) : (
-                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', height: 150 }}>
-                                <Text style={{ color: theme.textSecondary }}>جاري تحميل البيانات...</Text>
+
+                            {/* Bar Chart */}
+                            <View style={styles.barChart}>
+                                {weeklyRevenue.length > 0 ? weeklyRevenue.map((item, index) => (
+                                    <View key={index} style={styles.barItem}>
+                                        <View style={styles.barContainer}>
+                                            <LinearGradient
+                                                colors={['#6366F1', '#818CF8']}
+                                                style={[
+                                                    styles.bar,
+                                                    { height: `${weeklyRevenue.length > 0 ? (item.value / (Math.max(...weeklyRevenue.map(d => d.value)) || 1)) * 100 : 0}%` }
+                                                ]}
+                                            />
+                                        </View>
+                                        <Text style={[styles.barLabel, { color: theme.textSecondary }]}>{item.day}</Text>
+                                    </View>
+                                )) : (
+                                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', height: 120 }}>
+                                        <ActivityIndicator color={theme.primary} />
+                                    </View>
+                                )}
                             </View>
-                        )}
-                    </View>
-                </View>
+                        </View>
+                    </Surface>
+                </Animated.View>
 
                 {/* Orders & Customers Summary */}
                 <View style={styles.summaryRow}>
                     {/* Orders Card */}
-                    <View style={[styles.summaryCard, { backgroundColor: theme.backgroundCard }]}>
-                        <View style={[styles.summaryIcon, { backgroundColor: '#EEF2FF' }]}>
-                            <Ionicons name="checkmark-circle" size={24} color="#6366F1" />
-                        </View>
-                        <Text style={[styles.summaryValue, { color: theme.text }]}>{stats.orders.value}</Text>
-                        <Text style={[styles.summaryLabel, { color: theme.text }]}>طلب</Text>
-                        <Text style={[styles.summarySubtext, { color: '#F59E0B' }]}>
-                            {orderStats.pending} بانتظار التأكيد
-                        </Text>
-                    </View>
+                    <Animated.View
+                        entering={FadeInRight.delay(600).duration(600)}
+                        style={{ flex: 1 }}
+                    >
+                        <Surface variant="glass" padding="md" style={styles.summaryCardGlass}>
+                            <View style={[styles.summaryIcon, { backgroundColor: '#EEF2FF' }]}>
+                                <Ionicons name="checkmark-circle" size={24} color="#6366F1" />
+                            </View>
+                            <Text style={[styles.summaryValue, { color: theme.text }]}>{stats.orders.value}</Text>
+                            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>طلب</Text>
+                            <View style={[styles.pillBadge, { backgroundColor: '#F59E0B20' }]}>
+                                <Text style={[styles.summarySubtext, { color: '#F59E0B', fontSize: 10 }]}>
+                                    {orderStats.pending} قيد التأكيد
+                                </Text>
+                            </View>
+                        </Surface>
+                    </Animated.View>
 
                     {/* Customers Card */}
-                    <TouchableOpacity
-                        style={[styles.summaryCard, { backgroundColor: theme.backgroundCard }]}
-                        onPress={() => router.push('/admin/customers')}
+                    <Animated.View
+                        entering={FadeInRight.delay(700).duration(600)}
+                        style={{ flex: 1 }}
                     >
-                        <View style={[styles.summaryIcon, { backgroundColor: '#FEF3C7' }]}>
-                            <Ionicons name="people" size={24} color="#F59E0B" />
-                        </View>
-                        <Text style={[styles.summaryValue, { color: theme.text }]}>{stats.customers.value}</Text>
-                        <Text style={[styles.summaryLabel, { color: theme.text }]}>زبون</Text>
-                        <Text style={[styles.summarySubtext, { color: '#10B981' }]}>
-                            5 زبائن جدد اليوم
-                        </Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => router.push('/admin/customers')}
+                        >
+                            <Surface variant="glass" padding="md" style={styles.summaryCardGlass}>
+                                <View style={[styles.summaryIcon, { backgroundColor: '#FEF3C7' }]}>
+                                    <Ionicons name="people" size={24} color="#F59E0B" />
+                                </View>
+                                <Text style={[styles.summaryValue, { color: theme.text }]}>{stats.customers.value}</Text>
+                                <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>زبون</Text>
+                                <View style={[styles.pillBadge, { backgroundColor: '#10B98120' }]}>
+                                    <Text style={[styles.summarySubtext, { color: '#10B981', fontSize: 10 }]}>
+                                        +5 جدد اليوم
+                                    </Text>
+                                </View>
+                            </Surface>
+                        </TouchableOpacity>
+                    </Animated.View>
                 </View>
 
                 {/* Category Pie Chart */}
-                <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
-                    <View style={styles.chartHeader}>
-                        <View>
-                            <Text style={[styles.chartTitle, { color: theme.text }]}>المبيعات حسب الفئة</Text>
-                            <Text style={[styles.chartSubtitle, { color: theme.textSecondary }]}>هذا الشهر مقابل الماضي</Text>
-                        </View>
-                        <TouchableOpacity>
-                            <Ionicons name="open-outline" size={18} color={theme.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.pieChartContainer}>
-                        {/* Simple Pie Representation */}
-                        <View style={styles.pieChart}>
-                            {categorySales.length > 0 ? categorySales.map((cat, index) => (
-                                <View
-                                    key={index}
-                                    style={[
-                                        styles.pieSlice,
-                                        {
-                                            backgroundColor: cat.color,
-                                            width: 40 + ((cat.value / (Math.max(...categorySales.map(c => c.value)) || 1)) * 40), // Scale relative to max
-                                            height: 40 + ((cat.value / (Math.max(...categorySales.map(c => c.value)) || 1)) * 40),
-                                            borderRadius: 50,
-                                            position: 'absolute',
-                                            top: 60 - ((cat.value / (Math.max(...categorySales.map(c => c.value)) || 1)) * 20),
-                                            left: 60 - ((cat.value / (Math.max(...categorySales.map(c => c.value)) || 1)) * 20) + (index * 5),
-                                            opacity: 0.8 - (index * 0.1),
-                                            zIndex: categorySales.length - index
-                                        }
-                                    ]}
-                                />
-                            )) : (
-                                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                                    <Text style={{ fontSize: 10, color: theme.textSecondary }}>NO DATA</Text>
-                                </View>
-                            )}
+                <Animated.View entering={FadeInDown.delay(800).duration(600)}>
+                    <Surface variant="glass" padding="md" style={styles.chartCardGlass}>
+                        <View style={styles.chartHeader}>
+                            <View>
+                                <Text style={[styles.chartTitle, { color: theme.text }]}>المبيعات حسب الفئة</Text>
+                            </View>
+                            <View style={[styles.iconBoxSmall, { backgroundColor: '#EC4899' }]}>
+                                <Ionicons name="pie-chart" size={14} color="#FFF" />
+                            </View>
                         </View>
 
-                        {/* Legend */}
-                        <View style={styles.pieLegend}>
-                            {categorySales.length > 0 ? categorySales.map((cat, index) => (
-                                <View key={index} style={styles.legendItem}>
-                                    <View style={[styles.legendDot, { backgroundColor: cat.color }]} />
-                                    <View>
-                                        <Text style={[styles.legendText, { color: theme.text }]}>{cat.name}</Text>
-                                        <Text style={{ fontSize: 10, color: theme.textSecondary }}>
-                                            {currencyService.formatAdminPrice(cat.value)}
-                                        </Text>
+                        <View style={styles.pieChartContainer}>
+                            {/* Simple Pie Representation */}
+                            <View style={styles.pieChart}>
+                                {categorySales.length > 0 ? categorySales.map((cat, index) => (
+                                    <View
+                                        key={index}
+                                        style={[
+                                            styles.pieSlice,
+                                            {
+                                                backgroundColor: cat.color,
+                                                width: 40 + ((cat.value / (Math.max(...categorySales.map(c => c.value)) || 1)) * 40),
+                                                height: 40 + ((cat.value / (Math.max(...categorySales.map(c => c.value)) || 1)) * 40),
+                                                borderRadius: 50,
+                                                position: 'absolute',
+                                                top: 60 - ((cat.value / (Math.max(...categorySales.map(c => c.value)) || 1)) * 20),
+                                                left: 60 - ((cat.value / (Math.max(...categorySales.map(c => c.value)) || 1)) * 20) + (index * 5),
+                                                opacity: 0.8 - (index * 0.1),
+                                                zIndex: categorySales.length - index
+                                            }
+                                        ]}
+                                    />
+                                )) : (
+                                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                        <ActivityIndicator color={theme.primary} />
                                     </View>
-                                </View>
-                            )) : (
-                                <Text style={{ color: theme.textSecondary }}>لا توجد بيانات مبيعات</Text>
-                            )}
+                                )}
+                            </View>
+
+                            {/* Legend */}
+                            <View style={styles.pieLegend}>
+                                {categorySales.length > 0 ? categorySales.map((cat, index) => (
+                                    <View key={index} style={styles.legendItem}>
+                                        <View style={[styles.legendDot, { backgroundColor: cat.color }]} />
+                                        <View>
+                                            <Text style={[styles.legendText, { color: theme.text }]}>{cat.name}</Text>
+                                            <Text style={{ fontSize: 10, color: theme.textSecondary }}>
+                                                {currencyService.formatAdminPrice(cat.value)}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )) : (
+                                    <Text style={{ color: theme.textSecondary }}>لا توجد بيانات مبيعات</Text>
+                                )}
+                            </View>
                         </View>
-                    </View>
-                </View>
+                    </Surface>
+                </Animated.View>
 
                 {/* Order Status Cards */}
-                <Text style={[styles.sectionTitle, { color: theme.text, marginHorizontal: 16, marginTop: 8 }]}>
-                    حالة الطلبات
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statusCardsScroll}>
-                    <View style={[styles.statusCard, { backgroundColor: '#10B981' }]}>
-                        <Text style={styles.statusCardValue}>{orderStats.pending + orderStats.confirmed}</Text>
-                        <Text style={styles.statusCardLabel}>طلبات جديدة</Text>
-                        <View style={styles.statusCardChange}>
-                            <Ionicons name="trending-up" size={10} color="#fff" />
-                            <Text style={styles.statusCardChangeText}>+3.2%</Text>
+                <Animated.View entering={FadeInUp.delay(900).duration(600)}>
+                    <Text style={[styles.sectionTitle, { color: theme.text, marginHorizontal: 16, marginTop: 8 }]}>
+                        حالة الطلبات
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statusCardsScroll}>
+                        <View style={[styles.statusCard, { backgroundColor: '#10B981' }]}>
+                            <Text style={styles.statusCardValue}>{orderStats.pending + orderStats.confirmed}</Text>
+                            <Text style={styles.statusCardLabel}>طلبات جديدة</Text>
+                            <View style={styles.statusCardChange}>
+                                <Ionicons name="trending-up" size={10} color="#fff" />
+                                <Text style={styles.statusCardChangeText}>+3.2%</Text>
+                            </View>
                         </View>
-                    </View>
-                    <View style={[styles.statusCard, { backgroundColor: '#F59E0B' }]}>
-                        <Text style={styles.statusCardValue}>{orderStats.pending}</Text>
-                        <Text style={styles.statusCardLabel}>بانتظار التأكيد</Text>
-                        <View style={styles.statusCardChange}>
-                            <Ionicons name="trending-up" size={10} color="#fff" />
-                            <Text style={styles.statusCardChangeText}>+2.4%</Text>
+                        <View style={[styles.statusCard, { backgroundColor: '#F59E0B' }]}>
+                            <Text style={styles.statusCardValue}>{orderStats.pending}</Text>
+                            <Text style={styles.statusCardLabel}>بانتظار التأكيد</Text>
+                            <View style={styles.statusCardChange}>
+                                <Ionicons name="trending-up" size={10} color="#fff" />
+                                <Text style={styles.statusCardChangeText}>+2.4%</Text>
+                            </View>
                         </View>
-                    </View>
-                    <View style={[styles.statusCard, { backgroundColor: '#3B82F6' }]}>
-                        <Text style={styles.statusCardValue}>{orderStats.shipped}</Text>
-                        <Text style={styles.statusCardLabel}>في الطريق</Text>
-                        <View style={styles.statusCardChange}>
-                            <Ionicons name="trending-down" size={10} color="#fff" />
-                            <Text style={styles.statusCardChangeText}>-0.5%</Text>
+                        <View style={[styles.statusCard, { backgroundColor: '#3B82F6' }]}>
+                            <Text style={styles.statusCardValue}>{orderStats.shipped}</Text>
+                            <Text style={styles.statusCardLabel}>في الطريق</Text>
+                            <View style={styles.statusCardChange}>
+                                <Ionicons name="trending-down" size={10} color="#fff" />
+                                <Text style={styles.statusCardChangeText}>-0.5%</Text>
+                            </View>
                         </View>
-                    </View>
-                    <View style={[styles.statusCard, { backgroundColor: '#8B5CF6' }]}>
-                        <Text style={styles.statusCardValue}>{orderStats.delivered}</Text>
-                        <Text style={styles.statusCardLabel}>تم التوصيل</Text>
-                        <View style={styles.statusCardChange}>
-                            <Ionicons name="trending-up" size={10} color="#fff" />
-                            <Text style={styles.statusCardChangeText}>+2.8%</Text>
+                        <View style={[styles.statusCard, { backgroundColor: '#8B5CF6' }]}>
+                            <Text style={styles.statusCardValue}>{orderStats.delivered}</Text>
+                            <Text style={styles.statusCardLabel}>تم التوصيل</Text>
+                            <View style={styles.statusCardChange}>
+                                <Ionicons name="trending-up" size={10} color="#fff" />
+                                <Text style={styles.statusCardChangeText}>+2.8%</Text>
+                            </View>
                         </View>
-                    </View>
-                </ScrollView>
+                    </ScrollView>
+                </Animated.View>
 
                 {/* Quick Actions */}
-                <View style={styles.quickActions}>
+                <Animated.View
+                    entering={FadeInDown.delay(1000).duration(600)}
+                    style={styles.quickActions}
+                >
                     <TouchableOpacity
                         style={[styles.quickActionBtn, { backgroundColor: theme.primary }]}
                         onPress={() => router.push('/admin/orders')}
@@ -398,59 +473,84 @@ export default function AdminOverview() {
                         <Ionicons name="cube" size={20} color="#fff" />
                         <Text style={styles.quickActionText}>إدارة المنتجات</Text>
                     </TouchableOpacity>
-                </View>
+                    <TouchableOpacity
+                        style={[styles.quickActionBtn, { backgroundColor: '#F59E0B' }]}
+                        onPress={() => router.push('/admin/coupons')}
+                    >
+                        <Ionicons name="gift" size={20} color="#fff" />
+                        <Text style={styles.quickActionText}>الكوبونات</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.quickActionBtn, { backgroundColor: '#6366F1' }]}
+                        onPress={() => router.push('/admin/broadcast')}
+                    >
+                        <Ionicons name="megaphone" size={20} color="#fff" />
+                        <Text style={styles.quickActionText}>إعلان عام</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.quickActionBtn, { backgroundColor: '#EC4899' }]}
+                        onPress={() => router.push('/admin/banners')}
+                    >
+                        <Ionicons name="images" size={20} color="#fff" />
+                        <Text style={styles.quickActionText}>تسيير الواجهة</Text>
+                    </TouchableOpacity>
+                </Animated.View>
 
                 {/* Recent Orders List */}
-                <View style={[styles.ordersSection, { backgroundColor: theme.backgroundCard }]}>
-                    <View style={styles.ordersSectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>آخر الطلبات</Text>
-                        <TouchableOpacity onPress={() => router.push('/admin/orders')}>
-                            <Text style={[styles.seeAllText, { color: theme.primary }]}>عرض الكل</Text>
-                        </TouchableOpacity>
-                    </View>
+                <Animated.View entering={FadeInUp.delay(1100).duration(600)}>
+                    <Surface variant="glass" padding="none" style={styles.ordersSectionGlass}>
+                        <View style={styles.ordersSectionHeader}>
+                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>آخر الطلبات</Text>
+                            <TouchableOpacity onPress={() => router.push('/admin/orders')}>
+                                <Text style={[styles.seeAllText, { color: theme.primary }]}>عرض الكل</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                    {recentOrders?.slice(0, 5).map((order, index) => (
-                        <View
-                            key={order.id}
-                            style={[
-                                styles.orderRow,
-                                index < Math.min(recentOrders.length, 5) - 1 && {
-                                    borderBottomWidth: 1,
-                                    borderBottomColor: theme.border,
-                                }
-                            ]}
-                        >
-                            <View style={styles.orderInfo}>
-                                <Text style={[styles.orderId, { color: theme.primary }]}>#{order.id?.slice(-6) || '000000'}</Text>
-                                <Text style={[styles.orderCustomer, { color: theme.text }]}>{order.customer}</Text>
-                            </View>
-                            <View style={styles.orderMeta}>
-                                <Text style={[styles.orderAmount, { color: theme.text }]}>
-                                    {currencyService.formatAdminPrice(order.total || parseFloat(order.amount))}
-                                </Text>
-                                <View style={[
-                                    styles.orderStatusBadge,
-                                    { backgroundColor: getStatusColor(order.status) + '20' }
-                                ]}>
-                                    <Text style={[styles.orderStatusText, { color: getStatusColor(order.status) }]}>
-                                        {getStatusLabel(order.status)}
-                                    </Text>
+                        <View style={{ paddingHorizontal: 16 }}>
+                            {recentOrders?.slice(0, 5).map((order, index) => (
+                                <View
+                                    key={order.id}
+                                    style={[
+                                        styles.orderRow,
+                                        index < Math.min(recentOrders.length, 5) - 1 && {
+                                            borderBottomWidth: 1,
+                                            borderBottomColor: theme.border,
+                                        }
+                                    ]}
+                                >
+                                    <View style={styles.orderInfo}>
+                                        <Text style={[styles.orderId, { color: theme.primary }]}>#{order.id?.slice(-6) || '000000'}</Text>
+                                        <Text style={[styles.orderCustomer, { color: theme.text }]}>{order.customer}</Text>
+                                    </View>
+                                    <View style={styles.orderMeta}>
+                                        <Text style={[styles.orderAmount, { color: theme.text }]}>
+                                            {currencyService.formatAdminPrice(order.total || parseFloat(order.amount))}
+                                        </Text>
+                                        <View style={[
+                                            styles.orderStatusBadge,
+                                            { backgroundColor: getStatusColor(order.status) + '20' }
+                                        ]}>
+                                            <Text style={[styles.orderStatusText, { color: getStatusColor(order.status) }]}>
+                                                {getStatusLabel(order.status)}
+                                            </Text>
+                                        </View>
+                                    </View>
                                 </View>
-                            </View>
+                            ))}
                         </View>
-                    ))}
 
-                    {recentOrders.length === 0 && (
-                        <View style={styles.emptyOrders}>
-                            <Ionicons name="receipt-outline" size={40} color={theme.textMuted} />
-                            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>لا توجد طلبات حديثة</Text>
-                        </View>
-                    )}
-                </View>
+                        {recentOrders.length === 0 && (
+                            <View style={styles.emptyOrders}>
+                                <Ionicons name="receipt-outline" size={40} color={theme.textMuted} />
+                                <Text style={[styles.emptyText, { color: theme.textSecondary }]}>لا توجد طلبات حديثة</Text>
+                            </View>
+                        )}
+                    </Surface>
+                </Animated.View>
 
                 <View style={{ height: 100 }} />
             </ScrollView>
-        </View>
+        </View >
     );
 }
 
@@ -551,15 +651,30 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         gap: 12,
         marginBottom: 12,
     },
-    kpiCardLarge: {
+    kpiCardLargeGlass: {
         flex: 1.5,
-        padding: 16,
-        borderRadius: 20,
+        borderRadius: 24,
+        overflow: 'hidden',
     },
-    kpiCardSmall: {
+    kpiCardSmallGlass: {
         flex: 1,
-        padding: 16,
-        borderRadius: 20,
+        borderRadius: 24,
+        overflow: 'hidden',
+    },
+    iconBox: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    iconBoxSmall: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
     },
     kpiCardHalf: {
         flex: 1,
@@ -616,16 +731,11 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
 
     // Charts
-    chartCard: {
+    chartCardGlass: {
         marginHorizontal: 16,
         marginBottom: 16,
-        padding: 20,
-        borderRadius: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        borderRadius: 24,
+        overflow: 'hidden',
     },
     chartHeader: {
         flexDirection: 'row',
@@ -675,16 +785,17 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         gap: 12,
         marginBottom: 16,
     },
-    summaryCard: {
+    summaryCardGlass: {
         flex: 1,
-        padding: 20,
-        borderRadius: 20,
+        borderRadius: 24,
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        overflow: 'hidden',
+    },
+    pillBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 10,
+        marginTop: 8,
     },
     summaryIcon: {
         width: 48,
@@ -796,21 +907,17 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
 
     // Orders Section
-    ordersSection: {
+    ordersSectionGlass: {
         marginHorizontal: 16,
-        borderRadius: 20,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        marginBottom: 32,
+        borderRadius: 24,
+        overflow: 'hidden',
     },
     ordersSectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
+        padding: 16,
     },
     seeAllText: {
         fontSize: 13,
@@ -858,5 +965,32 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     emptyText: {
         marginTop: 8,
         fontSize: 13,
+    },
+    statusBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        marginHorizontal: 16,
+        borderRadius: 10,
+        marginTop: 8,
+        marginBottom: 16,
+        gap: 8,
+    },
+    statusText: {
+        fontSize: 12,
+        fontWeight: '600',
+        flex: 1,
+    },
+    roleBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    roleText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
     },
 });

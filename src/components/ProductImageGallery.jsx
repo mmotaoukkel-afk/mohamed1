@@ -6,7 +6,6 @@
 import React, { useState } from 'react';
 import {
     View,
-    Image,
     TouchableOpacity,
     Modal,
     Dimensions,
@@ -21,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Surface, Text } from './ui';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -111,7 +111,9 @@ export default function ProductImageGallery({ images = [], initialIndex = 0, tok
                             <Image
                                 source={currentUri ? { uri: currentUri } : { uri: 'https://images.unsplash.com/photo-1612817288484-6f916006741a?w=400' }}
                                 style={styles.mainImage}
-                                resizeMode="contain"
+                                contentFit="contain"
+                                transition={300}
+                                cachePolicy="memory-disk"
                             />
                         </Animated.View>
                     </GestureDetector>
@@ -155,6 +157,9 @@ export default function ProductImageGallery({ images = [], initialIndex = 0, tok
                                     <Image
                                         source={thumbUri ? { uri: thumbUri } : { uri: 'https://images.unsplash.com/photo-1612817288484-6f916006741a?w=400' }}
                                         style={styles.thumbImage}
+                                        contentFit="cover"
+                                        transition={200}
+                                        cachePolicy="memory-disk"
                                     />
                                 </Surface>
                             </TouchableOpacity>
@@ -186,7 +191,8 @@ export default function ProductImageGallery({ images = [], initialIndex = 0, tok
                                 <Image
                                     source={currentUri ? { uri: currentUri } : { uri: 'https://images.unsplash.com/photo-1612817288484-6f916006741a?w=400' }}
                                     style={styles.fullscreenImage}
-                                    resizeMode="contain"
+                                    contentFit="contain"
+                                    cachePolicy="memory-disk"
                                 />
                             </Animated.View>
                         </Animated.View>

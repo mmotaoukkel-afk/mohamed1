@@ -136,14 +136,14 @@ export default function ProductsScreen() {
         router.push(`/product/${item.id}`);
     }, [router]);
 
-    const handleAddToCart = React.useCallback((item) => {
+    const handleAddToCart = React.useCallback((item, sourceRef) => {
         triggerAddToCart({
             id: item.id,
             name: item.name,
             price: item.sale_price || item.price,
             image: item.images?.[0]?.src,
             quantity: 1,
-        });
+        }, sourceRef);
     }, [triggerAddToCart]);
 
     const handleFavorite = React.useCallback((item) => {

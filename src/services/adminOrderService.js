@@ -187,6 +187,18 @@ export const updateOrderStatus = async (orderId, newStatus, note = '') => {
             updatedAt: serverTimestamp(),
         });
 
+        // 🔔 Trigger User Notification (Safe Call)
+        try {
+            if (order.userId) {
+                // Dynamic import to avoid circular dependency if any
+                const { notifyOrderStatusChange } = await import('./userNotificationService');
+                await notifyOrderStatusChange(order.userId, orderId, newStatus);
+            }
+        } catch (notifError) {
+            console.warn('Failed to send order status notification:', notifError);
+            // Don't throw - we don't want to break the admin flow just because notif failed
+        }
+
         return { id: orderId, status: newStatus, statusHistory };
     } catch (error) {
         console.error('Error updating order status:', error);

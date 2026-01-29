@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
 import { useCart } from '../context/CartContext';
+import { useCartAnimation } from '../context/CartAnimationContext';
 
 const { width } = Dimensions.get('window');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -31,6 +32,7 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
     const { tokens, isDark } = useTheme(); // Use tokens directly
     const { t } = useTranslation();
     const { cartItems } = useCart();
+    const { registerCartIcon } = useCartAnimation();
 
     const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -65,7 +67,7 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
                 layout={LinearTransition.springify().damping(15)}
                 activeOpacity={0.8}
             >
-                <View>
+                <View ref={routeName === 'cart' ? registerCartIcon : null}>
                     <Ionicons
                         name={name}
                         size={24}

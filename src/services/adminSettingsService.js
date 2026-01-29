@@ -70,18 +70,8 @@ export const MOCK_COUPONS = [
     { id: '4', code: 'SUMMER20', type: 'percentage', value: 20, minOrder: 150, maxUses: 100, usedCount: 100, validUntil: '2025-09-30', status: 'expired' },
 ];
 
-// Moroccan cities with delivery prices
-export const DELIVERY_ZONES = [
-    { id: 'casablanca', city: 'الدار البيضاء', price: 25, freeAbove: 300, estimatedDays: '1-2' },
-    { id: 'rabat', city: 'الرباط', price: 30, freeAbove: 300, estimatedDays: '1-2' },
-    { id: 'marrakech', city: 'مراكش', price: 35, freeAbove: 350, estimatedDays: '2-3' },
-    { id: 'fes', city: 'فاس', price: 35, freeAbove: 350, estimatedDays: '2-3' },
-    { id: 'tangier', city: 'طنجة', price: 40, freeAbove: 400, estimatedDays: '2-3' },
-    { id: 'agadir', city: 'أكادير', price: 40, freeAbove: 400, estimatedDays: '3-4' },
-    { id: 'meknes', city: 'مكناس', price: 35, freeAbove: 350, estimatedDays: '2-3' },
-    { id: 'oujda', city: 'وجدة', price: 45, freeAbove: 450, estimatedDays: '3-4' },
-    { id: 'other', city: 'مدن أخرى', price: 50, freeAbove: 500, estimatedDays: '4-5' },
-];
+// Initial delivery zones (empty as we use dynamic data per country)
+export const DELIVERY_ZONES = [];
 
 // Tax configuration
 export const TAX_CONFIG = {
@@ -102,17 +92,15 @@ export const DEFAULT_STORE_SETTINGS = {
     address: 'الدار البيضاء، المغرب',
 };
 
-// Arab Countries Suggestions for Checkout
+// Arab Countries Suggestions for Checkout (Restricted to GCC and Syria)
 export const ARAB_COUNTRIES = [
     { id: 'kuwait', name: 'الكويت', code: 'KW', currency: 'KWD', flag: '🇰🇼' },
-    { id: 'morocco', name: 'المغرب', code: 'MA', currency: 'MAD', flag: '🇲🇦' },
     { id: 'saudi', name: 'السعودية', code: 'SA', currency: 'SAR', flag: '🇸🇦' },
     { id: 'uae', name: 'الإمارات', code: 'AE', currency: 'AED', flag: '🇦🇪' },
     { id: 'qatar', name: 'قطر', code: 'QA', currency: 'QAR', flag: '🇶🇦' },
     { id: 'bahrain', name: 'البحرين', code: 'BH', currency: 'BHD', flag: '🇧🇭' },
     { id: 'oman', name: 'عمان', code: 'OM', currency: 'OMR', flag: '🇴🇲' },
-    { id: 'egypt', name: 'مصر', code: 'EG', currency: 'EGP', flag: '🇪🇬' },
-    { id: 'jordan', name: 'الأردن', code: 'JO', currency: 'JOD', flag: '🇯🇴' },
+    { id: 'syria', name: 'سوريا', code: 'SY', currency: 'SYP', flag: '🇸🇾' },
 ];
 
 // Mutable store settings (loaded from Firestore)
