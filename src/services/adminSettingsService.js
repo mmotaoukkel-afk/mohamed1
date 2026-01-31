@@ -70,49 +70,41 @@ export const MOCK_COUPONS = [
     { id: '4', code: 'SUMMER20', type: 'percentage', value: 20, minOrder: 150, maxUses: 100, usedCount: 100, validUntil: '2025-09-30', status: 'expired' },
 ];
 
-// Moroccan cities with delivery prices
+// Generic delivery zones for international shipping fallback
 export const DELIVERY_ZONES = [
-    { id: 'casablanca', city: 'الدار البيضاء', price: 25, freeAbove: 300, estimatedDays: '1-2' },
-    { id: 'rabat', city: 'الرباط', price: 30, freeAbove: 300, estimatedDays: '1-2' },
-    { id: 'marrakech', city: 'مراكش', price: 35, freeAbove: 350, estimatedDays: '2-3' },
-    { id: 'fes', city: 'فاس', price: 35, freeAbove: 350, estimatedDays: '2-3' },
-    { id: 'tangier', city: 'طنجة', price: 40, freeAbove: 400, estimatedDays: '2-3' },
-    { id: 'agadir', city: 'أكادير', price: 40, freeAbove: 400, estimatedDays: '3-4' },
-    { id: 'meknes', city: 'مكناس', price: 35, freeAbove: 350, estimatedDays: '2-3' },
-    { id: 'oujda', city: 'وجدة', price: 45, freeAbove: 450, estimatedDays: '3-4' },
-    { id: 'other', city: 'مدن أخرى', price: 50, freeAbove: 500, estimatedDays: '4-5' },
+    { id: 'standard', city: 'شحن قياسي', price: 5, freeAbove: 50, estimatedDays: '3-7' },
+    { id: 'express', city: 'شحن سريع', price: 10, freeAbove: 100, estimatedDays: '1-3' },
+    { id: 'other', city: 'مدن أخرى', price: 7, freeAbove: 70, estimatedDays: '5-10' },
 ];
 
 // Tax configuration
 export const TAX_CONFIG = {
     enabled: true,
-    rate: 20, // TVA 20%
-    name: 'TVA',
+    rate: 0, // Default to 0, can be set per country
+    name: 'Tax',
     includedInPrice: true,
 };
 
-// Default store settings (will be overridden by Firestore)
+// Default store settings
 export const DEFAULT_STORE_SETTINGS = {
     name: 'Kataraa Beauty',
     currency: 'KWD',
     language: 'ar',
-    timezone: 'Africa/Casablanca',
+    timezone: 'Asia/Kuwait',
     email: 'contact@kataraa.com',
-    phone: '+212 5 22 00 00 00',
-    address: 'الدار البيضاء، المغرب',
+    phone: '+965 0000 0000',
+    address: 'مدينة الكويت، الكويت',
 };
 
 // Arab Countries Suggestions for Checkout
 export const ARAB_COUNTRIES = [
     { id: 'kuwait', name: 'الكويت', code: 'KW', currency: 'KWD', flag: '🇰🇼' },
-    { id: 'morocco', name: 'المغرب', code: 'MA', currency: 'MAD', flag: '🇲🇦' },
     { id: 'saudi', name: 'السعودية', code: 'SA', currency: 'SAR', flag: '🇸🇦' },
     { id: 'uae', name: 'الإمارات', code: 'AE', currency: 'AED', flag: '🇦🇪' },
     { id: 'qatar', name: 'قطر', code: 'QA', currency: 'QAR', flag: '🇶🇦' },
     { id: 'bahrain', name: 'البحرين', code: 'BH', currency: 'BHD', flag: '🇧🇭' },
     { id: 'oman', name: 'عمان', code: 'OM', currency: 'OMR', flag: '🇴🇲' },
-    { id: 'egypt', name: 'مصر', code: 'EG', currency: 'EGP', flag: '🇪🇬' },
-    { id: 'jordan', name: 'الأردن', code: 'JO', currency: 'JOD', flag: '🇯🇴' },
+    { id: 'syria', name: 'سوريا', code: 'SY', currency: 'SYP', flag: '🇸🇾' },
 ];
 
 // Mutable store settings (loaded from Firestore)
@@ -185,7 +177,7 @@ export async function initializeStoreSettings() {
 // 🎟️ FIRESTORE COUPON FUNCTIONS
 // ==========================================
 
-import { collection, getDocs, addDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, getDocs, Timestamp } from 'firebase/firestore';
 
 /**
  * Get all coupons from Firestore

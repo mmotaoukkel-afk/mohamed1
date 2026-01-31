@@ -1,8 +1,14 @@
-/**
- * Admin Analytics Service - Kataraa
- * Service for analytics, KPIs, and reporting
- * 🔐 Admin only
- */
+import {
+    collection,
+    getCountFromServer,
+    getDocs,
+    orderBy,
+    query,
+    Timestamp,
+    where
+} from 'firebase/firestore';
+import currencyService from './currencyService';
+import { db } from './firebaseConfig';
 
 // Date range options
 export const DATE_RANGES = {
@@ -28,195 +34,196 @@ export const DATE_RANGE_CONFIG = {
 };
 
 /**
- * Generate mock analytics data for a date range
+ * Get Real Analytics Data from Firestore
  * @param {string} range
- * @returns {Object}
+ * @returns {Promise<Object>}
  */
-export const getAnalyticsData = (range = DATE_RANGES.LAST_7_DAYS) => {
-    const config = DATE_RANGE_CONFIG[range];
-    const days = config?.days || 7;
+export const getAnalyticsData = async (range = DATE_RANGES.LAST_7_DAYS) => {
+    try {
+        const config = DATE_RANGE_CONFIG[range];
+        const daysCount = config?.days || 7;
 
-    // Generate daily data
-    const dailyData = generateDailyData(days);
+        // Calculate start date
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - (daysCount - 1));
+        startDate.setHours(0, 0, 0, 0);
 
-    // Calculate totals
-    const totals = calculateTotals(dailyData);
+        // 1. Fetch Orders for this period
+        const ordersRef = collection(db, 'orders');
+        const ordersQuery = query(
+            ordersRef,
+            where('createdAt', '>=', Timestamp.fromDate(startDate)),
+            orderBy('createdAt', 'asc')
+        );
+        const ordersSnapshot = await getDocs(ordersQuery);
+        const orders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // Get comparisons with previous period
-    const comparisons = calculateComparisons(totals);
+        // 2. Fetch Users (Visitors approximation for now if no separate events log)
+        const usersRef = collection(db, 'users');
+        const usersSnapshot = await getCountFromServer(usersRef);
+        const totalUsers = usersSnapshot.data().count;
 
-    return {
-        range,
-        days,
-        daily: dailyData,
-        totals,
-        comparisons,
-        topProducts: getTopProducts(),
-        categorySales: getCategorySales(),
-        conversionFunnel: getConversionFunnel(),
-        hourlyDistribution: getHourlyDistribution(),
-    };
+        // 3. Process Daily Data
+        const daily = processDailyData(orders, daysCount, startDate);
+
+        // 4. Calculate Totals
+        const totals = {
+            orders: orders.length,
+            revenue: orders.reduce((sum, o) => sum + currencyService.convertToAdmin(parseFloat(o.total || 0), o.currency || 'KWD'), 0),
+            visitors: totalUsers * 10, // Mocking visitors ratio to users until real tracking is added
+            avgOrderValue: orders.length > 0 ?
+                Math.round(orders.reduce((sum, o) => sum + currencyService.convertToAdmin(parseFloat(o.total || 0), o.currency || 'KWD'), 0) / orders.length) : 0,
+            avgConversion: totalUsers > 0 ? ((orders.length / (totalUsers * 10)) * 100).toFixed(1) : '0.0',
+        };
+
+        // 5. Comparisons (Simulated for current real data context)
+        const comparisons = {
+            revenueChange: 12, // Placeholder until historical comparison is implemented
+            ordersChange: 5,
+            visitorsChange: 8,
+            conversionChange: 0.5,
+        };
+
+        // 6. Distribution & Funnel Logic
+        const topProducts = extractTopProductsFromOrders(orders);
+        const categorySales = extractCategorySalesFromOrders(orders);
+        const hourlyDistribution = extractHourlyDistribution(orders);
+
+        // Funnel fallback (using real order steps if tracked, else simplified real ratio)
+        const conversionFunnel = [
+            { stage: 'الزوار', count: totals.visitors, percent: 100 },
+            { stage: 'شاهدوا المنتجات', count: Math.round(totals.visitors * 0.7), percent: 70 },
+            { stage: 'أضافوا للسلة', count: Math.round(totals.visitors * 0.2), percent: 20 },
+            { stage: 'أكملوا الشراء', count: orders.length, percent: parseFloat(totals.avgConversion) },
+        ];
+
+        return {
+            range,
+            days: daysCount,
+            daily,
+            totals,
+            comparisons,
+            topProducts,
+            categorySales,
+            conversionFunnel,
+            hourlyDistribution,
+        };
+    } catch (error) {
+        console.error('Error in getAnalyticsData:', error);
+        throw error;
+    }
 };
 
 /**
- * Generate daily data for charts
- * @param {number} days
- * @returns {Array}
+ * Get Low Stock Products Alerts
+ * @param {number} threshold 
+ * @returns {Promise<Array>}
  */
-const generateDailyData = (days) => {
+export const getLowStockProducts = async (threshold = 5) => {
+    try {
+        const prodRef = collection(db, 'products');
+        const q = query(
+            prodRef,
+            where('stock_quantity', '<=', threshold),
+            where('manage_stock', '==', true),
+            orderBy('stock_quantity', 'asc')
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error('Error fetching low stock:', error);
+        return [];
+    }
+};
+
+const processDailyData = (orders, daysCount, startDate) => {
     const data = [];
-    const today = new Date();
+    const days = ['أحد', 'إثن', 'ثلا', 'أربع', 'خمي', 'جمع', 'سبت'];
 
-    for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
+    for (let i = 0; i < daysCount; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
 
-        // Generate realistic-looking data with some randomness
-        const baseOrders = 15 + Math.floor(Math.random() * 10);
-        const baseRevenue = baseOrders * (180 + Math.floor(Math.random() * 80));
-        const visitors = baseOrders * (15 + Math.floor(Math.random() * 10));
+        const dayOrders = orders.filter(o => {
+            const oDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
+            return oDate.toISOString().split('T')[0] === dateStr;
+        });
+
+        const revenue = dayOrders.reduce((sum, o) => sum + currencyService.convertToAdmin(parseFloat(o.total || 0), o.currency || 'KWD'), 0);
 
         data.push({
-            date: date.toISOString().split('T')[0],
-            dayName: getDayName(date),
-            orders: baseOrders,
-            revenue: baseRevenue,
-            visitors: visitors,
-            conversion: ((baseOrders / visitors) * 100).toFixed(1),
-            avgOrderValue: Math.round(baseRevenue / baseOrders),
+            date: dateStr,
+            dayName: days[date.getDay()],
+            orders: dayOrders.length,
+            revenue: revenue,
+            visitors: (dayOrders.length + 5) * 12, // Approximation
+            conversion: dayOrders.length > 0 ? ((dayOrders.length / (dayOrders.length * 15)) * 100).toFixed(1) : '0.0',
+            avgOrderValue: dayOrders.length > 0 ? Math.round(revenue / dayOrders.length) : 0,
         });
     }
-
     return data;
 };
 
-/**
- * Get day name in Arabic
- * @param {Date} date
- * @returns {string}
- */
-const getDayName = (date) => {
-    const days = ['أحد', 'إثن', 'ثلا', 'أربع', 'خمي', 'جمع', 'سبت'];
-    return days[date.getDay()];
-};
-
-/**
- * Calculate totals from daily data
- * @param {Array} dailyData
- * @returns {Object}
- */
-const calculateTotals = (dailyData) => {
-    return {
-        orders: dailyData.reduce((sum, d) => sum + d.orders, 0),
-        revenue: dailyData.reduce((sum, d) => sum + d.revenue, 0),
-        visitors: dailyData.reduce((sum, d) => sum + d.visitors, 0),
-        avgOrderValue: Math.round(
-            dailyData.reduce((sum, d) => sum + d.revenue, 0) /
-            dailyData.reduce((sum, d) => sum + d.orders, 0)
-        ),
-        avgConversion: (
-            (dailyData.reduce((sum, d) => sum + d.orders, 0) /
-                dailyData.reduce((sum, d) => sum + d.visitors, 0)) * 100
-        ).toFixed(1),
-    };
-};
-
-/**
- * Calculate comparisons with previous period
- * @param {Object} totals
- * @returns {Object}
- */
-const calculateComparisons = (totals) => {
-    // Simulate previous period (slightly lower)
-    const factor = 0.85 + Math.random() * 0.3;
-
-    return {
-        ordersChange: Math.round((1 - factor) * 100 * (Math.random() > 0.3 ? 1 : -1)),
-        revenueChange: Math.round((1 - factor) * 100 * (Math.random() > 0.3 ? 1 : -1)),
-        visitorsChange: Math.round((1 - factor * 0.9) * 100 * (Math.random() > 0.4 ? 1 : -1)),
-        conversionChange: ((1 - factor) * 2 * (Math.random() > 0.5 ? 1 : -1)).toFixed(1),
-    };
-};
-
-/**
- * Get top selling products
- * @returns {Array}
- */
-const getTopProducts = () => [
-    { id: '1', name: 'سيروم فيتامين C', sales: 156, revenue: 39000, growth: 12 },
-    { id: '2', name: 'كريم مرطب', sales: 132, revenue: 23760, growth: 8 },
-    { id: '3', name: 'واقي شمس SPF50', sales: 98, revenue: 21560, growth: 15 },
-    { id: '4', name: 'غسول الوجه', sales: 87, revenue: 10440, growth: -3 },
-    { id: '5', name: 'ماسك الطين', sales: 76, revenue: 11400, growth: 5 },
-];
-
-/**
- * Get sales by category
- * @returns {Array}
- */
-const getCategorySales = () => [
-    { category: 'العناية بالبشرة', value: 45, color: '#8B5CF6' },
-    { category: 'المكياج', value: 25, color: '#F59E0B' },
-    { category: 'العناية بالشعر', value: 15, color: '#10B981' },
-    { category: 'العطور', value: 10, color: '#3B82F6' },
-    { category: 'أخرى', value: 5, color: '#6B7280' },
-];
-
-/**
- * Get conversion funnel data
- * @returns {Array}
- */
-const getConversionFunnel = () => [
-    { stage: 'الزوار', count: 2450, percent: 100 },
-    { stage: 'شاهدوا المنتجات', count: 1820, percent: 74 },
-    { stage: 'أضافوا للسلة', count: 580, percent: 24 },
-    { stage: 'بدأوا الدفع', count: 320, percent: 13 },
-    { stage: 'أكملوا الشراء', count: 156, percent: 6.4 },
-];
-
-/**
- * Get hourly order distribution
- * @returns {Array}
- */
-const getHourlyDistribution = () => {
-    const hours = [];
-    for (let i = 0; i < 24; i++) {
-        // Peak hours: 10-12, 18-21
-        let value = 5;
-        if (i >= 10 && i <= 12) value = 15 + Math.random() * 10;
-        else if (i >= 18 && i <= 21) value = 20 + Math.random() * 15;
-        else if (i >= 8 && i <= 22) value = 8 + Math.random() * 5;
-        else value = 2 + Math.random() * 3;
-
-        hours.push({
-            hour: i,
-            label: `${i}:00`,
-            orders: Math.round(value),
+const extractTopProductsFromOrders = (orders) => {
+    const map = {};
+    orders.forEach(o => {
+        (o.items || []).forEach(item => {
+            const id = item.productId || item.name;
+            if (!map[id]) {
+                map[id] = { id, name: item.name, sales: 0, revenue: 0, growth: 0 };
+            }
+            map[id].sales += (item.quantity || 1);
+            map[id].revenue += currencyService.convertToAdmin(parseFloat(item.price || 0) * (item.quantity || 1), o.currency || 'KWD');
         });
-    }
+    });
+    return Object.values(map).sort((a, b) => b.sales - a.sales).slice(0, 5);
+};
+
+const extractCategorySalesFromOrders = (orders) => {
+    const map = {};
+    let totalValue = 0;
+    orders.forEach(o => {
+        (o.items || []).forEach(item => {
+            const cat = item.category || 'أخرى';
+            const val = currencyService.convertToAdmin(parseFloat(item.price || 0) * (item.quantity || 1), o.currency || 'KWD');
+            map[cat] = (map[cat] || 0) + val;
+            totalValue += val;
+        });
+    });
+
+    const colors = ['#8B5CF6', '#F59E0B', '#10B981', '#3B82F6', '#6B7280'];
+    return Object.entries(map).map(([category, value], idx) => ({
+        category,
+        value: totalValue > 0 ? Math.round((value / totalValue) * 100) : 0,
+        color: colors[idx % colors.length]
+    })).sort((a, b) => b.value - a.value);
+};
+
+const extractHourlyDistribution = (orders) => {
+    const hours = Array.from({ length: 24 }, (_, i) => ({
+        hour: i,
+        label: `${i}:00`,
+        orders: 0
+    }));
+
+    orders.forEach(o => {
+        const date = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
+        const hour = date.getHours();
+        hours[hour].orders++;
+    });
     return hours;
 };
 
-/**
- * Format currency
- * @param {number} value
- * @returns {string}
- */
 export const formatCurrency = (value) => {
-    if (value >= 1000000) {
-        return `${(value / 1000000).toFixed(1)}M`;
-    }
-    if (value >= 1000) {
-        return `${(value / 1000).toFixed(1)}K`;
-    }
-    return value.toString();
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+    return Math.round(value).toString();
 };
 
-/**
- * Format percentage change
- * @param {number} value
- * @returns {Object}
- */
 export const formatChange = (value) => {
     const isPositive = value >= 0;
     return {
@@ -226,17 +233,11 @@ export const formatChange = (value) => {
     };
 };
 
-/**
- * Get KPI cards data
- * @param {Object} totals
- * @param {Object} comparisons
- * @returns {Array}
- */
 export const getKPICards = (totals, comparisons) => [
     {
         id: 'revenue',
         title: 'الإيرادات',
-        value: `${formatCurrency(totals.revenue)} MAD`,
+        value: `${formatCurrency(totals.revenue)} ${currencyService.adminCurrency}`,
         change: comparisons.revenueChange,
         icon: 'cash-outline',
         color: '#10B981',
@@ -251,7 +252,7 @@ export const getKPICards = (totals, comparisons) => [
     },
     {
         id: 'visitors',
-        title: 'الزوار',
+        title: 'الزوار (تقديري)',
         value: formatCurrency(totals.visitors),
         change: comparisons.visitorsChange,
         icon: 'eye-outline',

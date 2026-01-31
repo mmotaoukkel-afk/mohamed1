@@ -3,10 +3,10 @@
  * Fetches real-time KPIs and statistics for the Admin Dashboard
  */
 
-import { collection, query, getDocs, orderBy, limit, where, getCountFromServer } from 'firebase/firestore';
+import { collection, getCountFromServer, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 
-import { db } from './firebaseConfig';
 import currencyService from './currencyService';
+import { db } from './firebaseConfig';
 
 const COLLECTIONS = {
     USERS: 'users',
@@ -32,14 +32,17 @@ export async function getDashboardStats() {
         const ordersColl = collection(db, COLLECTIONS.ORDERS);
         const ordersSnapshot = await getDocs(ordersColl); // Getting all for revenue calc
 
-        let totalRevenue = 0;
+        let totalRevenueKWD = 0;
         let pendingOrders = 0;
 
         ordersSnapshot.docs.forEach(doc => {
             const data = doc.data();
-            // Assuming amount is a number or string like "100 MAD"
-            const amount = parseFloat(data.total || data.amount || 0);
-            totalRevenue += amount;
+            const orderTotal = parseFloat(data.total || data.amount || 0);
+            const orderCurrency = data.currency || 'KWD';
+
+            // Convert to KWD for unified dashboard
+            const amountKWD = currencyService.convertToAdmin(orderTotal, orderCurrency);
+            totalRevenueKWD += amountKWD;
 
             if (data.status === 'pending') pendingOrders++;
         });
@@ -56,8 +59,9 @@ export async function getDashboardStats() {
         return {
             customers: { value: userCount.toString(), change: '+New', isPositive: true },
             orders: { value: orderCount.toString(), change: pendingOrders > 0 ? `${pendingOrders} Pending` : 'All Clear', isPositive: true },
-            revenue: { value: currencyService.formatAdminPrice(totalRevenue), change: 'Total', isPositive: true },
-            products: { value: productCount > 0 ? productCount.toString() : 'Mock', change: '', isPositive: true }
+            revenue: { value: currencyService.formatKWD(totalRevenueKWD), change: 'Total', isPositive: true },
+            products: { value: productCount > 0 ? productCount.toString() : '0', change: '', isPositive: true },
+            profit: { value: currencyService.formatKWD(totalRevenueKWD * 0.4), change: 'Est. Margin', isPositive: true } // Estimated 40% margin
         };
 
     } catch (error) {
@@ -91,7 +95,7 @@ export async function getRecentOrders() {
 
             return {
                 id: doc.id,
-                customer: data.customerName || data.shippingAddress?.name || data.email || 'زبون',
+                customer: data.customerName || data.shippingAddress?.name || data.fullName || data.name || data.email || 'زبون مجهول',
                 amount: currencyService.formatAdminPrice(data.total || data.amount || 0),
                 status: data.status || 'pending',
                 time: timeStr
@@ -142,11 +146,14 @@ export async function getWeeklyRevenue() {
             const data = doc.data();
             const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
             const dateStr = createdAt.toISOString().split('T')[0];
-            const amount = parseFloat(data.total || data.amount || 0);
+
+            const orderTotal = parseFloat(data.total || data.amount || 0);
+            const orderCurrency = data.currency || 'KWD';
+            const amountKWD = currencyService.convertToAdmin(orderTotal, orderCurrency);
 
             const dayEntry = weeklyData.find(d => d.date === dateStr);
             if (dayEntry) {
-                dayEntry.value += amount;
+                dayEntry.value += amountKWD;
             }
         });
 
@@ -182,15 +189,16 @@ export async function getCategorySales() {
             // detailed items usually in data.items array
             if (data.items && Array.isArray(data.items)) {
                 data.items.forEach(item => {
-                    const cat = item.category || 'أخرى'; // Default to 'Other' if missing
+                    const cat = item.category || 'أخرى';
                     const price = parseFloat(item.price || 0);
                     const qty = parseInt(item.quantity || 1);
-                    const total = price * qty;
+                    const orderCurrency = data.currency || 'KWD';
+                    const itemTotalKWD = currencyService.convertToAdmin(price * qty, orderCurrency);
 
                     if (categoryMap[cat]) {
-                        categoryMap[cat] += total;
+                        categoryMap[cat] += itemTotalKWD;
                     } else {
-                        categoryMap[cat] = total;
+                        categoryMap[cat] = itemTotalKWD;
                     }
                 });
             }
@@ -222,6 +230,89 @@ export async function getCategorySales() {
 
     } catch (error) {
         console.error('Error fetching category sales:', error);
+        return [];
+    }
+}
+
+/**
+ * Get Detailed Revenue Stats for Revenue Page
+ */
+export async function getRevenueStats(timeframe = 'this_month') {
+    try {
+        const ordersColl = collection(db, COLLECTIONS.ORDERS);
+        const snapshot = await getDocs(ordersColl);
+
+        let totalRevenueKWD = 0;
+        let orderCount = 0;
+        const dailyRevenue = {};
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const orderTotal = parseFloat(data.total || data.amount || 0);
+            const orderCurrency = data.currency || 'KWD';
+            const amountKWD = currencyService.convertToAdmin(orderTotal, orderCurrency);
+
+            totalRevenueKWD += amountKWD;
+            orderCount++;
+
+            // Group by date
+            const date = data.createdAt?.toDate ? data.createdAt.toDate().toISOString().split('T')[0] : new Date(data.createdAt).toISOString().split('T')[0];
+            dailyRevenue[date] = (dailyRevenue[date] || 0) + amountKWD;
+        });
+
+        const aovKWD = orderCount > 0 ? totalRevenueKWD / orderCount : 0;
+
+        return {
+            totalRevenueKWD,
+            orderCount,
+            aovKWD,
+            dailyRevenue
+        };
+    } catch (error) {
+        console.error('Error fetching revenue stats:', error);
+        return null;
+    }
+}
+/**
+ * Get Top Selling Products (for Revenue Page)
+ */
+export async function getTopProducts() {
+    try {
+        const q = query(
+            collection(db, COLLECTIONS.ORDERS),
+            orderBy('createdAt', 'desc'),
+            limit(100)
+        );
+        const snapshot = await getDocs(q);
+        const productMap = {};
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.items && Array.isArray(data.items)) {
+                data.items.forEach(item => {
+                    // Normalize ID
+                    const id = item.productId || item.id || item.name;
+                    if (!productMap[id]) {
+                        productMap[id] = {
+                            id,
+                            name: item.name || 'منتج',
+                            price: item.price || 0,
+                            count: 0,
+                            revenue: 0,
+                            image: item.image || item.thumbnail || null
+                        };
+                    }
+                    productMap[id].count += (item.quantity || 1);
+                    productMap[id].revenue += (item.price || 0) * (item.quantity || 1);
+                });
+            }
+        });
+
+        return Object.values(productMap)
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5);
+    } catch (error) {
+        console.error('Error fetching top products:', error);
         return [];
     }
 }

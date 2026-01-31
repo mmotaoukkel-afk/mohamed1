@@ -9,17 +9,60 @@ import {
     doc,
     getDoc,
     getDocs,
-    updateDoc,
-    query,
-    where,
-    orderBy,
     limit,
+    orderBy,
+    query,
     serverTimestamp,
-    Timestamp,
+    updateDoc,
+    where
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
 const ORDERS_COLLECTION = 'orders';
+
+/**
+ * Robustly extract customer name from various order formats
+ * @param {Object} data Order data
+ */
+const extractCustomerName = (data) => {
+    // 1. Structure from checkout/index.jsx (Kataraa App)
+    if (data.shipping_info?.fullName) return data.shipping_info.fullName;
+    if (data.customer?.displayName) return data.customer.displayName;
+
+    // 2. Direct fields
+    if (data.customerName) return data.customerName;
+    if (data.fullName) return data.fullName;
+
+    // 3. Shipping Address
+    if (data.shippingAddress?.name) return data.shippingAddress.name;
+    if (data.shippingAddress?.firstName) {
+        return `${data.shippingAddress.firstName} ${data.shippingAddress.lastName || ''}`.trim();
+    }
+    if (data.shipping?.first_name) {
+        return `${data.shipping.first_name} ${data.shipping.last_name || ''}`.trim();
+    }
+
+    // 4. Billing Address (WooCommerce style)
+    if (data.billingAddress?.name) return data.billingAddress.name;
+    if (data.billingAddress?.firstName) {
+        return `${data.billingAddress.firstName} ${data.billingAddress.lastName || ''}`.trim();
+    }
+    if (data.billing?.first_name) {
+        return `${data.billing.first_name} ${data.billing.last_name || ''}`.trim();
+    }
+
+    // 5. Fallbacks
+    if (data.name) return data.name;
+    if (data.user?.name) return data.user.name;
+    if (data.user?.displayName) return data.user.displayName;
+
+    // Email fallbacks
+    if (data.email) return data.email.split('@')[0];
+    if (data.customer?.email) return data.customer.email.split('@')[0];
+    if (data.billing?.email) return data.billing.email.split('@')[0];
+
+    return 'زبون مجهول';
+};
 
 // Order status workflow
 export const ORDER_STATUS = {
@@ -129,10 +172,19 @@ export const getAllOrders = async (options = {}) => {
         q = query(q, ...constraints);
         const snapshot = await getDocs(q);
 
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                // Robust name/phone fallback for UI consistency
+                customerName: extractCustomerName(data),
+                customerPhone: data.customerPhone || data.shippingAddress?.phone || data.billing?.phone || data.phone || '',
+                customerImage: data.customer?.photoURL || data.user?.photoURL || data.photoURL || null,
+                shippingCity: data.shippingAddress?.city || data.shipping?.city || data.city || '',
+                total: parseFloat(data.total || data.amount || 0),
+            };
+        });
     } catch (error) {
         console.error('Error fetching orders:', error);
         throw error;
@@ -209,6 +261,25 @@ export const cancelOrder = async (orderId, reason = '') => {
     }
 
     return updateOrderStatus(orderId, ORDER_STATUS.CANCELLED, reason);
+};
+
+/**
+ * Update internal admin notes for an order
+ * @param {string} orderId
+ * @param {string} internalNotes
+ * @returns {Promise<void>}
+ */
+export const updateOrderNotes = async (orderId, internalNotes) => {
+    try {
+        const docRef = doc(db, ORDERS_COLLECTION, orderId);
+        await updateDoc(docRef, {
+            internalNotes,
+            updatedAt: serverTimestamp(),
+        });
+    } catch (error) {
+        console.error('Error updating order notes:', error);
+        throw error;
+    }
 };
 
 /**
@@ -367,6 +438,28 @@ export const getOrderStats = async () => {
 export const formatOrderId = (id) => {
     if (!id) return '';
     return `ORD-${id.substring(0, 6).toUpperCase()}`;
+};
+
+/**
+ * Get Arabic label for a status
+ * @param {string} status
+ * @returns {string}
+ */
+export const getStatusLabel = (status) => {
+    return ORDER_STATUS_CONFIG[status]?.label || status;
+};
+
+/**
+ * Generate WhatsApp link for customer contact
+ * @param {string} phone
+ * @param {string} message
+ * @returns {string}
+ */
+export const getWhatsAppLink = (phone, message = '') => {
+    if (!phone) return '#';
+    const cleanPhone = phone.replace(/\D/g, '');
+    const encodedMsg = encodeURIComponent(message);
+    return `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
 };
 
 /**

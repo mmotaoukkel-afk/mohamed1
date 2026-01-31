@@ -16,6 +16,7 @@ const EXCHANGE_RATES = {
     SAR: 0.37,    // 1 MAD ≈ 0.37 SAR
     QAR: 0.36,    // 1 MAD ≈ 0.36 QAR
     AED: 0.36,    // 1 MAD ≈ 0.36 AED
+    SYP: 125.0,   // 1 MAD ≈ 125 SYP (Basic rate for calculation)
 };
 
 // Formatter configurations
@@ -27,6 +28,7 @@ const CURRENCIES = {
     SAR: { code: 'SAR', symbol: 'ر.س', name: 'ريال سعودي', decimals: 2, locale: 'ar-SA' },
     QAR: { code: 'QAR', symbol: 'ر.ق', name: 'ريال قطري', decimals: 2, locale: 'ar-QA' },
     AED: { code: 'AED', symbol: 'د.إ', name: 'درهم إماراتي', decimals: 2, locale: 'ar-AE' },
+    SYP: { code: 'SYP', symbol: 'ل.س', name: 'ليرة سورية', decimals: 0, locale: 'ar-SY' },
 };
 
 class CurrencyService {
@@ -70,18 +72,39 @@ class CurrencyService {
     }
 
     /**
+     * Convert from any currency back to Admin currency (KWD)
+     */
+    convertToAdmin(amount, fromCurrency) {
+        if (!amount) return 0;
+        if (fromCurrency === this.adminCurrency) return parseFloat(amount);
+
+        // Convert to MAD first (base), then to KWD
+        const rateToMad = 1 / (EXCHANGE_RATES[fromCurrency] || 1);
+        const amountInMad = amount * rateToMad;
+        return this.convert(amountInMad, this.adminCurrency);
+    }
+
+    /**
      * Format price for Admin (Always KWD)
+     * Input: amount in base currency (MAD)
      */
     formatAdminPrice(amountInMad) {
         const currency = CURRENCIES[this.adminCurrency];
         const converted = this.convert(amountInMad, this.adminCurrency);
+        return this.formatKWD(converted);
+    }
 
+    /**
+     * Format an already converted KWD amount
+     */
+    formatKWD(amountInKwd) {
+        const currency = CURRENCIES[this.adminCurrency];
         return new Intl.NumberFormat(currency.locale, {
             style: 'currency',
             currency: currency.code,
             minimumFractionDigits: currency.decimals,
             maximumFractionDigits: currency.decimals,
-        }).format(converted);
+        }).format(amountInKwd || 0);
     }
 
     /**

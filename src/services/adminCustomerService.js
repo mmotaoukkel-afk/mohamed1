@@ -9,12 +9,12 @@ import {
     doc,
     getDoc,
     getDocs,
-    updateDoc,
-    query,
-    where,
-    orderBy,
     limit,
+    orderBy,
+    query,
     serverTimestamp,
+    updateDoc,
+    where,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
@@ -193,21 +193,28 @@ export const getAllCustomers = async (options = {}) => {
         const { segment, orderByField = 'createdAt', limitCount = 50 } = options;
 
         let q = collection(db, CUSTOMERS_COLLECTION);
-        const constraints = [];
-
-        constraints.push(orderBy(orderByField, 'desc'));
-        constraints.push(limit(limitCount));
-
-        q = query(q, ...constraints);
-        const snapshot = await getDocs(q);
+        const snapshot = await getDocs(query(q, limit(limitCount)));
 
         const customers = snapshot.docs.map(doc => {
             const data = { id: doc.id, ...doc.data() };
-            return {
+            // Robust name extraction
+            const name = data.name || data.fullName || data.displayName
+                || (data.firstName ? `${data.firstName} ${data.lastName || ''}`.trim() : '');
+
+            const enriched = {
                 ...data,
+                name: name || 'زبون مجهول',
                 segment: calculateSegment(data),
                 score: calculateCustomerScore(data),
             };
+            return enriched;
+        });
+
+        // Client-side sort by createdAt desc
+        customers.sort((a, b) => {
+            const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+            const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+            return dateB - dateA;
         });
 
         // Filter by segment if specified
@@ -292,7 +299,10 @@ export const getCustomerStats = async () => {
         };
 
         customers.forEach(customer => {
-            stats[customer.segment] = (stats[customer.segment] || 0) + 1;
+            // Map snake_case segment to camelCase stat
+            const segmentKey = customer.segment === 'at_risk' ? 'atRisk' : customer.segment;
+            stats[segmentKey] = (stats[segmentKey] || 0) + 1;
+
             stats.avgScore += customer.score || 0;
             stats.totalRevenue += customer.totalSpent || 0;
         });

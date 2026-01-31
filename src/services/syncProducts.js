@@ -3,7 +3,7 @@
  * Run this once to upload all mock products to Firestore
  */
 
-import { collection, addDoc, getDocs, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { MOCK_PRODUCTS } from './mockData';
 
@@ -13,6 +13,27 @@ const PRODUCTS_COLLECTION = 'products';
  * Upload all mock products to Firestore
  * This transforms the mock data format to Firestore format
  */
+
+const getCategorySlug = (categories) => {
+    const catNames = categories.map(c => c.name);
+    // Specific checks first
+    if (catNames.some(c => c.includes('سيروم') || c.includes('السيروم'))) return 'serum';
+    if (catNames.some(c => c.includes('شمس') || c.includes('واقي'))) return 'sunscreen';
+    if (catNames.some(c => c.includes('تونر'))) return 'toner';
+    if (catNames.some(c => c.includes('ماسك'))) return 'mask';
+    if (catNames.some(c => c.includes('عين') || c.includes('العين'))) return 'eyecare';
+    if (catNames.some(c => c.includes('شعر') || c.includes('الشعر'))) return 'haircare';
+    if (catNames.some(c => c.includes('حب الشباب'))) return 'acne';
+    if (catNames.some(c => c.includes('تجاعيد') || c.includes('شيخوخة'))) return 'antiaging';
+    if (catNames.some(c => c.includes('مسحات'))) return 'pads';
+    if (catNames.some(c => c.includes('مكياج') || c.includes('المكياج'))) return 'makeup';
+    if (catNames.some(c => c.includes('غسول') || c.includes('منظفات'))) return 'cleanser';
+    if (catNames.some(c => c.includes('مرطب'))) return 'moisturizer';
+
+    // Fallback
+    return 'skincare';
+};
+
 export const syncMockProductsToFirestore = async () => {
     try {
         console.log('🔄 Starting sync of mock products to Firestore...');
@@ -32,12 +53,7 @@ export const syncMockProductsToFirestore = async () => {
                     onSale: product.on_sale || false,
                     stock: product.stock_status === 'instock' ? 50 : 0, // Default 50 stock if in stock
                     lowStockThreshold: 5,
-                    category: product.categories?.[0]?.name === 'العناية بالبشرة' ? 'skincare'
-                        : product.categories?.[0]?.name === 'المكياج' ? 'makeup'
-                            : product.categories?.[0]?.name === 'الشعر' ? 'haircare'
-                                : product.categories?.[0]?.name === 'حب الشباب' ? 'skincare'
-                                    : product.categories?.[0]?.name === 'تونر' ? 'skincare'
-                                        : 'skincare',
+                    category: getCategorySlug(product.categories || []),
                     tags: product.categories?.map(c => c.name) || [],
                     images: product.images?.map(img => img.src) || [],
                     status: 'active',
