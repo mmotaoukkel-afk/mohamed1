@@ -3,32 +3,30 @@
  * 🌙 Ethereal search with floating glass elements
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
+    Dimensions,
+    FlatList,
     StyleSheet,
+    Text,
     TextInput,
     TouchableOpacity,
-    FlatList,
-    ActivityIndicator,
-    Dimensions,
+    View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { useTheme } from '../src/context/ThemeContext';
-import { useCart } from '../src/context/CartContext';
-import { useCartAnimation } from '../src/context/CartAnimationContext';
-import { useFavorites } from '../src/context/FavoritesContext';
-import { useTranslation } from '../src/hooks/useTranslation';
-import { storage } from '../src/utils/storage';
-import { useSearchProducts } from '../src/hooks/useProducts';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductCardSoko from '../src/components/ProductCardSoko';
 import { ProductSkeleton } from '../src/components/SkeletonLoader';
+import { useCart } from '../src/context/CartContext';
+import { useFavorites } from '../src/context/FavoritesContext';
+import { useTheme } from '../src/context/ThemeContext';
+import { useSearchProducts } from '../src/hooks/useProducts';
+import { useTranslation } from '../src/hooks/useTranslation';
+import { storage } from '../src/utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -36,7 +34,7 @@ export default function SearchScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
-    const { triggerAddToCart } = useCartAnimation();
+    const { addToCart, triggerAddToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
     const styles = getStyles(theme, isDark);
 
@@ -104,14 +102,26 @@ export default function SearchScreen() {
         router.push(`/product/${item.id}`);
     }, [router]);
 
-    const handleAddToCart = React.useCallback((item) => {
-        triggerAddToCart({
-            id: item.id,
-            name: item.name,
-            price: item.sale_price || item.price,
-            image: item.images?.[0]?.src,
-            quantity: 1,
-        });
+    const handleAddToCart = React.useCallback((item, ref) => {
+        if (ref?.current) {
+            ref.current.measureInWindow((x, y, btnWidth, btnHeight) => {
+                triggerAddToCart({
+                    id: item.id,
+                    name: item.name,
+                    price: item.sale_price || item.price,
+                    image: item.images?.[0]?.src,
+                    quantity: 1,
+                }, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
+            });
+        } else {
+            triggerAddToCart({
+                id: item.id,
+                name: item.name,
+                price: item.sale_price || item.price,
+                image: item.images?.[0]?.src,
+                quantity: 1,
+            });
+        }
     }, [triggerAddToCart]);
 
     const handleFavorite = React.useCallback((item) => {

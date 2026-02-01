@@ -5,28 +5,29 @@
  * Features: Sales, Revenue, Conversion, Charts, Date Range Selector
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    RefreshControl,
     Dimensions,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import {
     DATE_RANGES,
     DATE_RANGE_CONFIG,
-    getAnalyticsData,
-    formatCurrency,
     formatChange,
+    formatCurrency,
+    getAnalyticsData,
     getKPICards,
+    getLowStockProducts,
 } from '../../src/services/adminAnalyticsService';
 import currencyService from '../../src/services/currencyService';
 
@@ -39,28 +40,56 @@ export default function AdminAnalytics() {
 
     const [selectedRange, setSelectedRange] = useState(DATE_RANGES.LAST_7_DAYS);
     const [refreshing, setRefreshing] = useState(false);
-    const [activeChart, setActiveChart] = useState('revenue'); // revenue, orders, visitors
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [analyticsData, setAnalyticsData] = useState(null);
+    const [lowStockProducts, setLowStockProducts] = useState([]);
+    const [activeChart, setActiveChart] = useState('revenue');
 
-    // Get analytics data based on selected range
-    const analyticsData = useMemo(() => getAnalyticsData(selectedRange), [selectedRange]);
-    const kpiCards = useMemo(() =>
-        getKPICards(analyticsData.totals, analyticsData.comparisons),
-        [analyticsData]
-    );
+    // Fetch analytics data asynchronously
+    const fetchData = useCallback(async (range) => {
+        try {
+            setLoading(true);
+            setError(null);
+            const [data, lowStock] = await Promise.all([
+                getAnalyticsData(range),
+                getLowStockProducts(5)
+            ]);
+            setAnalyticsData(data);
+            setLowStockProducts(lowStock);
+        } catch (err) {
+            console.error('Failed to fetch analytics:', err);
+            setError('فشل تحميل البيانات. حاول مرة أخرى.');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchData(selectedRange);
+    }, [selectedRange, fetchData]);
+
+    const kpiCards = React.useMemo(() => {
+        if (!analyticsData) return [];
+        return getKPICards(analyticsData.totals, analyticsData.comparisons);
+    }, [analyticsData]);
 
     const onRefresh = useCallback(() => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 1000);
-    }, []);
+        fetchData(selectedRange);
+    }, [selectedRange, fetchData]);
 
     // Get max value for chart scaling
     const getChartMax = (data, key) => {
-        return Math.max(...data.map(d => d[key]));
+        if (!data || data.length === 0) return 1;
+        const max = Math.max(...data.map(d => d[key] || 0));
+        return max === 0 ? 1 : max;
     };
 
     // Render KPI Card
     const renderKPICard = (kpi) => {
-        const change = formatChange(kpi.change);
+        const change = formatChange(kpi.change || 0);
         return (
             <View
                 key={kpi.id}
@@ -79,8 +108,9 @@ export default function AdminAnalytics() {
         );
     };
 
-    // Render Line Chart (Revenue/Orders trend)
+    // Render Line Chart
     const renderLineChart = () => {
+        if (!analyticsData) return null;
         const data = analyticsData.daily;
         const key = activeChart;
         const maxValue = getChartMax(data, key);
@@ -120,7 +150,6 @@ export default function AdminAnalytics() {
                         {data.map((item, index) => {
                             const value = item[key];
                             const height = (value / maxValue) * 100;
-                            const prevValue = index > 0 ? data[index - 1][key] : value;
 
                             return (
                                 <View key={index} style={styles.lineChartBar}>
@@ -143,7 +172,7 @@ export default function AdminAnalytics() {
                 <View style={styles.chartLegend}>
                     <Text style={[styles.legendText, { color: theme.textSecondary }]}>
                         إجمالي: {activeChart === 'revenue'
-                            ? currencyService.formatAdminPrice(analyticsData.totals.revenue)
+                            ? currencyService.formatKWD(analyticsData.totals.revenue)
                             : formatCurrency(analyticsData.totals[activeChart])
                         }
                     </Text>
@@ -152,22 +181,22 @@ export default function AdminAnalytics() {
         );
     };
 
-    // Render Pie Chart (Category Distribution)
+    // Render Pie Chart
     const renderPieChart = () => {
+        if (!analyticsData) return null;
         const data = analyticsData.categorySales;
         const total = data.reduce((sum, d) => sum + d.value, 0);
 
         return (
             <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
                 <Text style={[styles.chartTitle, { color: theme.text, marginBottom: 16 }]}>
-                    المبيعات حسب الفئة
+                    توزيع المبيعات (%)
                 </Text>
 
-                {/* Pie Chart Visualization */}
                 <View style={styles.pieChartContainer}>
                     <View style={styles.pieChart}>
                         {data.map((item, index) => {
-                            const startAngle = data.slice(0, index).reduce((sum, d) => sum + d.value, 0) / total * 360;
+                            const startAngle = data.slice(0, index).reduce((sum, d) => sum + d.value, 0) / (total || 1) * 360;
                             return (
                                 <View
                                     key={index}
@@ -177,6 +206,8 @@ export default function AdminAnalytics() {
                                             backgroundColor: item.color,
                                             transform: [{ rotate: `${startAngle}deg` }],
                                             width: `${item.value}%`,
+                                            position: 'absolute',
+                                            height: '100%'
                                         }
                                     ]}
                                 />
@@ -184,7 +215,6 @@ export default function AdminAnalytics() {
                         })}
                     </View>
 
-                    {/* Legend */}
                     <View style={styles.pieLegend}>
                         {data.map((item, index) => (
                             <View key={index} style={styles.pieLegendItem}>
@@ -205,6 +235,7 @@ export default function AdminAnalytics() {
 
     // Render Conversion Funnel
     const renderConversionFunnel = () => {
+        if (!analyticsData) return null;
         const data = analyticsData.conversionFunnel;
 
         return (
@@ -236,6 +267,7 @@ export default function AdminAnalytics() {
 
     // Render Top Products
     const renderTopProducts = () => {
+        if (!analyticsData) return null;
         const data = analyticsData.topProducts;
 
         return (
@@ -247,8 +279,10 @@ export default function AdminAnalytics() {
                     </TouchableOpacity>
                 </View>
 
-                {data.map((product, index) => {
-                    const growthChange = formatChange(product.growth);
+                {data.length === 0 ? (
+                    <Text style={{ color: theme.textSecondary, textAlign: 'center', padding: 20 }}>لا توجد مبيعات في هذه الفترة</Text>
+                ) : data.map((product, index) => {
+                    const growthChange = formatChange(product.growth || 0);
                     return (
                         <View key={index} style={styles.productRow}>
                             <View style={[styles.productRank, { backgroundColor: theme.primary + '20' }]}>
@@ -280,10 +314,47 @@ export default function AdminAnalytics() {
         );
     };
 
+    // Render Low Stock Alerts
+    const renderLowStockAlerts = () => {
+        if (!lowStockProducts || lowStockProducts.length === 0) return null;
+
+        return (
+            <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard, borderColor: '#EF4444', borderWidth: 1 }]}>
+                <View style={styles.chartHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name="warning-outline" size={20} color="#EF4444" />
+                        <Text style={[styles.chartTitle, { color: '#EF4444' }]}>تنبيهات المخزون (أقل من 5)</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => router.push('/admin/products')}>
+                        <Text style={[styles.seeAllBtn, { color: theme.primary }]}>تعديل</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {lowStockProducts.map((product, index) => (
+                    <View key={product.id} style={styles.productRow}>
+                        <View style={styles.productInfo}>
+                            <Text style={[styles.productName, { color: theme.text }]}>{product.name}</Text>
+                            <Text style={[styles.productSales, { color: '#EF4444', fontWeight: 'bold' }]}>
+                                الكمية المتبقية: {product.stock_quantity}
+                            </Text>
+                        </View>
+                        <TouchableOpacity
+                            style={[styles.quickAddBtn, { backgroundColor: theme.primary }]}
+                            onPress={() => router.push(`/admin/products?edit=${product.id}`)}
+                        >
+                            <Ionicons name="add" size={16} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                ))}
+            </View>
+        );
+    };
+
     // Render Hourly Distribution
     const renderHourlyChart = () => {
+        if (!analyticsData) return null;
         const data = analyticsData.hourlyDistribution;
-        const maxOrders = Math.max(...data.map(d => d.orders));
+        const maxOrders = Math.max(...data.map(d => d.orders)) || 1;
 
         return (
             <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
@@ -318,6 +389,27 @@ export default function AdminAnalytics() {
             </View>
         );
     };
+
+    if (loading && !refreshing) {
+        return (
+            <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>جاري تحميل البيانات الحقيقية...</Text>
+            </View>
+        );
+    }
+
+    if (error && !analyticsData) {
+        return (
+            <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+                <Ionicons name="cloud-offline-outline" size={64} color={theme.textMuted} />
+                <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
+                <TouchableOpacity style={[styles.retryBtn, { backgroundColor: theme.primary }]} onPress={() => fetchData(selectedRange)}>
+                    <Text style={styles.retryText}>إعادة المحاولة</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -376,6 +468,9 @@ export default function AdminAnalytics() {
                 <View style={styles.kpiGrid}>
                     {kpiCards.map(renderKPICard)}
                 </View>
+
+                {/* Low Stock Alerts */}
+                {renderLowStockAlerts()}
 
                 {/* Line Chart - Revenue/Orders Trend */}
                 {renderLineChart()}
@@ -705,7 +800,38 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         fontSize: 9,
         marginTop: 4,
     },
+    quickAddBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     bottomPadding: {
         height: 100,
+    },
+    center: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 16,
+        fontSize: 15,
+    },
+    errorText: {
+        marginTop: 16,
+        fontSize: 16,
+        textAlign: 'center',
+        paddingHorizontal: 40,
+    },
+    retryBtn: {
+        marginTop: 20,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 12,
+    },
+    retryText: {
+        color: '#fff',
+        fontWeight: 'bold',
     },
 });

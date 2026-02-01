@@ -72,7 +72,13 @@ export default function AdminRevenue() {
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F8FAFC' }]}>
-            <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
+            <LinearGradient
+                colors={[
+                    theme?.primary || '#D4AF76',
+                    theme?.primaryDark || '#B8924F'
+                ]}
+                style={styles.header}
+            >
                 <SafeAreaView edges={['top']}>
                     <View style={styles.headerRow}>
                         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>

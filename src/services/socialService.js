@@ -1,19 +1,14 @@
 import {
-    collection,
     addDoc,
-    query,
-    where,
-    onSnapshot,
-    orderBy,
-    serverTimestamp,
+    collection,
     deleteDoc,
     doc,
-    updateDoc,
     increment,
-    getDoc,
+    onSnapshot,
+    query,
+    serverTimestamp,
     setDoc,
-    arrayUnion,
-    arrayRemove
+    where
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
@@ -35,10 +30,9 @@ const socialService = {
                 userId: user.uid,
                 userName: user.displayName || user.email?.split('@')[0] || 'Unknown User',
                 userPhoto: user.photoURL || null,
-                userPhoto: user.photoURL || null,
                 text: text.trim(),
                 rating: rating || 5,
-                createdAt: serverTimestamp(),
+                timestamp: serverTimestamp(),
             };
 
             const docRef = await addDoc(collection(db, 'comments'), commentData);
@@ -53,19 +47,32 @@ const socialService = {
      * Real-time listener for comments on a product
      */
     subscribeToComments(productId, callback) {
+        // Removed orderBy to avoid index requirement (temporary fix)
+        // Will sort client-side instead
         const q = query(
             collection(db, 'comments'),
-            where('productId', '==', productId.toString()),
-            orderBy('createdAt', 'desc')
+            where('productId', '==', productId.toString())
         );
 
         return onSnapshot(q, (snapshot) => {
             const comments = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate() || new Date(),
+                timestamp: doc.data().timestamp?.toDate() || new Date(),
             }));
+
+            // Sort client-side by timestamp descending
+            comments.sort((a, b) => {
+                const timeA = a.timestamp?.getTime ? a.timestamp.getTime() : 0;
+                const timeB = b.timestamp?.getTime ? b.timestamp.getTime() : 0;
+                return timeB - timeA;
+            });
+
             callback(comments);
+        }, (error) => {
+            // Handle errors gracefully
+            console.error('Error subscribing to comments:', error);
+            callback([]); // Return empty array on error
         });
     },
 

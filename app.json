@@ -12,7 +12,7 @@
     "splash": {
       "image": "./assets/images/splash_kataraa.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FFF9F5"
     },
     "ios": {
       "supportsTablet": true,

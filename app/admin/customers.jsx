@@ -5,38 +5,39 @@
  * Features: Profiles, Segmentation, Scoring, AI Recommendations, Purchase History
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
+    Alert,
+    Dimensions,
     FlatList,
-    TouchableOpacity,
-    TextInput,
+    Image,
+    Linking,
+    Modal,
     RefreshControl,
     ScrollView,
-    Modal,
-    Dimensions,
-    ActivityIndicator,
-    Image,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import {
     SEGMENT_CONFIG,
-    calculateSegment,
-    calculateCustomerScore,
-    getCustomerLTV,
-    formatJoinDate,
     getAllCustomers,
-    getCustomerStats,
-    getAIRecommendations,
+    getCustomerLTV,
+    getCustomerStats
 } from '../../src/services/adminCustomerService';
+import currencyService from '../../src/services/currencyService';
 
 const { width } = Dimensions.get('window');
+const COLUMN_COUNT = 2;
+const GAP = 12;
+const ITEM_WIDTH = (width - 32 - GAP) / COLUMN_COUNT;
 
 // Mock AI recommendations (fallback if no real data)
 const AI_RECOMMENDATIONS_FALLBACK = [
@@ -75,7 +76,7 @@ export default function AdminCustomers() {
         avgScore: 0,
     });
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             const [customersData, statsData] = await Promise.all([
@@ -83,38 +84,38 @@ export default function AdminCustomers() {
                 getCustomerStats(),
             ]);
 
-            // Enrich with LTV if needed (already done in service partially, making sure)
+            // Enrich with LTV if needed
             const enrichedCustomers = customersData.map(c => ({
                 ...c,
-                ltv: getCustomerLTV(c),
+                ltv: c.ltv || getCustomerLTV(c),
             }));
 
             setCustomers(enrichedCustomers);
-            setStats(prev => ({
-                ...prev,
-                total: statsData.total,
-                vip: statsData.vip,
-                returning: statsData.returning,
-                new: statsData.new,
-                atRisk: statsData.atRisk,
-                avgScore: statsData.avgScore,
-            }));
+            setStats({
+                total: statsData.total || 0,
+                vip: statsData.vip || 0,
+                returning: statsData.returning || 0,
+                new: statsData.new || 0,
+                atRisk: statsData.atRisk || 0,
+                avgScore: statsData.avgScore || 0,
+            });
         } catch (error) {
             console.error('Error fetching customers:', error);
+            Alert.alert('خطأ', 'فشل تحميل بيانات الزبناء');
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     // Filter customers
     const filteredCustomers = customers.filter(c => {
@@ -143,77 +144,82 @@ export default function AdminCustomers() {
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     };
 
-    const getAvatarColor = (segment) => {
-        return SEGMENT_CONFIG[segment]?.color || theme.primary;
-    };
-
     const getScoreColor = (score) => {
         if (score >= 70) return '#10B981';
         if (score >= 40) return '#F59E0B';
         return '#EF4444';
     };
 
-    const renderCustomer = ({ item }) => {
-        const segmentConfig = SEGMENT_CONFIG[item.segment];
+    const renderCustomerCard = ({ item }) => {
+        const segmentConfig = SEGMENT_CONFIG[item.segment] || SEGMENT_CONFIG.new;
 
         return (
             <TouchableOpacity
-                style={[styles.customerCard, { backgroundColor: theme.backgroundCard }]}
+                style={[styles.card, { backgroundColor: theme.backgroundCard }]}
                 onPress={() => openProfile(item)}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
             >
-                {/* Avatar & Info */}
-                <View style={styles.customerMain}>
-                    <View style={[styles.avatar, { backgroundColor: getAvatarColor(item.segment) }]}>
-                        {item.photoURL ? (
-                            <Image source={{ uri: item.photoURL }} style={styles.avatarImage} />
-                        ) : (
-                            <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
-                        )}
-                    </View>
+                {/* Header Badge */}
+                <View style={[styles.cardBadge, { backgroundColor: segmentConfig.color + '20' }]}>
+                    <Text style={[styles.cardBadgeText, { color: segmentConfig.color }]}>{segmentConfig.label}</Text>
+                </View>
 
-                    <View style={styles.customerInfo}>
-                        <View style={styles.nameRow}>
-                            <Text style={[styles.customerName, { color: theme.text }]}>{item.name}</Text>
-                            {item.segment === 'vip' && (
-                                <View style={styles.vipBadge}>
-                                    <Ionicons name="star" size={10} color="#F59E0B" />
-                                </View>
-                            )}
+                {/* Avatar */}
+                <View style={styles.cardAvatarContainer}>
+                    {item.photoURL ? (
+                        <Image source={{ uri: item.photoURL }} style={styles.cardAvatar} />
+                    ) : (
+                        <View style={[styles.cardAvatarPlaceholder, { backgroundColor: segmentConfig.color }]}>
+                            <Text style={styles.cardAvatarText}>{getInitials(item.name)}</Text>
                         </View>
-                        <Text style={[styles.customerEmail, { color: theme.textMuted }]}>{item.email}</Text>
-                        <View style={styles.customerMeta}>
-                            <View style={[styles.segmentBadge, { backgroundColor: segmentConfig.color + '20' }]}>
-                                <Ionicons name={segmentConfig.icon} size={10} color={segmentConfig.color} />
-                                <Text style={[styles.segmentText, { color: segmentConfig.color }]}>
-                                    {segmentConfig.label}
-                                </Text>
-                            </View>
-                            <Text style={[styles.cityText, { color: theme.textSecondary }]}>
-                                📍 {item.city}
-                            </Text>
+                    )}
+                    {item.segment === 'vip' && (
+                        <View style={styles.vipStar}>
+                            <Ionicons name="star" size={12} color="#fff" />
                         </View>
+                    )}
+                </View>
+
+                {/* Info */}
+                <Text style={[styles.cardName, { color: theme.text }]} numberOfLines={1}>
+                    {item.name || 'زبون مجهول'}
+                </Text>
+                <Text style={[styles.cardCity, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {item.city || 'غير محدد'}
+                </Text>
+
+                {/* Metrics */}
+                <View style={styles.cardMetrics}>
+                    <View style={styles.metricItem}>
+                        <Text style={[styles.metricValue, { color: theme.primary }]}>{item.orderCount || 0}</Text>
+                        <Text style={[styles.metricLabel, { color: theme.textMuted }]}>طلبات</Text>
+                    </View>
+                    <View style={styles.metricDivider} />
+                    <View style={styles.metricItem}>
+                        <Text style={[styles.metricValue, { color: '#10B981' }]}>
+                            {currencyService.formatAdminPrice(item.totalSpent || 0).replace('MAD', '')}
+                        </Text>
+                        <Text style={[styles.metricLabel, { color: theme.textMuted }]}>LTV</Text>
                     </View>
                 </View>
 
-                {/* Stats */}
-                <View style={styles.customerStats}>
-                    <View style={styles.statBox}>
-                        <Text style={[styles.statValue, { color: theme.text }]}>{item.orderCount}</Text>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>طلبات</Text>
-                    </View>
-                    <View style={styles.statBox}>
-                        <Text style={[styles.statValue, { color: theme.primary }]}>{item.totalSpent}</Text>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>MAD</Text>
-                    </View>
-                    <View style={styles.scoreBox}>
-                        <View style={[styles.scoreCircle, { borderColor: getScoreColor(item.score) }]}>
-                            <Text style={[styles.scoreValue, { color: getScoreColor(item.score) }]}>
-                                {item.score}
-                            </Text>
-                        </View>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>نقاط</Text>
-                    </View>
+                {/* Quick Actions */}
+                <View style={styles.cardActions}>
+                    <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: '#25D36620' }]}
+                        onPress={() => {
+                            const phone = (item.phone || '').replace(/\D/g, '');
+                            Linking.openURL(`whatsapp://send?phone=${phone}`);
+                        }}
+                    >
+                        <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: theme.primary + '20' }]}
+                        onPress={() => Linking.openURL(`tel:${item.phone}`)}
+                    >
+                        <Ionicons name="call" size={18} color={theme.primary} />
+                    </TouchableOpacity>
                 </View>
             </TouchableOpacity>
         );
@@ -222,7 +228,8 @@ export default function AdminCustomers() {
     const renderProfileModal = () => {
         if (!selectedCustomer) return null;
 
-        const segmentConfig = SEGMENT_CONFIG[selectedCustomer.segment];
+        const segmentConfig = SEGMENT_CONFIG[selectedCustomer.segment] || SEGMENT_CONFIG.new;
+        const ltv = selectedCustomer.ltv || { totalSpent: 0, avgOrderValue: 0, projectedAnnualValue: 0 };
 
         return (
             <Modal
@@ -232,205 +239,124 @@ export default function AdminCustomers() {
                 onRequestClose={() => setShowProfile(false)}
             >
                 <View style={[styles.profileContainer, { backgroundColor: theme.background }]}>
-                    {/* Profile Header */}
+                    {/* Simplified Profile Header */}
                     <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.profileHeader}>
                         <SafeAreaView edges={['top']}>
                             <View style={styles.profileHeaderRow}>
-                                <TouchableOpacity onPress={() => setShowProfile(false)}>
-                                    <Ionicons name="close" size={28} color="#fff" />
+                                <TouchableOpacity onPress={() => setShowProfile(false)} style={styles.closeBtn}>
+                                    <Ionicons name="close" size={24} color="#fff" />
                                 </TouchableOpacity>
                                 <Text style={styles.profileHeaderTitle}>ملف الزبون</Text>
-                                <TouchableOpacity>
-                                    <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
-                                </TouchableOpacity>
+                                <View style={{ width: 40 }} />
                             </View>
 
-                            {/* Profile Info */}
-                            <View style={styles.profileInfo}>
-                                <View style={[styles.profileAvatar, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                            <View style={styles.profileHero}>
+                                <View style={styles.profileAvatarLarge}>
                                     {selectedCustomer.photoURL ? (
                                         <Image source={{ uri: selectedCustomer.photoURL }} style={styles.profileAvatarImage} />
                                     ) : (
-                                        <Text style={styles.profileAvatarText}>
-                                            {getInitials(selectedCustomer.name)}
-                                        </Text>
+                                        <Text style={styles.profileAvatarTextLarge}>{getInitials(selectedCustomer.name)}</Text>
                                     )}
                                 </View>
                                 <Text style={styles.profileName}>{selectedCustomer.name}</Text>
-                                <View style={[styles.profileSegment, { backgroundColor: segmentConfig.color }]}>
+                                <View style={[styles.profileTag, { backgroundColor: segmentConfig.color }]}>
                                     <Ionicons name={segmentConfig.icon} size={12} color="#fff" />
-                                    <Text style={styles.profileSegmentText}>{segmentConfig.label}</Text>
-                                </View>
-                            </View>
-
-                            {/* Score Ring */}
-                            <View style={styles.scoreRing}>
-                                <View style={[styles.scoreRingInner, { borderColor: getScoreColor(selectedCustomer.score) }]}>
-                                    <Text style={[styles.scoreRingValue, { color: '#fff' }]}>
-                                        {selectedCustomer.score}
-                                    </Text>
-                                    <Text style={styles.scoreRingLabel}>نقاط</Text>
+                                    <Text style={styles.profileTagText}>{segmentConfig.label}</Text>
                                 </View>
                             </View>
                         </SafeAreaView>
                     </LinearGradient>
 
                     <ScrollView style={styles.profileContent} showsVerticalScrollIndicator={false}>
+                        {/* 3 Key Stats Grid */}
+                        <View style={[styles.statsGrid, { backgroundColor: theme.backgroundCard }]}>
+                            <View style={styles.gridStat}>
+                                <Text style={[styles.gridValue, { color: theme.primary }]}>{ltv.totalSpent} dh</Text>
+                                <Text style={styles.gridLabel}>مجموع الشراء</Text>
+                            </View>
+                            <View style={[styles.gridSeparator, { backgroundColor: theme.border }]} />
+                            <View style={styles.gridStat}>
+                                <Text style={[styles.gridValue, { color: '#F59E0B' }]}>{selectedCustomer.orderCount}</Text>
+                                <Text style={styles.gridLabel}>عدد الطلبات</Text>
+                            </View>
+                            <View style={[styles.gridSeparator, { backgroundColor: theme.border }]} />
+                            <View style={styles.gridStat}>
+                                <Text style={[styles.gridValue, { color: getScoreColor(selectedCustomer.score) }]}>{selectedCustomer.score}</Text>
+                                <Text style={styles.gridLabel}>نقاط الجودة</Text>
+                            </View>
+                        </View>
+
                         {/* Contact Info */}
-                        <View style={[styles.profileSection, { backgroundColor: theme.backgroundCard }]}>
-                            <Text style={[styles.sectionTitle, { color: theme.text }]}>معلومات الاتصال</Text>
+                        <View style={[styles.sectionBox, { backgroundColor: theme.backgroundCard }]}>
+                            <Text style={[styles.sectionTitle, { color: theme.text }]}>معلومات التواصل</Text>
+                            <TouchableOpacity style={styles.contactRow} onPress={() => Linking.openURL(`tel:${selectedCustomer.phone}`)}>
+                                <View style={[styles.contactIcon, { backgroundColor: theme.primary + '15' }]}>
+                                    <Ionicons name="call" size={18} color={theme.primary} />
+                                </View>
+                                <Text style={[styles.contactText, { color: theme.text }]}>{selectedCustomer.phone}</Text>
+                            </TouchableOpacity>
                             <View style={styles.contactRow}>
-                                <Ionicons name="mail-outline" size={18} color={theme.textSecondary} />
+                                <View style={[styles.contactIcon, { backgroundColor: theme.primary + '15' }]}>
+                                    <Ionicons name="mail" size={18} color={theme.primary} />
+                                </View>
                                 <Text style={[styles.contactText, { color: theme.text }]}>{selectedCustomer.email}</Text>
                             </View>
                             <View style={styles.contactRow}>
-                                <Ionicons name="call-outline" size={18} color={theme.textSecondary} />
-                                <Text style={[styles.contactText, { color: theme.text }]}>{selectedCustomer.phone}</Text>
-                            </View>
-                            <View style={styles.contactRow}>
-                                <Ionicons name="location-outline" size={18} color={theme.textSecondary} />
-                                <Text style={[styles.contactText, { color: theme.text }]}>{selectedCustomer.city}</Text>
-                            </View>
-                            <View style={styles.contactRow}>
-                                <Ionicons name="calendar-outline" size={18} color={theme.textSecondary} />
-                                <Text style={[styles.contactText, { color: theme.text }]}>
-                                    انضم في {formatJoinDate(selectedCustomer.createdAt)}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* LTV Stats */}
-                        <View style={[styles.profileSection, { backgroundColor: theme.backgroundCard }]}>
-                            <Text style={[styles.sectionTitle, { color: theme.text }]}>القيمة الدائمة (LTV)</Text>
-                            <View style={styles.ltvGrid}>
-                                <View style={styles.ltvItem}>
-                                    <Text style={[styles.ltvValue, { color: theme.primary }]}>
-                                        {selectedCustomer.ltv.totalSpent} MAD
-                                    </Text>
-                                    <Text style={[styles.ltvLabel, { color: theme.textSecondary }]}>إجمالي الإنفاق</Text>
+                                <View style={[styles.contactIcon, { backgroundColor: theme.primary + '15' }]}>
+                                    <Ionicons name="location" size={18} color={theme.primary} />
                                 </View>
-                                <View style={styles.ltvItem}>
-                                    <Text style={[styles.ltvValue, { color: theme.text }]}>
-                                        {selectedCustomer.ltv.avgOrderValue} MAD
-                                    </Text>
-                                    <Text style={[styles.ltvLabel, { color: theme.textSecondary }]}>متوسط الطلب</Text>
-                                </View>
-                                <View style={styles.ltvItem}>
-                                    <Text style={[styles.ltvValue, { color: '#10B981' }]}>
-                                        {selectedCustomer.ltv.projectedAnnualValue} MAD
-                                    </Text>
-                                    <Text style={[styles.ltvLabel, { color: theme.textSecondary }]}>القيمة السنوية</Text>
-                                </View>
+                                <Text style={[styles.contactText, { color: theme.text }]}>{selectedCustomer.city || 'المدينة غير محددة'}</Text>
                             </View>
-                        </View>
-
-                        {/* Purchase History */}
-                        <View style={[styles.profileSection, { backgroundColor: theme.backgroundCard }]}>
-                            <Text style={[styles.sectionTitle, { color: theme.text }]}>سجل المشتريات</Text>
-                            {selectedCustomer.purchaseHistory?.length > 0 ? (
-                                selectedCustomer.purchaseHistory.map((purchase, index) => (
-                                    <View key={index} style={styles.purchaseRow}>
-                                        <View style={[styles.purchaseIcon, { backgroundColor: theme.primary + '20' }]}>
-                                            <Ionicons name="bag-outline" size={16} color={theme.primary} />
-                                        </View>
-                                        <View style={styles.purchaseInfo}>
-                                            <Text style={[styles.purchaseName, { color: theme.text }]}>
-                                                {purchase.name}
-                                            </Text>
-                                            <Text style={[styles.purchaseDate, { color: theme.textMuted }]}>
-                                                {new Date(purchase.date).toLocaleDateString('ar-MA')}
-                                            </Text>
-                                        </View>
-                                        <Text style={[styles.purchaseAmount, { color: theme.primary }]}>
-                                            {purchase.amount} MAD
-                                        </Text>
-                                    </View>
-                                ))
-                            ) : (
-                                <Text style={[styles.emptyHistory, { color: theme.textMuted }]}>
-                                    لا توجد مشتريات حتى الآن
-                                </Text>
-                            )}
                         </View>
 
                         {/* AI Recommendations */}
-                        <View style={[styles.profileSection, { backgroundColor: theme.backgroundCard }]}>
-                            <View style={styles.sectionHeader}>
+                        <View style={[styles.sectionBox, { backgroundColor: theme.backgroundCard }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                                 <Ionicons name="sparkles" size={18} color="#8B5CF6" />
-                                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>
-                                    توصيات ذكية
-                                </Text>
+                                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0, marginLeft: 8 }]}>يُنصح باقتراحه</Text>
                             </View>
-                            {(selectedCustomer.recommendations || AI_RECOMMENDATIONS_FALLBACK).map((rec, index) => (
-                                <View key={index} style={styles.recommendationRow}>
-                                    <View style={[styles.recIcon, { backgroundColor: '#8B5CF620' }]}>
-                                        <Ionicons name="gift-outline" size={16} color="#8B5CF6" />
-                                    </View>
-                                    <View style={styles.recInfo}>
+                            {(selectedCustomer.recommendations || AI_RECOMMENDATIONS_FALLBACK).map((rec, idx) => (
+                                <View key={idx} style={styles.recItem}>
+                                    <View style={{ flex: 1 }}>
                                         <Text style={[styles.recName, { color: theme.text }]}>{rec.name}</Text>
                                         <Text style={[styles.recReason, { color: theme.textMuted }]}>{rec.reason}</Text>
                                     </View>
-                                    <Text style={[styles.recPrice, { color: theme.primary }]}>{rec.price} MAD</Text>
+                                    <Text style={[styles.recPrice, { color: theme.primary }]}>{rec.price} DH</Text>
                                 </View>
                             ))}
                         </View>
 
-                        <View style={styles.bottomPadding} />
+                        <View style={{ height: 40 }} />
                     </ScrollView>
                 </View>
             </Modal>
         );
     };
 
-    const renderStatsHeader = () => (
-        <View style={styles.statsHeader}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.statsRow}>
-                    <View style={[styles.statCard, { backgroundColor: theme.backgroundCard }]}>
-                        <Ionicons name="people" size={20} color={theme.primary} />
-                        <Text style={[styles.statCardValue, { color: theme.text }]}>{stats.total}</Text>
-                        <Text style={[styles.statCardLabel, { color: theme.textSecondary }]}>إجمالي</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: '#F59E0B20' }]}>
-                        <Ionicons name="star" size={20} color="#F59E0B" />
-                        <Text style={[styles.statCardValue, { color: '#F59E0B' }]}>{stats.vip}</Text>
-                        <Text style={[styles.statCardLabel, { color: '#F59E0B' }]}>VIP</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: '#10B98120' }]}>
-                        <Ionicons name="refresh" size={20} color="#10B981" />
-                        <Text style={[styles.statCardValue, { color: '#10B981' }]}>{stats.returning}</Text>
-                        <Text style={[styles.statCardLabel, { color: '#10B981' }]}>عائد</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: '#3B82F620' }]}>
-                        <Ionicons name="person-add" size={20} color="#3B82F6" />
-                        <Text style={[styles.statCardValue, { color: '#3B82F6' }]}>{stats.new}</Text>
-                        <Text style={[styles.statCardLabel, { color: '#3B82F6' }]}>جديد</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: '#EF444420' }]}>
-                        <Ionicons name="warning" size={20} color="#EF4444" />
-                        <Text style={[styles.statCardValue, { color: '#EF4444' }]}>{stats.atRisk}</Text>
-                        <Text style={[styles.statCardLabel, { color: '#EF4444' }]}>في خطر</Text>
-                    </View>
+    const renderHeader = () => (
+        <View style={styles.metricsWrapper}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                <View style={[styles.miniStat, { backgroundColor: theme.backgroundCard }]}>
+                    <Text style={[styles.miniStatValue, { color: theme.text }]}>{stats.total}</Text>
+                    <Text style={styles.miniStatLabel}>إجمالي</Text>
+                </View>
+                <View style={[styles.miniStat, { backgroundColor: '#F59E0B15' }]}>
+                    <Text style={[styles.miniStatValue, { color: '#F59E0B' }]}>{stats.vip}</Text>
+                    <Text style={styles.miniStatLabel}>VIP</Text>
+                </View>
+                <View style={[styles.miniStat, { backgroundColor: '#10B98115' }]}>
+                    <Text style={[styles.miniStatValue, { color: '#10B981' }]}>{stats.returning}</Text>
+                    <Text style={styles.miniStatLabel}>عائد</Text>
+                </View>
+                <View style={[styles.miniStat, { backgroundColor: '#3B82F615' }]}>
+                    <Text style={[styles.miniStatValue, { color: '#3B82F6' }]}>{stats.new}</Text>
+                    <Text style={styles.miniStatLabel}>جديد</Text>
+                </View>
+                <View style={[styles.miniStat, { backgroundColor: '#EF444415' }]}>
+                    <Text style={[styles.miniStatValue, { color: '#EF4444' }]}>{stats.atRisk}</Text>
+                    <Text style={styles.miniStatLabel}>خامل</Text>
                 </View>
             </ScrollView>
-
-            {/* Avg Score */}
-            <View style={[styles.avgScoreCard, { backgroundColor: theme.backgroundCard }]}>
-                <Text style={[styles.avgScoreLabel, { color: theme.textSecondary }]}>متوسط النقاط</Text>
-                <View style={styles.avgScoreRow}>
-                    <View style={[styles.avgScoreBar, { backgroundColor: theme.border }]}>
-                        <View
-                            style={[
-                                styles.avgScoreFill,
-                                { width: `${stats.avgScore}%`, backgroundColor: getScoreColor(stats.avgScore) }
-                            ]}
-                        />
-                    </View>
-                    <Text style={[styles.avgScoreValue, { color: getScoreColor(stats.avgScore) }]}>
-                        {stats.avgScore}
-                    </Text>
-                </View>
-            </View>
         </View>
     );
 
@@ -443,554 +369,159 @@ export default function AdminCustomers() {
                         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
                             <Ionicons name="arrow-back" size={24} color="#fff" />
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>ذكاء الزبناء</Text>
+                        <Text style={styles.headerTitle}>الزبناء</Text>
                         <TouchableOpacity style={styles.exportBtn}>
                             <Ionicons name="download-outline" size={22} color="#fff" />
                         </TouchableOpacity>
                     </View>
+
+                    {/* Search Bar Embedded in Header */}
+                    <View style={styles.searchContainer}>
+                        <View style={[styles.osSearch, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                            <Ionicons name="search" size={20} color="#fff" />
+                            <TextInput
+                                style={styles.osInput}
+                                placeholder="ابحث عن زبون..."
+                                placeholderTextColor="rgba(255,255,255,0.6)"
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                            />
+                        </View>
+                    </View>
                 </SafeAreaView>
             </LinearGradient>
 
-            {/* Search */}
-            <View style={styles.searchContainer}>
-                <View style={[styles.searchBox, { backgroundColor: theme.backgroundCard }]}>
-                    <Ionicons name="search" size={20} color={theme.textMuted} />
-                    <TextInput
-                        style={[styles.searchInput, { color: theme.text }]}
-                        placeholder="البحث بالاسم أو البريد أو الهاتف..."
-                        placeholderTextColor={theme.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
+            <View style={{ flex: 1 }}>
+                {renderHeader()}
+
+                {/* Segments */}
+                <View style={styles.segmentScroll}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                        {SEGMENT_FILTERS.map((item) => {
+                            const isSelected = selectedSegment === item.id;
+                            const color = SEGMENT_CONFIG[item.id]?.color || theme.primary;
+                            return (
+                                <TouchableOpacity
+                                    key={item.id}
+                                    style={[
+                                        styles.segmentChip,
+                                        { backgroundColor: isSelected ? color : theme.backgroundCard, borderWidth: isSelected ? 0 : 1, borderColor: theme.border }
+                                    ]}
+                                    onPress={() => setSelectedSegment(item.id)}
+                                >
+                                    <Text style={[styles.segmentChipText, { color: isSelected ? '#fff' : theme.text }]}>{item.label}</Text>
+                                </TouchableOpacity>
+                            )
+                        })}
+                    </ScrollView>
                 </View>
+
+                {/* Grid List */}
+                <FlatList
+                    data={filteredCustomers}
+                    renderItem={renderCustomerCard}
+                    keyExtractor={item => item.id}
+                    numColumns={COLUMN_COUNT}
+                    columnWrapperStyle={{ gap: GAP, paddingHorizontal: 16 }}
+                    contentContainerStyle={{ paddingBottom: 100 }}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+                    }
+                    ListEmptyComponent={
+                        <View style={styles.emptyState}>
+                            <Ionicons name="people-outline" size={64} color={theme.textMuted} />
+                            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                                لا يوجد نتائج
+                            </Text>
+                        </View>
+                    }
+                />
             </View>
 
-            {/* Segment Filters */}
-            <FlatList
-                horizontal
-                data={SEGMENT_FILTERS}
-                keyExtractor={(item) => item.id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filtersContainer}
-                renderItem={({ item }) => {
-                    const count = item.id === 'all'
-                        ? customers.length
-                        : customers.filter(c => c.segment === item.id).length;
-                    const segmentColor = SEGMENT_CONFIG[item.id]?.color || theme.primary;
-
-                    return (
-                        <TouchableOpacity
-                            style={[
-                                styles.filterChip,
-                                {
-                                    backgroundColor: selectedSegment === item.id
-                                        ? (item.id === 'all' ? theme.primary : segmentColor)
-                                        : theme.backgroundCard,
-                                }
-                            ]}
-                            onPress={() => setSelectedSegment(item.id)}
-                        >
-                            <Text style={[
-                                styles.filterText,
-                                { color: selectedSegment === item.id ? '#fff' : theme.text }
-                            ]}>
-                                {item.label}
-                            </Text>
-                            {count > 0 && (
-                                <View style={[
-                                    styles.filterBadge,
-                                    { backgroundColor: selectedSegment === item.id ? 'rgba(255,255,255,0.3)' : theme.border }
-                                ]}>
-                                    <Text style={[
-                                        styles.filterBadgeText,
-                                        { color: selectedSegment === item.id ? '#fff' : theme.textSecondary }
-                                    ]}>
-                                        {count}
-                                    </Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    );
-                }}
-            />
-
-            {/* Customers List */}
-            <FlatList
-                data={filteredCustomers}
-                keyExtractor={(item) => item.id}
-                renderItem={renderCustomer}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
-                }
-                ListHeaderComponent={renderStatsHeader}
-                ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                        <Ionicons name="people-outline" size={64} color={theme.textMuted} />
-                        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                            لا يوجد زبناء
-                        </Text>
-                    </View>
-                }
-            />
-
-            {/* Profile Modal */}
             {renderProfileModal()}
         </View>
     );
 }
 
 const getStyles = (theme, isDark) => StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        paddingBottom: 16,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 8,
-    },
-    backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    exportBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    searchContainer: {
-        padding: 16,
-        paddingBottom: 8,
-    },
-    searchBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        borderRadius: 12,
-        gap: 10,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 15,
-        textAlign: 'right',
-    },
-    filtersContainer: {
-        paddingHorizontal: 16,
-        paddingBottom: 12,
-        gap: 8,
-    },
-    filterChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        marginRight: 10,
-        backgroundColor: theme.backgroundCard,
-        borderWidth: 1,
-        borderColor: theme.border,
-        height: 38,
-    },
-    filterText: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    filterBadge: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 10,
-        minWidth: 20,
-        alignItems: 'center',
-    },
-    filterBadgeText: {
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    listContent: {
-        padding: 16,
-        paddingTop: 0,
-    },
-    statsHeader: {
-        marginBottom: 16,
-    },
-    statsRow: {
-        flexDirection: 'row',
-        paddingHorizontal: 16,
-        gap: 12,
-        marginBottom: 16,
-    },
-    statCard: {
-        flex: 1,
-        padding: 16,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 100,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-    },
-    statCardValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginTop: 4,
-    },
-    statCardLabel: {
-        fontSize: 11,
-        marginTop: 2,
-    },
-    avgScoreCard: {
-        padding: 16,
-        borderRadius: 12,
-    },
-    avgScoreLabel: {
-        fontSize: 13,
-        marginBottom: 8,
-    },
-    avgScoreRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    avgScoreBar: {
-        flex: 1,
-        height: 8,
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    avgScoreFill: {
-        height: '100%',
-        borderRadius: 4,
-    },
-    avgScoreValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        minWidth: 30,
-    },
-    customerCard: {
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
-    },
-    customerMain: {
-        flexDirection: 'row',
-        marginBottom: 12,
-    },
-    avatar: {
-        width: 54,
-        height: 54,
-        borderRadius: 27,
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
-    },
-    avatarImage: {
-        width: '100%',
-        height: '100%',
-    },
-    avatarText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    customerInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    nameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    customerName: {
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    vipBadge: {
-        backgroundColor: '#F59E0B20',
-        padding: 4,
-        borderRadius: 10,
-    },
-    customerEmail: {
-        fontSize: 13,
-        marginTop: 2,
-    },
-    customerMeta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 6,
-        gap: 10,
-    },
-    segmentBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
-        gap: 4,
-    },
-    segmentText: {
-        fontSize: 10,
-        fontWeight: '600',
-    },
-    cityText: {
-        fontSize: 11,
-    },
-    customerStats: {
-        flexDirection: 'row',
-        borderTopWidth: 1,
-        borderTopColor: theme.border,
-        paddingTop: 12,
-    },
-    statBox: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    statValue: {
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    statLabel: {
-        fontSize: 11,
-        marginTop: 2,
-    },
-    scoreBox: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    scoreCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        borderWidth: 2,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scoreValue: {
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    emptyState: {
-        alignItems: 'center',
-        paddingVertical: 60,
-    },
-    emptyText: {
-        fontSize: 16,
-        marginTop: 16,
-    },
-    // Profile Modal Styles
-    profileContainer: {
-        flex: 1,
-    },
-    profileHeader: {
-        paddingBottom: 30,
-    },
-    profileHeaderRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 8,
-    },
-    profileHeaderTitle: {
-        fontSize: 17,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    profileInfo: {
-        alignItems: 'center',
-        marginTop: 20,
-    },
-    profileAvatar: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
-        borderWidth: 3,
-        borderColor: 'rgba(255,255,255,0.3)',
-    },
-    profileAvatarImage: {
-        width: '100%',
-        height: '100%',
-    },
-    profileAvatarText: {
-        color: '#fff',
-        fontSize: 28,
-        fontWeight: 'bold',
-    },
-    profileName: {
-        color: '#fff',
-        fontSize: 22,
-        fontWeight: 'bold',
-        marginTop: 12,
-    },
-    profileSegment: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        marginTop: 8,
-        gap: 4,
-    },
-    profileSegmentText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    scoreRing: {
-        alignItems: 'center',
-        marginTop: 16,
-    },
-    scoreRingInner: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        borderWidth: 3,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
-    },
-    scoreRingValue: {
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    scoreRingLabel: {
-        fontSize: 10,
-        color: 'rgba(255,255,255,0.7)',
-    },
-    profileContent: {
-        flex: 1,
-        marginTop: -15,
-    },
-    profileSection: {
-        margin: 16,
-        marginBottom: 0,
-        padding: 16,
-        borderRadius: 16,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 12,
-    },
-    sectionTitle: {
-        fontSize: 15,
-        fontWeight: '600',
-        marginBottom: 12,
-    },
-    contactRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        paddingVertical: 8,
-    },
-    contactText: {
-        fontSize: 14,
-    },
-    ltvGrid: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-    },
-    ltvItem: {
-        alignItems: 'center',
-    },
-    ltvValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    ltvLabel: {
-        fontSize: 11,
-        marginTop: 4,
-    },
-    purchaseRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.border,
-    },
-    purchaseIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    purchaseInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    purchaseName: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    purchaseDate: {
-        fontSize: 12,
-        marginTop: 2,
-    },
-    purchaseAmount: {
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    emptyHistory: {
-        textAlign: 'center',
-        paddingVertical: 20,
-    },
-    recommendationRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.border,
-    },
-    recIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    recInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    recName: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    recReason: {
-        fontSize: 11,
-        marginTop: 2,
-    },
-    recPrice: {
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    bottomPadding: {
-        height: 40,
-    },
+    container: { flex: 1 },
+    header: { paddingBottom: 16, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 12 },
+    backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+    exportBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+
+    searchContainer: { paddingHorizontal: 16 },
+    osSearch: { flexDirection: 'row', alignItems: 'center', height: 44, borderRadius: 12, paddingHorizontal: 12 },
+    osInput: { flex: 1, color: '#fff', marginLeft: 10, textAlign: 'right', fontSize: 14, fontWeight: '500' },
+
+    metricsWrapper: { marginTop: 16, marginBottom: 12 },
+    miniStat: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, marginRight: 10, alignItems: 'center', minWidth: 80 },
+    miniStatValue: { fontSize: 16, fontWeight: 'bold' },
+    miniStatLabel: { fontSize: 11, color: theme.textSecondary, marginTop: 2 },
+
+    segmentScroll: { marginBottom: 12 },
+    segmentChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginRight: 8 },
+    segmentChipText: { fontSize: 13, fontWeight: '600' },
+
+    // Grid Card Styles
+    card: { width: ITEM_WIDTH, borderRadius: 16, padding: 12, paddingBottom: 16, alignItems: 'center', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+    cardBadge: { position: 'absolute', top: 12, right: 12, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+    cardBadgeText: { fontSize: 10, fontWeight: 'bold' },
+
+    cardAvatarContainer: { marginTop: 8, marginBottom: 10, position: 'relative' },
+    cardAvatar: { width: 64, height: 64, borderRadius: 32 },
+    cardAvatarPlaceholder: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' },
+    cardAvatarText: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+    vipStar: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#F59E0B', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: theme.backgroundCard },
+
+    cardName: { fontSize: 14, fontWeight: 'bold', textAlign: 'center', marginBottom: 2 },
+    cardCity: { fontSize: 11, textAlign: 'center', marginBottom: 12 },
+
+    cardMetrics: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 4 },
+    metricItem: { alignItems: 'center', flex: 1 },
+    metricDivider: { width: 1, backgroundColor: theme.border },
+    metricValue: { fontSize: 13, fontWeight: 'bold' },
+    metricLabel: { fontSize: 10 },
+
+    cardActions: { flexDirection: 'row', gap: 8 },
+    actionBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+
+    // Profile Modal
+    profileContainer: { flex: 1 },
+    profileHeader: { paddingBottom: 24 },
+    profileHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 20 },
+    closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    profileHeaderTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+    profileHero: { alignItems: 'center' },
+    profileAvatarLarge: { width: 100, height: 100, borderRadius: 50, marginBottom: 12, borderWidth: 4, borderColor: 'rgba(255,255,255,0.2)' },
+    profileAvatarImage: { width: '100%', height: '100%', borderRadius: 50 },
+    profileAvatarTextLarge: { color: '#fff', fontSize: 40, fontWeight: 'bold', textAlign: 'center', lineHeight: 90 },
+    profileName: { color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 8 },
+    profileTag: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+    profileTagText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+
+    profileContent: { flex: 1, marginTop: -20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: theme.background, paddingHorizontal: 16, paddingTop: 24 },
+
+    statsGrid: { flexDirection: 'row', padding: 20, borderRadius: 20, marginBottom: 20, alignItems: 'center' },
+    gridStat: { flex: 1, alignItems: 'center' },
+    gridSeparator: { width: 1, height: 30 },
+    gridValue: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
+    gridLabel: { fontSize: 11, color: theme.textSecondary },
+
+    sectionBox: { padding: 16, borderRadius: 20, marginBottom: 16 },
+    sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 16 },
+    contactRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    contactIcon: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    contactText: { fontSize: 14 },
+
+    recItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border },
+    recName: { fontSize: 14, fontWeight: '600' },
+    recReason: { fontSize: 11, marginTop: 2 },
+    recPrice: { fontSize: 14, fontWeight: 'bold' },
+
+    emptyState: { alignItems: 'center', marginTop: 100 },
+    emptyText: { marginTop: 16, fontSize: 16 },
 });

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -34,7 +35,7 @@ export default function SkinQuizScreen() {
     const router = useRouter();
     const { tokens, isDark } = useTheme();
     const { t } = useTranslation();
-    const { addToCart } = useCart();
+    const { addToCart, triggerAddToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
 
     const [currentStep, setCurrentStep] = useState(0);
@@ -56,6 +57,7 @@ export default function SkinQuizScreen() {
     };
 
     const handleBack = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         if (currentStep > 0) {
             setCurrentStep(currentStep - 1);
         } else {
@@ -72,12 +74,21 @@ export default function SkinQuizScreen() {
 
     if (showResults) {
         return (
-            <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
-                <LinearGradient colors={[tokens.colors.primary + '20', 'transparent']} style={styles.topGradient} />
+            <View style={[styles.container, { backgroundColor: tokens?.colors?.background || '#FFFFFF' }]}>
+                <LinearGradient
+                    colors={[tokens?.colors?.primary ? tokens.colors.primary + '20' : '#D4AF7620', 'transparent']}
+                    style={styles.topGradient}
+                />
 
                 <SafeAreaView style={{ flex: 1 }}>
                     <View style={styles.header}>
-                        <TouchableOpacity onPress={() => setShowResults(false)} style={styles.backBtn}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setShowResults(false);
+                            }}
+                            style={styles.backBtn}
+                        >
                             <Ionicons name="arrow-back" size={24} color={tokens.colors.text} />
                         </TouchableOpacity>
                         <Text style={[styles.headerTitle, { color: tokens.colors.text }]}>{t('yourRoutine')}</Text>
@@ -110,9 +121,17 @@ export default function SkinQuizScreen() {
                                         <ProductCardSoko
                                             item={item}
                                             onPress={() => router.push(`/product/${item.id}`)}
-                                            onAddToCart={(item) => addToCart({ ...item, quantity: 1 })}
-                                            onFavorite={toggleFavorite}
+                                            onAddToCart={(item, ref) => {
+                                                if (ref?.current) {
+                                                    ref.current.measureInWindow((x, y, btnWidth, btnHeight) => {
+                                                        triggerAddToCart({ ...item, quantity: 1 }, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
+                                                    });
+                                                } else {
+                                                    triggerAddToCart({ ...item, quantity: 1 });
+                                                }
+                                            }}
                                             isFavorite={isFavorite(item.id)}
+                                            onFavorite={toggleFavorite}
                                         />
                                     </View>
                                 ))}
@@ -132,8 +151,11 @@ export default function SkinQuizScreen() {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
-            <LinearGradient colors={[tokens.colors.primary + '15', 'transparent']} style={styles.topGradient} />
+        <View style={[styles.container, { backgroundColor: tokens?.colors?.background || '#FFFFFF' }]}>
+            <LinearGradient
+                colors={[(tokens?.colors?.primary || '#D4AF76') + '15', 'transparent']}
+                style={styles.topGradient}
+            />
 
             <SafeAreaView style={{ flex: 1 }}>
                 {/* Progress Bar */}

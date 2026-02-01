@@ -3,46 +3,46 @@
  * Next-Generation Beauty App - Ethereal, Floating, Cinematic
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  FlatList,
-  RefreshControl,
-  TouchableOpacity,
-  Dimensions,
-  ImageBackground,
-  Platform,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Dimensions,
+  FlatList,
+  ImageBackground,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
   Easing,
   FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 // Services & Context
+
 import { useCart } from '../../src/context/CartContext';
-import { useCartAnimation } from '../../src/context/CartAnimationContext';
 import { useFavorites } from '../../src/context/FavoritesContext';
-import { useTheme } from '../../src/context/ThemeContext';
 import { useNotifications } from '../../src/context/NotificationContext';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useCategories, useProducts } from '../../src/hooks/useProducts';
 import { useTranslation } from '../../src/hooks/useTranslation';
-import { useProducts, useCategories } from '../../src/hooks/useProducts';
 
 // Components
-import SearchHeader from '../../src/components/SearchHeader';
-import ProductCardSoko from '../../src/components/ProductCardSoko'; // Use Standardized Card
 import DrawerMenu from '../../src/components/DrawerMenu';
-import { ProductSkeleton, CategorySkeleton, BannerSkeleton } from '../../src/components/SkeletonLoader';
-import { Text, Surface } from '../../src/components/ui'; // UI Kit
+import ProductCardSoko from '../../src/components/ProductCardSoko'; // Use Standardized Card
+import SearchHeader from '../../src/components/SearchHeader';
+import { BannerSkeleton, CategorySkeleton, ProductSkeleton } from '../../src/components/SkeletonLoader';
+import { Text } from '../../src/components/ui'; // UI Kit
 
 const { width, height } = Dimensions.get('window');
 
@@ -76,7 +76,7 @@ const CosmicHero = ({ onShopNow, tokens, styles, t, isDark }) => {
             'rgba(212,184,224,0.1)',
             isDark ? 'rgba(13,10,18,0.7)' : 'rgba(254,251,255,0.6)',
             isDark ? 'rgba(13,10,18,0.95)' : 'rgba(254,251,255,0.95)',
-          ]}
+          ].filter(Boolean)}
           style={styles.heroOverlay}
         />
 
@@ -98,7 +98,10 @@ const CosmicHero = ({ onShopNow, tokens, styles, t, isDark }) => {
           {/* CTA Button */}
           <TouchableOpacity style={styles.heroButton} onPress={onShopNow}>
             <LinearGradient
-              colors={[tokens.colors.primary, tokens.colors.primaryDark]}
+              colors={[
+                tokens?.colors?.primary || '#D4AF76',
+                tokens?.colors?.primaryDark || '#B8924F'
+              ]}
               style={styles.heroButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -191,7 +194,10 @@ const CosmicPromoBanner = ({ onPress, styles, tokens, t, isDark }) => (
   <TouchableOpacity style={styles.promoBanner} onPress={onPress}>
     <BlurView intensity={isDark ? 40 : 60} tint={isDark ? "dark" : "light"} style={styles.promoBlur}>
       <LinearGradient
-        colors={[tokens.colors.primary + '20', tokens.colors.primaryDark + '30']}
+        colors={[
+          (tokens?.colors?.primary || '#D4AF76') + '20',
+          (tokens?.colors?.primaryDark || '#B8924F') + '30'
+        ]}
         style={styles.promoGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -210,6 +216,39 @@ const CosmicPromoBanner = ({ onPress, styles, tokens, t, isDark }) => (
             {t('shopNow')} ←
           </Text>
         </View>
+      </LinearGradient>
+    </BlurView>
+  </TouchableOpacity>
+);
+
+// ============================================
+// 🧪 COSMIC SKIN QUIZ BANNER
+// ============================================
+const CosmicQuizBanner = ({ onPress, tokens, styles, t, isDark }) => (
+  <TouchableOpacity style={[styles.quizBannerContainer]} onPress={onPress} activeOpacity={0.95}>
+    <BlurView intensity={isDark ? 30 : 50} tint={isDark ? "dark" : "light"} style={styles.quizBannerBlur}>
+      <LinearGradient
+        colors={[
+          (tokens?.colors?.primary || '#D4AF76') + '30',
+          (tokens?.colors?.accent || '#E8B4B8') + '20'
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.quizBannerContent}
+      >
+        <View style={styles.quizBannerTxtBox}>
+          <Text style={[styles.quizBannerTitle, { color: tokens.colors.text }]}>{t('takeSkinQuiz')}</Text>
+          <Text style={[styles.quizBannerSub, { color: tokens.colors.textMuted }]}>{t('discoverYourRoutine')}</Text>
+          <View style={[styles.quizBannerBtn, { backgroundColor: tokens.colors.primary }]}>
+            <Text style={styles.quizBannerBtnTxt}>{t('shopNow')}</Text>
+            <Ionicons name="sparkles" size={16} color="#FFF" />
+          </View>
+        </View>
+        <Animated.View entering={FadeInDown.delay(300)} style={styles.quizBannerIconBox}>
+          <View style={[styles.quizIconCircle, { backgroundColor: tokens.colors.primary + '20' }]}>
+            <Ionicons name="flask" size={40} color={tokens.colors.primary} />
+          </View>
+        </Animated.View>
       </LinearGradient>
     </BlurView>
   </TouchableOpacity>
@@ -244,34 +283,38 @@ const ProductCarousel = React.memo(({ products, onProductPress, onAddToCart, onF
 // ============================================
 // 📦 FLOATING CATEGORY GRID
 // ============================================
+
+// Real categories from kataraa.com - Unified with products.jsx
+const REAL_CATEGORIES = [
+  { id: 'all', name: 'الكل', icon: '📦', color: '#E8D4F0' },
+  { id: 'skincare', name: 'عناية بالبشرة', icon: '✨', color: '#D4B8E0' },
+  { id: 'serum', name: 'سيروم', icon: '💧', color: '#D4B8E0' },
+  { id: 'sunscreen', name: 'واقي الشمس', icon: '☀️', color: '#F0ECD8' },
+  { id: 'moisturizer', name: 'مرطب للبشرة', icon: '✨', color: '#D8E6F0' },
+  { id: 'cleanser', name: 'غسول', icon: '🧼', color: '#E0D8F0' },
+  { id: 'toner', name: 'تونر', icon: '💦', color: '#E6D8F0' },
+  { id: 'mask', name: 'ماسك للوجه', icon: '🎭', color: '#F0D8E6' },
+  { id: 'eyecare', name: 'العناية بالعين', icon: '👁️', color: '#E8E4EC' },
+  { id: 'haircare', name: 'العناية بالشعر', icon: '💇', color: '#E8DCC8' },
+  { id: 'acne', name: 'حب الشباب', icon: '🎯', color: '#D4B8E0' },
+  { id: 'antiaging', name: 'التجاعيد', icon: '⏳', color: '#F0D8E6' },
+  { id: 'pads', name: 'مسحات', icon: '🧴', color: '#D8E6F0' },
+  { id: 'makeup', name: 'المكياج', icon: '💄', color: '#F0D8E6' },
+];
+
 const CategoryGrid = ({ categories, onSelect, styles, tokens, t, isDark }) => {
-  // Real categories from kataraa.com
-  const categoryData = [
-    { id: 'سيروم', name: 'سيروم', icon: '💧', color: '#D4B8E0' },
-    { id: 'واقي الشمس', name: 'واقي الشمس', icon: '☀️', color: '#F0ECD8' },
-    { id: 'مرطب للبشرة', name: 'مرطب', icon: '✨', color: '#D8E6F0' },
-    { id: 'غسول', name: 'غسول', icon: '🧼', color: '#E0D8F0' },
-    { id: 'تونر', name: 'تونر', icon: '💦', color: '#E6D8F0' },
-    { id: 'ماسك للوجه', name: 'ماسك', icon: '🎭', color: '#F0D8E6' },
-    { id: 'العناية بالعين', name: 'العين', icon: '👁️', color: '#E8E4EC' },
-    { id: 'العناية بالشعر', name: 'الشعر', icon: '💇', color: '#E8DCC8' },
-    { id: 'حب الشباب والبثور', name: 'حب الشباب', icon: '🎯', color: '#D4B8E0' },
-    { id: 'تجاعيد البشره', name: 'التجاعيد', icon: '⏳', color: '#F0D8E6' },
-    { id: 'مسحات', name: 'مسحات', icon: '🧴', color: '#D8E6F0' },
-    { id: 'المكياج', name: 'المكياج', icon: '💄', color: '#F0D8E6' },
-  ];
 
   return (
     <View style={styles.categorySection}>
       <ElegantSectionHeader
         title={t('shopByCategory')}
-        onViewAll={() => { }}
+        onViewAll={() => onSelect({ id: 'all' })}
         styles={styles}
         tokens={tokens}
         t={t}
       />
       <View style={styles.categoryGrid}>
-        {categoryData.map((cat, index) => (
+        {REAL_CATEGORIES.map((cat, index) => (
           <Animated.View
             key={cat.id}
             entering={FadeInDown.delay(index * 50).springify()}
@@ -279,6 +322,7 @@ const CategoryGrid = ({ categories, onSelect, styles, tokens, t, isDark }) => {
             <TouchableOpacity
               style={styles.categoryCard}
               onPress={() => onSelect(cat)}
+              activeOpacity={0.7}
             >
               <BlurView
                 intensity={isDark ? 25 : 45}
@@ -341,8 +385,8 @@ const WhyShopWithUs = ({ tokens, styles, t, isDark }) => {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { cartItems } = useCart();
-  const { triggerAddToCart } = useCartAnimation();
+  const { cartItems, triggerAddToCart } = useCart();
+
   const { toggleFavorite, isFavorite } = useFavorites();
   const { tokens, isDark } = useTheme(); // Use tokens
   const { t } = useTranslation();
@@ -391,14 +435,26 @@ export default function HomeScreen() {
     router.push(`/product/${item.id}`);
   }, [router]);
 
-  const handleAddToCart = React.useCallback((item) => {
-    triggerAddToCart({
-      id: item.id,
-      name: item.name,
-      price: item.sale_price || item.price,
-      image: item.images?.[0]?.src,
-      quantity: 1,
-    });
+  const handleAddToCart = React.useCallback((item, ref) => {
+    if (ref?.current) {
+      ref.current.measureInWindow((x, y, btnWidth, btnHeight) => {
+        triggerAddToCart({
+          id: item.id,
+          name: item.name,
+          price: item.sale_price || item.price,
+          image: item.image || (item.images?.length > 0 ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].src) : null),
+          quantity: 1,
+        }, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
+      });
+    } else {
+      triggerAddToCart({
+        id: item.id,
+        name: item.name,
+        price: item.sale_price || item.price,
+        image: item.image || (item.images?.length > 0 ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].src) : null),
+        quantity: 1,
+      });
+    }
   }, [triggerAddToCart]);
 
   const handleFavorite = React.useCallback((item) => {
@@ -444,16 +500,27 @@ export default function HomeScreen() {
         }
       >
         {/* 🌙 Cosmic Hero */}
-        {loading ? <BannerSkeleton /> : <CosmicHero onShopNow={() => router.push('/products')} tokens={tokens} styles={styles} t={t} isDark={isDark} />}
+        <Animated.View entering={FadeInDown.duration(1000)}>
+          {loading ? <BannerSkeleton /> : <CosmicHero onShopNow={() => router.push('/products')} tokens={tokens} styles={styles} t={t} isDark={isDark} />}
+        </Animated.View>
 
         {/* 💎 Shop by Skin Type */}
-        <SkinTypeSection onSelect={(type) => router.push(`/products?skin=${type.id}`)} tokens={tokens} styles={styles} t={t} isDark={isDark} />
+        <Animated.View entering={FadeInDown.delay(200).springify()}>
+          <SkinTypeSection onSelect={(type) => router.push(`/products?skin=${type.id}`)} tokens={tokens} styles={styles} t={t} isDark={isDark} />
+        </Animated.View>
+
+        {/* 🧪 Skin Quiz Banner */}
+        <Animated.View entering={FadeInDown.delay(300)}>
+          <CosmicQuizBanner onPress={() => router.push('/skin-quiz')} tokens={tokens} styles={styles} t={t} isDark={isDark} />
+        </Animated.View>
 
         {/* ✨ Promo Banner */}
-        {loading ? <BannerSkeleton /> : <CosmicPromoBanner onPress={() => router.push('/products?sale=true')} styles={styles} tokens={tokens} t={t} isDark={isDark} />}
+        <Animated.View entering={FadeInDown.delay(400)}>
+          {loading ? <BannerSkeleton /> : <CosmicPromoBanner onPress={() => router.push('/products?sale=true')} styles={styles} tokens={tokens} t={t} isDark={isDark} />}
+        </Animated.View>
 
         {/* 🆕 New Arrivals */}
-        <View style={styles.section}>
+        <Animated.View entering={FadeInDown.delay(500)} style={styles.section}>
           <ElegantSectionHeader
             title={t('newArrivals')}
             subtitle={t('newArrivalsSub')}
@@ -476,10 +543,10 @@ export default function HomeScreen() {
               styles={styles}
             />
           )}
-        </View>
+        </Animated.View>
 
         {/* 🔥 On Sale */}
-        <View style={styles.section}>
+        <Animated.View entering={FadeInDown.delay(600)} style={styles.section}>
           <ElegantSectionHeader
             title={t('onSale')}
             subtitle={t('onSaleSub')}
@@ -502,28 +569,36 @@ export default function HomeScreen() {
               styles={styles}
             />
           )}
-        </View>
+        </Animated.View>
 
         {/* 📦 Shop by Category */}
-        {loading ? (
-          <View style={styles.categorySection}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselContainer}>
-              {[1, 2, 3, 4, 5].map(i => <CategorySkeleton key={i} />)}
-            </ScrollView>
-          </View>
-        ) : (
-          <CategoryGrid
-            categories={categories}
-            onSelect={(cat) => router.push(`/products?category=${cat.id}`)}
-            styles={styles}
-            tokens={tokens}
-            t={t}
-            isDark={isDark}
-          />
-        )}
+        <Animated.View entering={FadeInDown.delay(700)}>
+          {loading ? (
+            <View style={styles.categorySection}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselContainer}>
+                {[1, 2, 3, 4, 5].map(i => <CategorySkeleton key={i} />)}
+              </ScrollView>
+            </View>
+          ) : (
+            <CategoryGrid
+              categories={categories}
+              onSelect={(cat) => {
+                if (cat.id === 'all') {
+                  router.push('/products');
+                } else {
+                  router.push(`/products?category=${cat.id}`);
+                }
+              }}
+              styles={styles}
+              tokens={tokens}
+              t={t}
+              isDark={isDark}
+            />
+          )}
+        </Animated.View>
 
         {/* ⭐ Popular Products */}
-        <View style={styles.section}>
+        <Animated.View entering={FadeInDown.delay(800)} style={styles.section}>
           <ElegantSectionHeader
             title={t('bestSellers')}
             subtitle={t('bestSellersSub')}
@@ -546,36 +621,10 @@ export default function HomeScreen() {
               styles={styles}
             />
           )}
-        </View>
+        </Animated.View>
 
         {/* 🌟 Why Shop With Us */}
         <WhyShopWithUs tokens={tokens} styles={styles} t={t} isDark={isDark} />
-
-        {/* 💜 More Products */}
-        <View style={styles.section}>
-          <ElegantSectionHeader
-            title={t('discoverMore')}
-            subtitle={t('discoverMoreSub')}
-            onViewAll={() => router.push('/products')}
-            tokens={tokens}
-            styles={styles}
-            t={t}
-          />
-          {loading ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
-              {[1, 2, 3, 4].map(i => <ProductSkeleton key={i} />)}
-            </ScrollView>
-          ) : (
-            <ProductCarousel
-              products={products.slice(12, 24)}
-              onProductPress={handleProductPress}
-              onAddToCart={handleAddToCart}
-              onFavorite={handleFavorite}
-              isFavorite={isFavorite}
-              styles={styles}
-            />
-          )}
-        </View>
 
         {/* Newsletter CTA - Glass Style */}
         <View style={styles.newsletterSection}>
@@ -896,4 +945,24 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
     fontSize: 15,
     letterSpacing: 0.5,
   },
+
+  // Quiz Banner Styles
+  quizBannerContainer: { marginHorizontal: 20, marginBottom: 28, borderRadius: 28, overflow: 'hidden' },
+  quizBannerBlur: { borderRadius: 28 },
+  quizBannerContent: { flexDirection: 'row', alignItems: 'center', padding: 24, paddingVertical: 28 },
+  quizBannerTxtBox: { flex: 1, gap: 4 },
+  quizBannerTitle: { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  quizBannerSub: { fontSize: 14, fontWeight: '500', marginBottom: 12 },
+  quizBannerBtn: {
+    paddingHorizontal: 16,
+    height: 38,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start'
+  },
+  quizBannerBtnTxt: { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  quizBannerIconBox: { marginLeft: 16 },
+  quizIconCircle: { width: 80, height: 80, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
 });

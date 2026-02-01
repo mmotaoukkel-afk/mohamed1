@@ -1,9 +1,6 @@
-/**
- * Favorites Context - Kataraa
- */
-
-import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import userProfileService from '../services/userProfileService';
 import { useAuth } from './AuthContext';
 
 const FavoritesContext = createContext();
@@ -29,17 +26,21 @@ export const FavoritesProvider = ({ children }) => {
 
   // Save favorites when changed
   useEffect(() => {
-    if (!loading && user?.email && user.email === loadedUserEmail) {
-      const handler = setTimeout(() => {
+    if (!loading && user?.uid && user.email === loadedUserEmail) {
+      const handler = setTimeout(async () => {
+        // 1. Save to Local Storage
         const key = `@kataraa_favorites_${user.email.toLowerCase()}`;
-        AsyncStorage.setItem(key, JSON.stringify(favorites));
-      }, 500);
+        await AsyncStorage.setItem(key, JSON.stringify(favorites));
+
+        // 2. Sync to Cloud
+        await userProfileService.saveUserFavorites(user.uid, favorites);
+      }, 800);
       return () => clearTimeout(handler);
     }
   }, [favorites, loading, user, loadedUserEmail]);
 
   const loadFavorites = async () => {
-    if (!user?.email) {
+    if (!user?.uid) {
       setFavorites([]);
       setLoadedUserEmail(null);
       setLoading(false);
@@ -50,12 +51,23 @@ export const FavoritesProvider = ({ children }) => {
     setFavorites([]); // Clear immediately to avoid flash
 
     try {
-      const key = `@kataraa_favorites_${user.email.toLowerCase()}`;
-      const saved = await AsyncStorage.getItem(key);
-      if (saved) {
-        setFavorites(JSON.parse(saved));
+      // 1. Try Cloud first
+      const cloudFavs = await userProfileService.getUserFavorites(user.uid);
+
+      if (cloudFavs.length > 0) {
+        setFavorites(cloudFavs);
       } else {
-        setFavorites([]);
+        // 2. Fallback to Local
+        const key = `@kataraa_favorites_${user.email.toLowerCase()}`;
+        const saved = await AsyncStorage.getItem(key);
+        if (saved) {
+          const localFavs = JSON.parse(saved);
+          setFavorites(localFavs);
+          // Sync local to cloud if cloud was empty
+          await userProfileService.saveUserFavorites(user.uid, localFavs);
+        } else {
+          setFavorites([]);
+        }
       }
       setLoadedUserEmail(user.email);
     } catch (error) {

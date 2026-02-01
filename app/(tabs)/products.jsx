@@ -4,71 +4,116 @@
  * Dark Mode Supported 🌙
  */
 
-import React, { useState, useEffect } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    ActivityIndicator,
-    RefreshControl,
-    TouchableOpacity,
-    Dimensions,
-    Modal,
-    ScrollView,
-} from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 // Services & Context
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCart } from '../../src/context/CartContext';
-import { useCartAnimation } from '../../src/context/CartAnimationContext';
 import { useFavorites } from '../../src/context/FavoritesContext';
 import { useTheme } from '../../src/context/ThemeContext';
 
 // Components
-import SearchHeader from '../../src/components/SearchHeader';
-import ProductCardSoko from '../../src/components/ProductCardSoko';
 import BrandSection from '../../src/components/BrandSection';
-import { ProductSkeleton, CategorySkeleton } from '../../src/components/SkeletonLoader';
+import ProductCardSoko from '../../src/components/ProductCardSoko';
+import SearchHeader from '../../src/components/SearchHeader';
+import { ProductSkeleton } from '../../src/components/SkeletonLoader';
 
+import { useCategories, useInfiniteProducts } from '../../src/hooks/useProducts';
 import { useTranslation } from '../../src/hooks/useTranslation';
-import { useInfiniteProducts, useCategories } from '../../src/hooks/useProducts';
 
 const { width } = Dimensions.get('window');
+
+// Real categories from kataraa.com - Using English Slugs for Firestore filtering
+const REAL_CATEGORIES = [
+    { id: 'skincare', name: 'عناية بالبشرة', icon: '✨', slug: 'العناية-بالبشرة' },
+    { id: 'serum', name: 'سيروم', icon: '💧', slug: 'سيروم' },
+    { id: 'sunscreen', name: 'واقي الشمس', icon: '☀️', slug: 'واقي-الشمس' },
+    { id: 'moisturizer', name: 'مرطب للبشرة', icon: '✨', slug: 'مرطب-للبشرة' },
+    { id: 'cleanser', name: 'غسول', icon: '🧼', slug: 'غسول' },
+    { id: 'toner', name: 'تونر', icon: '💦', slug: 'تونر' },
+    { id: 'mask', name: 'ماسك للوجه', icon: '🎭', slug: 'ماسك-للوجه' },
+    { id: 'eyecare', name: 'العناية بالعين', icon: '👁️', slug: 'العناية-بالعين' },
+    { id: 'haircare', name: 'العناية بالشعر', icon: '💇', slug: 'العناية-بالشعر' },
+    { id: 'acne', name: 'حب الشباب', icon: '🎯', slug: 'حب-الشباب-والبثور' },
+    { id: 'antiaging', name: 'التجاعيد', icon: '⏳', slug: 'تجاعيد-البشره' },
+    { id: 'pads', name: 'مسحات', icon: '🧴', slug: 'مسحات' },
+    { id: 'makeup', name: 'المكياج', icon: '💄', slug: 'المكياج' },
+];
+
+// Helper to get matching details for a category
+const getCategoryUI = (item, t) => {
+    if (!item || item.id === null) {
+        return { label: t('all') || 'الكل', icon: 'apps-outline', provider: Ionicons, emoji: '📦' };
+    }
+
+    const name = item.name?.toLowerCase() || '';
+    const id = item.id?.toLowerCase() || '';
+
+    if (id === 'serum' || name.includes('سيروم'))
+        return { label: t('serum'), icon: 'water-outline', provider: Ionicons, emoji: '💧' };
+    if (id === 'sunscreen' || name.includes('شمس'))
+        return { label: t('suncare'), icon: 'sunny-outline', provider: Ionicons, emoji: '☀️' };
+    if (id === 'moisturizer' || name.includes('مرطب'))
+        return { label: t('moisturizers'), icon: 'lotion-outline', provider: MaterialCommunityIcons, emoji: '✨' };
+    if (id === 'cleanser' || name.includes('غسول'))
+        return { label: t('cleansers'), icon: 'water-outline', provider: MaterialCommunityIcons, emoji: '🧼' };
+    if (id === 'toner' || name.includes('تونر'))
+        return { label: t('toners'), icon: 'bottle-wine-outline', provider: MaterialCommunityIcons, emoji: '💦' };
+    if (id === 'mask' || name.includes('ماسك'))
+        return { label: t('masks'), icon: 'face-mask-outline', provider: MaterialCommunityIcons, emoji: '🎭' };
+    if (id === 'eyecare' || name.includes('عين'))
+        return { label: t('eyeCare'), icon: 'eye-circle-outline', provider: MaterialCommunityIcons, emoji: '👁️' };
+    if (id === 'haircare' || name.includes('شعر'))
+        return { label: t('hair'), icon: 'hair-dryer-outline', provider: MaterialCommunityIcons, emoji: '💇' };
+    if (id === 'makeup' || id === 'makeup' || name.includes('مكياج'))
+        return { label: t('makeup'), icon: 'eye-outline', provider: Ionicons, emoji: '💄' };
+    if (id === 'acne' || name.includes('حب'))
+        return { label: t('acne'), icon: 'bandage-outline', provider: Ionicons, emoji: '🎯' };
+    if (id === 'antiaging' || name.includes('تجاعيد'))
+        return { label: t('antiAging'), icon: 'auto-fix', provider: MaterialCommunityIcons, emoji: '⏳' };
+    if (id === 'pads' || name.includes('مسحة'))
+        return { label: t('pads') || 'مسحات', icon: 'lotion-outline', provider: MaterialCommunityIcons, emoji: '🧴' };
+
+    return { label: item.name, icon: 'dots-grid', provider: MaterialCommunityIcons, emoji: item.icon || '✨' };
+};
 
 export default function ProductsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
-    const { cartItems } = useCart();
-    const { triggerAddToCart } = useCartAnimation();
+    const { cartItems, addToCart, triggerAddToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const styles = getStyles(theme, isDark);
 
-    const [selectedCategory, setSelectedCategory] = useState(params.category || null);
+    // Sanitize incoming category param (map Arabic to English slug if needed)
+    const initialCategory = params.category ? (
+        REAL_CATEGORIES.find(c =>
+            c.name === params.category ||
+            c.id === params.category ||
+            c.slug === params.category
+        )?.id || params.category
+    ) : null;
+
+    const [selectedCategory, setSelectedCategory] = useState(initialCategory);
     const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'brand'
     const [filterModalVisible, setFilterModalVisible] = useState(false);
     const [sortBy, setSortBy] = useState('newest'); // 'newest', 'price_low', 'price_high', 'name'
-
-    // Real categories from kataraa.com
-    const realCategories = [
-        { id: 'سيروم', name: 'سيروم', icon: '💧' },
-        { id: 'واقي الشمس', name: 'واقي الشمس', icon: '☀️' },
-        { id: 'مرطب للبشرة', name: 'مرطب', icon: '✨' },
-        { id: 'غسول', name: 'غسول', icon: '🧼' },
-        { id: 'تونر', name: 'تونر', icon: '💦' },
-        { id: 'ماسك للوجه', name: 'ماسك', icon: '🎭' },
-        { id: 'العناية بالعين', name: 'العين', icon: '👁️' },
-        { id: 'العناية بالشعر', name: 'الشعر', icon: '💇' },
-        { id: 'حب الشباب والبثور', name: 'حب الشباب', icon: '🎯' },
-        { id: 'تجاعيد البشره', name: 'التجاعيد', icon: '⏳' },
-        { id: 'مسحات', name: 'مسحات', icon: '🧴' },
-        { id: 'المكياج', name: 'المكياج', icon: '💄' },
-    ];
 
     // Map sort values to API values
     const getSortOption = () => {
@@ -136,14 +181,26 @@ export default function ProductsScreen() {
         router.push(`/product/${item.id}`);
     }, [router]);
 
-    const handleAddToCart = React.useCallback((item) => {
-        triggerAddToCart({
-            id: item.id,
-            name: item.name,
-            price: item.sale_price || item.price,
-            image: item.images?.[0]?.src,
-            quantity: 1,
-        });
+    const handleAddToCart = React.useCallback((item, ref) => {
+        if (ref?.current) {
+            ref.current.measureInWindow((x, y, btnWidth, btnHeight) => {
+                triggerAddToCart({
+                    id: item.id,
+                    name: item.name,
+                    price: item.sale_price || item.price,
+                    image: item.image || (item.images?.length > 0 ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].src) : null),
+                    quantity: 1,
+                }, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
+            });
+        } else {
+            triggerAddToCart({
+                id: item.id,
+                name: item.name,
+                price: item.sale_price || item.price,
+                image: item.image || (item.images?.length > 0 ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].src) : null),
+                quantity: 1,
+            });
+        }
     }, [triggerAddToCart]);
 
     const handleFavorite = React.useCallback((item) => {
@@ -171,8 +228,8 @@ export default function ProductsScreen() {
 
     // Render product for grid view
     // Render product for grid view
-    const renderProduct = React.useCallback(({ item }) => (
-        <View style={styles.gridItem}>
+    const renderProduct = React.useCallback(({ item, index }) => (
+        <Animated.View entering={FadeInDown.delay(index * 50).duration(600)} style={styles.gridItem}>
             <ProductCardSoko
                 item={item}
                 onPress={handleProductPress}
@@ -180,162 +237,88 @@ export default function ProductsScreen() {
                 onFavorite={handleFavorite}
                 isFavorite={isFavorite(item.id)}
             />
-        </View>
+        </Animated.View>
     ), [handleProductPress, handleAddToCart, handleFavorite, isFavorite, styles.gridItem]);
 
-    // Category Mapping Helper - Enhanced with premium beauty icons
-    const getCategoryDetails = (catName) => {
-        const lowerName = catName?.toLowerCase() || '';
-
-        // Skincare & Basics
-        if (lowerName.includes('skincare') || lowerName.includes('العناية بالبشرة'))
-            return { label: t('skincare') || 'Skincare', icon: 'face-woman-outline', provider: MaterialCommunityIcons };
-
-        // Acne
-        if (lowerName.includes('acne') || lowerName.includes('حب الشباب'))
-            return { label: t('acne'), icon: 'bandage-outline', provider: Ionicons };
-
-        // Makeup
-        if (lowerName.includes('makeup') || lowerName.includes('المكياج'))
-            return { label: t('makeup'), icon: 'eye-outline', provider: Ionicons };
-
-        // Hair
-        if (lowerName.includes('hair') || lowerName.includes('الشعر'))
-            return { label: t('hair'), icon: 'hair-dryer-outline', provider: MaterialCommunityIcons };
-
-        // Body
-        if (lowerName.includes('body') || lowerName.includes('الجسم'))
-            return { label: t('body'), icon: 'emoticon-outline', provider: MaterialCommunityIcons };
-
-        // Serum
-        if (lowerName.includes('serum') || lowerName.includes('السيروم'))
-            return { label: t('serum'), icon: 'water-outline', provider: Ionicons };
-
-        // Sun Care
-        if (lowerName.includes('sun') || lowerName.includes('شمس'))
-            return { label: t('suncare'), icon: 'sunny-outline', provider: Ionicons };
-
-        // Value Sets
-        if (lowerName.includes('set') || lowerName.includes('مجموعات'))
-            return { label: t('sets'), icon: 'gift-outline', provider: Ionicons };
-
-        // Nails
-        if (lowerName.includes('nail') || lowerName.includes('أظافر'))
-            return { label: t('nail') || 'Nail', icon: 'bottle-tonic-plus-outline', provider: MaterialCommunityIcons };
-
-        // Cleansers
-        if (lowerName.includes('cleanser') || lowerName.includes('منظفات'))
-            return { label: t('cleansers'), icon: 'water-outline', provider: MaterialCommunityIcons };
-
-        // Masks
-        if (lowerName.includes('mask') || lowerName.includes('ماسك'))
-            return { label: t('masks'), icon: 'face-mask-outline', provider: MaterialCommunityIcons };
-
-        // Creams & Moisturizers
-        if (lowerName.includes('cream') || lowerName.includes('moist') || lowerName.includes('مرطب'))
-            return { label: t('moisturizers'), icon: 'lotion-outline', provider: MaterialCommunityIcons };
-
-        // Eye Care
-        if (lowerName.includes('eye') || lowerName.includes('عين'))
-            return { label: t('eyeCare'), icon: 'eye-circle-outline', provider: MaterialCommunityIcons };
-
-        // Lip Care
-        if (lowerName.includes('lip') || lowerName.includes('شفاه'))
-            return { label: t('lipCare'), icon: 'lipstick', provider: MaterialCommunityIcons };
-
-        // Toner
-        if (lowerName.includes('toner') || lowerName.includes('تونر'))
-            return { label: t('toners'), icon: 'bottle-wine-outline', provider: MaterialCommunityIcons };
-
-        // Anti-Aging
-        if (lowerName.includes('aging') || lowerName.includes('تجاعيد'))
-            return { label: t('antiAging'), icon: 'auto-fix', provider: MaterialCommunityIcons };
-
-        return { label: catName, icon: 'dots-grid', provider: MaterialCommunityIcons };
-    };
+    // Category Mapping Helper moved outside component
 
     // Render category chip
-    const renderCategory = ({ item }) => {
+    const renderCategoryItem = React.useCallback(({ item, index }) => {
         const isAll = item.id === null;
-        const details = isAll ? { label: t('all'), icon: 'apps-outline', provider: Ionicons } : getCategoryDetails(item.name);
+        const details = getCategoryUI(item, t);
         const IconProvider = details.provider || Ionicons;
+        const isActive = selectedCategory === item.id;
 
         return (
-            <TouchableOpacity
-                style={styles.categoryCircleWrapper}
-                onPress={() => handleCategorySelect(item.id)}
+            <Animated.View
+                key={item.id || 'all'}
+                entering={FadeInDown.delay(index * 50).springify()}
             >
-                <View
-                    style={[
-                        styles.categoryCircle,
-                        selectedCategory === item.id && styles.categoryCircleActive,
-                    ]}
-                >
-                    <IconProvider
-                        name={details.icon}
-                        size={22}
-                        color={selectedCategory === item.id ? '#fff' : (isDark ? theme.primary : '#1A1A1A')}
-                    />
-                </View>
-                <Text style={[
-                    styles.categoryCircleLabel,
-                    { color: selectedCategory === item.id ? theme.primary : theme.textSecondary },
-                    selectedCategory === item.id && { fontWeight: '700' }
-                ]}>
-                    {details.label}
-                </Text>
-            </TouchableOpacity>
-        );
-    };
-
-    // Render header with categories
-    const ListHeader = () => (
-        <View style={styles.listHeader}>
-            {/* Real Categories Filter with Arabic names */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoriesList}
-            >
-                {/* All Button */}
                 <TouchableOpacity
                     style={styles.categoryCircleWrapper}
-                    onPress={() => setSelectedCategory(null)}
+                    onPress={() => handleCategorySelect(item.id)}
                 >
-                    <View style={[
-                        styles.categoryCircle,
-                        selectedCategory === null && styles.categoryCircleActive,
-                    ]}>
-                        <Text style={styles.categoryEmoji}>📦</Text>
+                    <View
+                        style={[
+                            styles.categoryCircle,
+                            isActive && styles.categoryCircleActive,
+                        ]}
+                    >
+                        {isActive ? (
+                            <Text style={{ fontSize: 20 }}>{details.emoji}</Text>
+                        ) : (
+                            <IconProvider
+                                name={details.icon}
+                                size={22}
+                                color={isDark ? theme.primary : '#1A1A1A'}
+                            />
+                        )}
                     </View>
                     <Text style={[
                         styles.categoryCircleLabel,
-                        { color: selectedCategory === null ? theme.primary : theme.textSecondary },
-                        selectedCategory === null && { fontWeight: '700' }
-                    ]}>الكل</Text>
+                        { color: isActive ? theme.primary : theme.textSecondary },
+                        isActive && { fontWeight: '700' }
+                    ]}>
+                        {details.label}
+                    </Text>
                 </TouchableOpacity>
+            </Animated.View>
+        );
+    }, [selectedCategory, t, theme, isDark, styles, handleCategorySelect]);
 
-                {/* Real Categories */}
-                {realCategories.map((cat) => (
-                    <TouchableOpacity
-                        key={cat.id}
-                        style={styles.categoryCircleWrapper}
-                        onPress={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
-                    >
-                        <View style={[
-                            styles.categoryCircle,
-                            selectedCategory === cat.id && styles.categoryCircleActive,
-                        ]}>
-                            <Text style={styles.categoryEmoji}>{cat.icon}</Text>
-                        </View>
-                        <Text style={[
-                            styles.categoryCircleLabel,
-                            { color: selectedCategory === cat.id ? theme.primary : theme.textSecondary },
-                            selectedCategory === cat.id && { fontWeight: '700' }
-                        ]}>{cat.name}</Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
+    // Render header with categories
+    const MemoizedHeader = React.useMemo(() => (
+        <View style={styles.listHeader}>
+            <View style={{ transform: [{ scaleX: -1 }] }}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={[styles.categoriesList, { flexDirection: 'row-reverse' }]}
+                >
+                    <View style={{ transform: [{ scaleX: -1 }], flexDirection: 'row' }}>
+                        {/* All Button */}
+                        <TouchableOpacity
+                            style={styles.categoryCircleWrapper}
+                            onPress={() => handleCategorySelect(null)}
+                        >
+                            <View style={[
+                                styles.categoryCircle,
+                                selectedCategory === null && styles.categoryCircleActive,
+                            ]}>
+                                <Text style={styles.categoryEmoji}>📦</Text>
+                            </View>
+                            <Text style={[
+                                styles.categoryCircleLabel,
+                                { color: selectedCategory === null ? theme.primary : theme.textSecondary },
+                                selectedCategory === null && { fontWeight: '700' }
+                            ]}>{t('all') || 'الكل'}</Text>
+                        </TouchableOpacity>
+
+                        {/* Real Categories */}
+                        {REAL_CATEGORIES.map((cat, index) => renderCategoryItem({ item: cat, index }))}
+                    </View>
+                </ScrollView>
+            </View>
 
             {/* Filter Row with Filter Button */}
             <View style={styles.filterRow}>
@@ -365,11 +348,11 @@ export default function ProductsScreen() {
                 </TouchableOpacity>
 
                 <Text style={styles.resultsCount}>
-                    {products.length} منتج
+                    {products.length} {t('products')}
                 </Text>
             </View>
         </View>
-    );
+    ), [selectedCategory, viewMode, products.length, styles, theme, t, renderCategoryItem, handleCategorySelect]);
 
     // Filter Modal
     const FilterModal = () => (
@@ -430,7 +413,7 @@ export default function ProductsScreen() {
                                 <Ionicons name="checkmark" size={20} color={theme.primary} />
                             )}
                         </TouchableOpacity>
-                        {realCategories.map(cat => (
+                        {REAL_CATEGORIES.map(cat => (
                             <TouchableOpacity
                                 key={cat.id}
                                 style={[
@@ -494,7 +477,7 @@ export default function ProductsScreen() {
                     }
                     keyExtractor={(item, index) => loading && products.length === 0 ? index.toString() : item.id.toString()}
                     numColumns={2}
-                    ListHeaderComponent={ListHeader}
+                    ListHeaderComponent={MemoizedHeader}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="cube-outline" size={60} color={theme.textMuted} />
@@ -534,7 +517,7 @@ export default function ProductsScreen() {
                             title={data.name}
                             titleAr={data.name}
                             products={data.products}
-                            onViewAll={() => handleCategorySelect(parseInt(catId))}
+                            onViewAll={() => handleCategorySelect(catId)}
                             onProductPress={handleProductPress}
                             onAddToCart={handleAddToCart}
                             onFavorite={handleFavorite}
@@ -542,7 +525,7 @@ export default function ProductsScreen() {
                         />
                     )}
                     keyExtractor={([id]) => id}
-                    ListHeaderComponent={ListHeader}
+                    ListHeaderComponent={MemoizedHeader}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}

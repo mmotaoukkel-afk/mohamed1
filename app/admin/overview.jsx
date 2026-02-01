@@ -4,25 +4,25 @@
  * 🔐 Protected by RequireAdmin
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
     Dimensions,
-    RefreshControl,
     Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
-import { getDashboardStats, getRecentOrders, getWeeklyRevenue, getCategorySales } from '../../src/services/adminAnalytics';
-import { getAllCustomers } from '../../src/services/adminCustomerService';
+import { useNotifications } from '../../src/context/NotificationContext';
+import { useTheme } from '../../src/context/ThemeContext';
+import { getCategorySales, getDashboardStats, getRecentOrders, getWeeklyRevenue } from '../../src/services/adminAnalytics';
 import currencyService from '../../src/services/currencyService';
 
 const { width } = Dimensions.get('window');
@@ -37,6 +37,7 @@ export default function AdminOverview() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { user } = useAuth();
+    const { adminUnreadCount } = useNotifications();
     const styles = getStyles(theme, isDark);
 
     const [stats, setStats] = useState({
@@ -114,10 +115,10 @@ export default function AdminOverview() {
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.headerBtn, { backgroundColor: theme.backgroundCard }]}
-                            onPress={() => router.push('/notifications')}
+                            onPress={() => router.push('/admin/notifications')}
                         >
                             <Ionicons name="notifications-outline" size={20} color={theme.textSecondary} />
-                            <View style={styles.notificationDot} />
+                            {adminUnreadCount > 0 && <View style={styles.notificationDot} />}
                         </TouchableOpacity>
                         {user?.photoURL ? (
                             <Image source={{ uri: user.photoURL }} style={styles.avatar} />
@@ -141,12 +142,14 @@ export default function AdminOverview() {
                 {/* KPI Cards Row 1 */}
                 <View style={styles.kpiRow}>
                     {/* Total Revenue - Featured */}
-                    <View style={[styles.kpiCardLarge, { backgroundColor: '#EEF2FF' }]}>
+                    <TouchableOpacity
+                        style={[styles.kpiCardLarge, { backgroundColor: '#EEF2FF' }]}
+                        onPress={() => router.push('/admin/revenue')}
+                        activeOpacity={0.9}
+                    >
                         <View style={styles.kpiHeader}>
                             <Text style={[styles.kpiLabel, { color: '#6366F1' }]}>إجمالي الإيرادات</Text>
-                            <TouchableOpacity>
-                                <Ionicons name="open-outline" size={16} color="#6366F1" />
-                            </TouchableOpacity>
+                            <Ionicons name="open-outline" size={16} color="#6366F1" />
                         </View>
                         <Text style={[styles.kpiValueLarge, { color: '#1E1B4B' }]}>{stats.revenue.value}</Text>
                         <View style={styles.kpiFooter}>
@@ -162,15 +165,17 @@ export default function AdminOverview() {
                                 </Text>
                             </View>
                         </View>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Total Orders */}
-                    <View style={[styles.kpiCardSmall, { backgroundColor: '#FAF5FF' }]}>
+                    <TouchableOpacity
+                        style={[styles.kpiCardSmall, { backgroundColor: '#FAF5FF' }]}
+                        onPress={() => router.push('/admin/orders')}
+                        activeOpacity={0.9}
+                    >
                         <View style={styles.kpiHeader}>
                             <Text style={[styles.kpiLabel, { color: '#7C3AED' }]}>إجمالي الطلبات</Text>
-                            <TouchableOpacity>
-                                <Ionicons name="open-outline" size={14} color="#7C3AED" />
-                            </TouchableOpacity>
+                            <Ionicons name="open-outline" size={14} color="#7C3AED" />
                         </View>
                         <Text style={[styles.kpiValue, { color: '#1E1B4B' }]}>{stats.orders.value}</Text>
                         <View style={[styles.changeBadge, { backgroundColor: stats.orders.isPositive ? '#D1FAE5' : '#FEE2E2', marginTop: 8 }]}>
@@ -183,40 +188,44 @@ export default function AdminOverview() {
                                 {stats.orders.change}
                             </Text>
                         </View>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* KPI Cards Row 2 */}
                 <View style={styles.kpiRow}>
                     {/* Customers */}
-                    <View style={[styles.kpiCardHalf, { backgroundColor: theme.backgroundCard }]}>
+                    <TouchableOpacity
+                        style={[styles.kpiCardHalf, { backgroundColor: theme.backgroundCard }]}
+                        onPress={() => router.push('/admin/customers')}
+                        activeOpacity={0.8}
+                    >
                         <View style={styles.kpiHeader}>
                             <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>إجمالي الزبناء</Text>
-                            <TouchableOpacity onPress={() => router.push('/admin/customers')}>
-                                <Ionicons name="open-outline" size={14} color={theme.textSecondary} />
-                            </TouchableOpacity>
+                            <Ionicons name="open-outline" size={14} color={theme.textSecondary} />
                         </View>
                         <Text style={[styles.kpiValue, { color: theme.text }]}>{stats.customers.value}</Text>
                         <View style={[styles.changeBadge, { backgroundColor: '#FEE2E2', marginTop: 8 }]}>
                             <Ionicons name="trending-down" size={10} color="#DC2626" />
                             <Text style={[styles.changeTextSmall, { color: '#DC2626' }]}>-2.1%</Text>
                         </View>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Products */}
-                    <View style={[styles.kpiCardHalf, { backgroundColor: theme.backgroundCard }]}>
+                    <TouchableOpacity
+                        style={[styles.kpiCardHalf, { backgroundColor: theme.backgroundCard }]}
+                        onPress={() => router.push('/admin/products')}
+                        activeOpacity={0.8}
+                    >
                         <View style={styles.kpiHeader}>
                             <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>إجمالي المنتجات</Text>
-                            <TouchableOpacity>
-                                <Ionicons name="open-outline" size={14} color={theme.textSecondary} />
-                            </TouchableOpacity>
+                            <Ionicons name="open-outline" size={14} color={theme.textSecondary} />
                         </View>
                         <Text style={[styles.kpiValue, { color: theme.text }]}>{stats.products.value}</Text>
                         <View style={[styles.changeBadge, { backgroundColor: '#D1FAE5', marginTop: 8 }]}>
                             <Ionicons name="trending-up" size={10} color="#059669" />
                             <Text style={[styles.changeTextSmall, { color: '#059669' }]}>+5.4%</Text>
                         </View>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Revenue Chart */}
@@ -257,16 +266,19 @@ export default function AdminOverview() {
                 {/* Orders & Customers Summary */}
                 <View style={styles.summaryRow}>
                     {/* Orders Card */}
-                    <View style={[styles.summaryCard, { backgroundColor: theme.backgroundCard }]}>
+                    <TouchableOpacity
+                        style={[styles.summaryCard, { backgroundColor: theme.backgroundCard }]}
+                        onPress={() => router.push('/admin/orders')}
+                    >
                         <View style={[styles.summaryIcon, { backgroundColor: '#EEF2FF' }]}>
                             <Ionicons name="checkmark-circle" size={24} color="#6366F1" />
                         </View>
                         <Text style={[styles.summaryValue, { color: theme.text }]}>{stats.orders.value}</Text>
                         <Text style={[styles.summaryLabel, { color: theme.text }]}>طلب</Text>
                         <Text style={[styles.summarySubtext, { color: '#F59E0B' }]}>
-                            {orderStats.pending} بانتظار التأكيد
+                            {stats.orders.change}
                         </Text>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Customers Card */}
                     <TouchableOpacity
@@ -382,21 +394,69 @@ export default function AdminOverview() {
                     </View>
                 </ScrollView>
 
-                {/* Quick Actions */}
-                <View style={styles.quickActions}>
+                {/* Quick Actions Grid */}
+                <Text style={[styles.sectionTitle, { color: theme.text, marginHorizontal: 16, marginTop: 8 }]}>
+                    إدارة المتجر
+                </Text>
+                <View style={styles.quickGrid}>
                     <TouchableOpacity
-                        style={[styles.quickActionBtn, { backgroundColor: theme.primary }]}
+                        style={[styles.gridItem, { backgroundColor: '#EEF2FF' }]}
                         onPress={() => router.push('/admin/orders')}
                     >
-                        <Ionicons name="receipt" size={20} color="#fff" />
-                        <Text style={styles.quickActionText}>إدارة الطلبات</Text>
+                        <View style={[styles.gridIcon, { backgroundColor: '#6366F1' }]}>
+                            <Ionicons name="receipt" size={20} color="#fff" />
+                        </View>
+                        <Text style={[styles.gridLabel, { color: '#1E1B4B' }]}>الطلبات</Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity
-                        style={[styles.quickActionBtn, { backgroundColor: '#10B981' }]}
+                        style={[styles.gridItem, { backgroundColor: '#F0FDF4' }]}
                         onPress={() => router.push('/admin/products')}
                     >
-                        <Ionicons name="cube" size={20} color="#fff" />
-                        <Text style={styles.quickActionText}>إدارة المنتجات</Text>
+                        <View style={[styles.gridIcon, { backgroundColor: '#22C55E' }]}>
+                            <Ionicons name="cube" size={20} color="#fff" />
+                        </View>
+                        <Text style={[styles.gridLabel, { color: '#064E3B' }]}>المنتجات</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.gridItem, { backgroundColor: '#FFF7ED' }]}
+                        onPress={() => router.push('/admin/revenue')}
+                    >
+                        <View style={[styles.gridIcon, { backgroundColor: '#F97316' }]}>
+                            <Ionicons name="bar-chart" size={20} color="#fff" />
+                        </View>
+                        <Text style={[styles.gridLabel, { color: '#7C2D12' }]}>الأرباح</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.gridItem, { backgroundColor: '#F0F9FF' }]}
+                        onPress={() => router.push('/admin/customers')}
+                    >
+                        <View style={[styles.gridIcon, { backgroundColor: '#0EA5E9' }]}>
+                            <Ionicons name="people" size={20} color="#fff" />
+                        </View>
+                        <Text style={[styles.gridLabel, { color: '#0C4A6E' }]}>الزبناء</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.gridItem, { backgroundColor: '#FAF5FF' }]}
+                        onPress={() => router.push('/admin/reviews')}
+                    >
+                        <View style={[styles.gridIcon, { backgroundColor: '#A855F7' }]}>
+                            <Ionicons name="star" size={20} color="#fff" />
+                        </View>
+                        <Text style={[styles.gridLabel, { color: '#4C1D95' }]}>المراجعات</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.gridItem, { backgroundColor: '#F8FAFC' }]}
+                        onPress={() => router.push('/admin/settings')}
+                    >
+                        <View style={[styles.gridIcon, { backgroundColor: '#64748B' }]}>
+                            <Ionicons name="settings" size={20} color="#fff" />
+                        </View>
+                        <Text style={[styles.gridLabel, { color: '#0F172A' }]}>الإعدادات</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -773,26 +833,33 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         color: '#fff',
     },
 
-    // Quick Actions
-    quickActions: {
+    // Quick Grid
+    quickGrid: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         paddingHorizontal: 16,
         gap: 12,
         marginBottom: 16,
     },
-    quickActionBtn: {
-        flex: 1,
-        flexDirection: 'row',
+    gridItem: {
+        width: (width - 32 - 24) / 3,
+        padding: 12,
+        borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 16,
-        borderRadius: 14,
-        gap: 8,
     },
-    quickActionText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '600',
+    gridIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    gridLabel: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        textAlign: 'center',
     },
 
     // Orders Section

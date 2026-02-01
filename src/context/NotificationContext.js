@@ -3,11 +3,11 @@
  * Manages user notifications, persistence, and state.
  */
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { useTranslation } from '../hooks/useTranslation';
 
@@ -20,8 +20,8 @@ Notifications.setNotificationHandler({
 });
 
 // Direct Firebase import to avoid circular dependency with AuthContext
-import { auth } from '../services/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../services/firebaseConfig';
 
 const NotificationContext = createContext();
 
@@ -60,6 +60,7 @@ export const NotificationProvider = ({ children }) => {
                     title: title,
                     message: body,
                     type: data?.type || 'info',
+                    scope: data?.scope || 'app', // Default to app
                     params: data || {},
                     time: new Date().toISOString(),
                     read: false,
@@ -77,8 +78,8 @@ export const NotificationProvider = ({ children }) => {
 
         return () => {
             unsubscribe();
-            Notifications.removeNotificationSubscription(notificationListener.current);
-            Notifications.removeNotificationSubscription(responseListener.current);
+            notificationListener.current && notificationListener.current.remove();
+            responseListener.current && responseListener.current.remove();
         };
     }, []);
 
@@ -124,16 +125,19 @@ export const NotificationProvider = ({ children }) => {
     };
 
     const addNotification = async (titleKey, messageKey, type = 'info', params = {}) => {
+        const { scope = 'app', ...otherParams } = params;
+
         // Translate content if they look like keys
-        const translatedTitle = t(titleKey, params);
-        const translatedMessage = t(messageKey, params);
+        const translatedTitle = t(titleKey, otherParams);
+        const translatedMessage = t(messageKey, otherParams);
 
         const newNotif = {
             id: Date.now().toString(),
             title: translatedTitle,
             message: translatedMessage,
             type,
-            params,
+            scope,
+            params: otherParams,
             time: new Date().toISOString(),
             read: false,
         };
@@ -145,7 +149,7 @@ export const NotificationProvider = ({ children }) => {
                 content: {
                     title: translatedTitle,
                     body: translatedMessage,
-                    data: { ...params, type, isLocal: true },
+                    data: { ...otherParams, type, scope, isLocal: true },
                 },
                 trigger: null, // Show immediately
             });
@@ -172,16 +176,23 @@ export const NotificationProvider = ({ children }) => {
 
 
 
-    const unreadCount = notifications.filter(n => !n.read).length;
+    const unreadCount = notifications.filter(n => !n.read && n.scope !== 'admin').length;
+    const adminUnreadCount = notifications.filter(n => !n.read && n.scope === 'admin').length;
+
+    const appNotifications = notifications.filter(n => n.scope !== 'admin');
+    const adminNotifications = notifications.filter(n => n.scope === 'admin');
 
     return (
         <NotificationContext.Provider value={{
             notifications,
+            appNotifications,
+            adminNotifications,
             addNotification,
             markAsRead,
             markAllAsRead,
             clearNotifications,
             unreadCount,
+            adminUnreadCount,
             loading,
             expoPushToken
         }}>

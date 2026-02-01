@@ -4,40 +4,38 @@
  * Dark Mode Supported 🌙
  */
 
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "@jamsch/expo-speech-recognition";
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    Modal,
-    TouchableOpacity,
     ActivityIndicator,
+    Alert,
     Dimensions,
     FlatList,
-    Alert,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
     useAnimatedStyle,
+    useSharedValue,
     withRepeat,
     withSpring,
-    useSharedValue,
     withTiming,
 } from 'react-native-reanimated';
-import { Audio } from 'expo-av';
-import * as Speech from 'expo-speech';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "@jamsch/expo-speech-recognition";
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import { useFavorites } from '../context/FavoritesContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
-import { useRouter } from 'expo-router';
 import { searchByVoice } from '../services/voiceProductSearch';
-import { speakResponse, stopSpeaking, generateResponse } from '../services/voiceResponseService';
+import { generateResponse, speakResponse, stopSpeaking } from '../services/voiceResponseService';
 import ProductCardSoko from './ProductCardSoko';
-import { useCartAnimation } from '../context/CartAnimationContext';
-import { useFavorites } from '../context/FavoritesContext';
-import { useAuth } from '../context/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -45,7 +43,7 @@ export default function VoiceSearchModal({ visible, onClose }) {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
-    const { triggerAddToCart } = useCartAnimation();
+    const { addToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { user } = useAuth();
     const styles = getStyles(theme, isDark);
@@ -120,6 +118,7 @@ export default function VoiceSearchModal({ visible, onClose }) {
     });
 
     const startListening = async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
         if (!granted) {
             Alert.alert(t('micPermission'), t('micPermissionDesc'));
@@ -145,6 +144,15 @@ export default function VoiceSearchModal({ visible, onClose }) {
         setState('idle');
     };
 
+    const handleTryAgain = () => {
+        setTranscript('');
+        setProducts([]);
+        setAiResponse('');
+        setState('idle');
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        startListening();
+    };
+
     const processVoiceSearch = async (text) => {
         setState('processing');
         stopSpeaking();
@@ -153,16 +161,20 @@ export default function VoiceSearchModal({ visible, onClose }) {
             setProducts(result.products);
             setSearchInfo(result);
 
+            // Log search to analytics (Firestore)
+            logQuery(text, result.keywords, result.products.length);
+
             if (result.products.length > 0) {
                 const userName = user?.displayName || (user?.email ? user.email.split('@')[0] : null);
                 const response = generateResponse(result.products, result.keywords, null, userName);
-                setTranscript(text); // Keep text visible
-                setAiResponse(response); // Need state for this
-                setState('speaking');
+                setTranscript(text);
+                setAiResponse(response);
 
-                // Talk back!
-                await speakResponse(response);
+                // Switch to results immediately for better UX while assistant talks
                 setState('results');
+
+                // Talk back in background
+                await speakResponse(response);
             } else {
                 const failMsg = "عذراً، لم أجد ما تبحثين عنه. هل يمكنكِ المحاولة بكلمات أخرى؟";
                 setTranscript(failMsg);
@@ -182,7 +194,7 @@ export default function VoiceSearchModal({ visible, onClose }) {
     };
 
     const handleAddToCart = (item) => {
-        triggerAddToCart({
+        addToCart({
             id: item.id,
             name: item.name,
             price: item.sale_price || item.price,
@@ -198,13 +210,6 @@ export default function VoiceSearchModal({ visible, onClose }) {
             price: item.price,
             image: item.images?.[0]?.src,
         });
-    };
-
-    const handleTryAgain = () => {
-        setTranscript('');
-        setProducts([]);
-        setState('idle');
-        requestPermissionAndStart();
     };
 
     const animatedMicStyle = useAnimatedStyle(() => ({

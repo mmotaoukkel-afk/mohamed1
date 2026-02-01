@@ -2,8 +2,8 @@
  * Cart Context - Kataraa
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
@@ -44,6 +44,8 @@ export const CartProvider = ({ children }) => {
     }
   }, [cartItems, loading, user, loadedUserEmail]);
 
+  const [animationState, setAnimationState] = useState(null);
+
   const loadCart = async () => {
     if (!user?.email) return;
 
@@ -80,6 +82,20 @@ export const CartProvider = ({ children }) => {
     });
   };
 
+  const triggerAddToCart = (product, sourcePosition) => {
+    // 1. Launch Animation
+    setAnimationState({
+      productImage: product.image || product.images?.[0]?.src || product.images?.[0],
+      sourcePosition,
+      timestamp: Date.now()
+    });
+
+    // 2. Add to actual cart state
+    addToCart(product);
+  };
+
+  const endAnimation = () => setAnimationState(null);
+
   const removeFromCart = (productId) => {
     setCartItems(prev => prev.filter(item => item.id !== productId));
   };
@@ -114,6 +130,9 @@ export const CartProvider = ({ children }) => {
     <CartContext.Provider value={{
       cartItems,
       addToCart,
+      triggerAddToCart,
+      animationState,
+      endAnimation,
       removeFromCart,
       updateQuantity,
       clearCart,

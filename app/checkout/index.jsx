@@ -3,35 +3,43 @@
  * Unified Shipping & Payment Flow with Premium UI
  */
 
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-    View,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
+    Alert,
     Image,
     KeyboardAvoidingView,
     Platform,
-    Alert
+    ScrollView,
+    StyleSheet,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import * as Linking from 'expo-linking';
 
-import { useCheckout } from '../../src/context/CheckoutContext';
-import { useCart } from '../../src/context/CartContext';
 import { useAuth } from '../../src/context/AuthContext';
+import { useCart } from '../../src/context/CartContext';
+import { useCheckout } from '../../src/context/CheckoutContext';
 import { useTheme } from '../../src/context/ThemeContext';
+import { countriesData, getCitiesByGovernorate, getGovernoratesByCountry } from '../../src/data/gccSyriaLocations';
+import { calculateShipping as calculateKuwaitShipping } from '../../src/data/kuwaitLocations';
 import { useTranslation } from '../../src/hooks/useTranslation';
+import { ARAB_COUNTRIES, getAllCountries, getAllCoupons, getDeliveryPrice, updateCouponUsage, validateCoupon } from '../../src/services/adminSettingsService';
 import api from '../../src/services/api';
+import {
+    formatCardNumber,
+    formatExpiry,
+    getCardType,
+    validateCVV,
+    validateExpiry,
+    validateLuhn
+} from '../../src/services/cardValidation';
 import PaymentService from '../../src/services/PaymentService';
-import { getAllCoupons, validateCoupon, updateCouponUsage, getAllCountries, getDeliveryPrice, ARAB_COUNTRIES } from '../../src/services/adminSettingsService';
-import { kuwaitGovernorates, kuwaitCities, calculateShipping } from '../../src/data/kuwaitLocations';
 
 // UI Kit
-import { Text, Input, Button, Surface, IconButton } from '../../src/components/ui';
+import { Button, IconButton, Input, Surface, Text } from '../../src/components/ui';
 
 export default function CheckoutScreen() {
     const router = useRouter();
@@ -50,7 +58,7 @@ export default function CheckoutScreen() {
     const [step, setStep] = useState(1); // 1 = shipping, 2 = payment
     const [showGovDropdown, setShowGovDropdown] = useState(false);
     const [showCityDropdown, setShowCityDropdown] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState('cod'); // cod, knet, card
+    const [paymentMethod, setPaymentMethod] = useState('cod'); // cod, knet, creditCard
     const [errors, setErrors] = useState({});
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -60,6 +68,8 @@ export default function CheckoutScreen() {
 
     // Credit Card states
     const [cardInfo, setCardInfo] = useState({ number: '', expiry: '', cvv: '' });
+    const [cardType, setCardTypeState] = useState(null);
+    const [cardErrors, setCardErrors] = useState({});
 
     // Coupon states
     const [couponCode, setCouponCode] = useState('');
@@ -109,13 +119,34 @@ export default function CheckoutScreen() {
 
     const cartTotal = getCartTotal();
 
+    const useSavedAddress = (address) => {
+        setShippingInfo({ ...address.data });
+        setSaveAddressChecked(false);
+        // If it's Kuwait, recalculate shipping
+        if (address.data.country === 'kuwait' || address.data.country === 'KW') {
+            const res = calculateKuwaitShipping(address.data.governorate, cartTotal, address.data.city);
+            setShippingFee(res.fee);
+        }
+    };
+
+    const useSavedCard = (card) => {
+        setCardInfo({
+            number: card.number,
+            expiry: card.expiry,
+            cvv: '' // Always clear CVV for security
+        });
+        const type = getCardType(card.number);
+        setCardTypeState(type);
+        setSaveCardChecked(false);
+    };
+
     // Shipping calculation
     const getShippingFee = () => {
         if (appliedCoupon?.type === 'free_shipping') return 0;
 
         // Specialized logic for Kuwait
         if (shippingInfo.country === 'kuwait' || shippingInfo.country === 'KW') {
-            const res = calculateShipping(shippingInfo.governorate, cartTotal, shippingInfo.city);
+            const res = calculateKuwaitShipping(shippingInfo.governorate, cartTotal, shippingInfo.city);
             return res.fee;
         }
 
@@ -130,7 +161,8 @@ export default function CheckoutScreen() {
     const formatPrice = (price) => {
         const country = allCountries.find(c => c.id === shippingInfo.country || c.code === shippingInfo.country);
         const symbol = country?.currency || t('currency');
-        return `${parseFloat(price || 0).toFixed(3)} ${symbol}`;
+        const decimals = symbol === 'KWD' ? 3 : 2;
+        return `${parseFloat(price || 0).toFixed(decimals)} ${symbol}`;
     };
 
     const updateField = (field, value) => {
@@ -143,26 +175,28 @@ export default function CheckoutScreen() {
         updateField('city', '');
         updateField('governorate', '');
 
-        // Update suggested cities
-        if (country.id === 'kuwait') {
-            setSuggestedCities([]); // We show governorates first for Kuwait
-        } else if (country.id === 'morocco') {
-            // Use DELIVERY_ZONES from admin service (already handled by getDeliveryPrice fallback if we want)
-            // But for suggestions we can just map them
-            setSuggestedCities(['الدار البيضاء', 'الرباط', 'مراكش', 'طنجة', 'فاس', 'أكادير']);
-        } else {
-            // Basic suggestions for other Arab countries
-            const citySuggestions = {
-                saudi: ['الرياض', 'جددة', 'الدمام', 'مكة المكرمة', 'المدينة المنورة'],
-                uae: ['دبي', 'أبو ظبي', 'الشارقة', 'عجمان'],
-                qatar: ['الدوحة', 'الوكرة', 'الخور'],
-                egypt: ['القاهرة', 'الإسكندرية', 'الجيزة'],
-            };
-            setSuggestedCities(citySuggestions[country.id] || []);
+        // Update suggested cities/governorates
+        const countryData = countriesData[country.id];
+        if (countryData) {
+            // If the country has governorates defined in our new data
+            if (countryData.governorates && countryData.governorates.length > 0) {
+                setSuggestedCities([]); // We'll show governorates
+            } else {
+                // Fallback or cities only
+                setSuggestedCities([]);
+            }
         }
 
         setActiveZones(country.zones || []);
         setShowCountryDropdown(false);
+    };
+
+    const selectGovernorate = (govId) => {
+        updateField('governorate', govId);
+        updateField('city', ''); // Reset city when gov changes
+        const cities = getCitiesByGovernorate(shippingInfo.country, govId);
+        setSuggestedCities(cities);
+        setShowGovDropdown(false);
     };
 
     const selectCity = (city) => {
@@ -170,15 +204,14 @@ export default function CheckoutScreen() {
         setShowCityDropdown(false);
     };
 
-    const selectGovernorate = (govId) => {
-        updateField('governorate', govId);
-        const cities = kuwaitCities[govId] || [];
-        setSuggestedCities(cities);
-    };
-
     const getCountryName = () => {
         const country = allCountries.find(c => c.id === shippingInfo.country || c.code === shippingInfo.country);
         return country ? `${country.flag || '📍'} ${country.name}` : t('selectCountry');
+    };
+
+    const getCurrency = () => {
+        const country = allCountries.find(c => c.id === shippingInfo.country || c.code === shippingInfo.country);
+        return country?.currency || 'KWD';
     };
 
     const validateShipping = () => {
@@ -239,6 +272,31 @@ export default function CheckoutScreen() {
         }
     };
 
+    const validateCard = () => {
+        const e = {};
+
+        // Trim and remove spaces for accurate checking
+        const cleanNumber = cardInfo.number?.replace(/\s/g, '') || '';
+        const cleanExpiry = cardInfo.expiry?.trim() || '';
+        const cleanCVV = cardInfo.cvv?.trim() || '';
+
+        if (!cleanNumber || !validateLuhn(cleanNumber)) {
+            e.number = t('invalidCardNumber') || 'رقم بطاقة غير صالح';
+        }
+
+        if (!cleanExpiry || !validateExpiry(cleanExpiry)) {
+            e.expiry = t('invalidExpiry') || 'تاريخ غير صالح';
+        }
+
+        if (!cleanCVV || !validateCVV(cleanCVV, cardType?.label)) {
+            e.cvv = t('invalidCVV') || 'رمز غير صالح';
+        }
+
+        console.log('🛡️ [CardValidation] Errors:', Object.keys(e).length, e);
+        setCardErrors(e);
+        return Object.keys(e).length === 0;
+    };
+
     const handleApplyCoupon = () => {
         if (!couponCode.trim()) return;
 
@@ -260,7 +318,18 @@ export default function CheckoutScreen() {
     const handlePlaceOrder = async () => {
         setIsProcessing(true);
         try {
-            // 0. Verify Stock
+            // 0. Verify Stock & Card (if applicable)
+            console.log('🚀 [Checkout] Placing Order. Method:', paymentMethod);
+
+            if (paymentMethod === 'creditCard') {
+                const isValid = validateCard();
+                if (!isValid) {
+                    console.log('❌ [Checkout] Card Validation Failed');
+                    setIsProcessing(false);
+                    return;
+                }
+            }
+
             const isStockValid = await verifyStockBeforeOrder();
             if (!isStockValid) {
                 setIsProcessing(false);
@@ -286,8 +355,8 @@ export default function CheckoutScreen() {
                     address_2: `Block ${shippingInfo.block}`,
                     city: shippingInfo.city,
                     state: shippingInfo.governorate,
-                    postcode: 'KW',
-                    country: shippingInfo.country === 'kuwait' ? 'KW' : shippingInfo.country,
+                    postcode: shippingInfo.country?.toUpperCase() || 'KW',
+                    country: shippingInfo.country?.toUpperCase() || 'KW',
                     email: user?.email || 'guest@kataraa.com',
                     phone: shippingInfo.phone
                 },
@@ -297,8 +366,8 @@ export default function CheckoutScreen() {
                     address_2: `Block ${shippingInfo.block}`,
                     city: shippingInfo.city,
                     state: shippingInfo.governorate,
-                    postcode: 'KW',
-                    country: shippingInfo.country === 'kuwait' ? 'KW' : shippingInfo.country
+                    postcode: shippingInfo.country?.toUpperCase() || 'KW',
+                    country: shippingInfo.country?.toUpperCase() || 'KW'
                 },
                 line_items: cartItems.map(item => ({
                     product_id: item.id,
@@ -308,7 +377,7 @@ export default function CheckoutScreen() {
                     image: item.image
                 })),
                 total: finalTotal,
-                currency: 'KWD', // Or dynamic based on country
+                currency: getCurrency(),
                 shipping_total: currentShippingFee,
                 discount_total: discountAmount
             };
@@ -344,7 +413,8 @@ export default function CheckoutScreen() {
                     amount: finalTotal,
                     email: user?.email || 'guest@kataraa.com',
                     mobile: shippingInfo.phone,
-                    orderId: orderId.toString()
+                    orderId: orderId.toString(),
+                    currency: getCurrency()
                 };
 
                 const paymentResponse = await PaymentService.initiatePayment(paymentData);
@@ -424,6 +494,30 @@ export default function CheckoutScreen() {
                             <View style={styles.formContainer}>
                                 <Text variant="subtitle" style={{ marginBottom: 20, textAlign: 'center' }}>{t('shippingAddress')}</Text>
 
+                                {/* Saved Addresses Selection */}
+                                {savedAddresses.length > 0 && (
+                                    <View style={{ marginBottom: 24 }}>
+                                        <Text variant="label" style={{ marginBottom: 12 }}>{t('useSavedAddress') || 'استخدام عنوان محفوظ'}</Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                            {savedAddresses.map((addr) => (
+                                                <TouchableOpacity
+                                                    key={addr.id}
+                                                    style={[
+                                                        styles.pillChip,
+                                                        { backgroundColor: tokens.colors.card, borderColor: tokens.colors.border, borderWidth: 1 }
+                                                    ]}
+                                                    onPress={() => useSavedAddress(addr)}
+                                                >
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                        <Ionicons name="location" size={16} color={tokens.colors.primary} style={{ marginRight: 6 }} />
+                                                        <Text variant="body" weight="bold">{addr.title || addr.data?.fullName}</Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                )}
+
                                 {/* Arab Country Suggestions - Horizontal Scroll */}
                                 <View style={{ marginBottom: 24 }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -434,7 +528,7 @@ export default function CheckoutScreen() {
                                     </View>
 
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
-                                        {ARAB_COUNTRIES.map(country => (
+                                        {allCountries.filter(c => ['kuwait', 'saudi', 'uae', 'qatar', 'bahrain', 'oman', 'syria'].includes(c.id)).map(country => (
                                             <TouchableOpacity
                                                 key={country.id}
                                                 style={[
@@ -495,12 +589,12 @@ export default function CheckoutScreen() {
 
                                 {/* Location Details Suggestions */}
                                 <Surface variant="glass" padding="md" style={{ marginBottom: 32, borderRadius: 24 }}>
-                                    {/* Kuwait Specialized Governorate Select */}
-                                    {shippingInfo.country === 'kuwait' && (
+                                    {/* Dynamic Governorate Select for GCC/Syria */}
+                                    {getGovernoratesByCountry(shippingInfo.country).length > 0 && (
                                         <View style={{ marginBottom: 24 }}>
                                             <Text variant="label" style={{ marginBottom: 16 }}>{t('governorate')}</Text>
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                                {kuwaitGovernorates.map(gov => (
+                                                {getGovernoratesByCountry(shippingInfo.country).map(gov => (
                                                     <TouchableOpacity
                                                         key={gov.id}
                                                         style={[
@@ -560,7 +654,7 @@ export default function CheckoutScreen() {
                                     <View style={styles.row}>
                                         <View style={[styles.halfInput, { marginRight: 8 }]}>
                                             <Input
-                                                label={t('block')}
+                                                label={t('block') || 'القطعة'}
                                                 placeholder="1"
                                                 value={shippingInfo.block}
                                                 onChangeText={v => updateField('block', v)}
@@ -569,7 +663,7 @@ export default function CheckoutScreen() {
                                         </View>
                                         <View style={[styles.halfInput, { marginLeft: 8 }]}>
                                             <Input
-                                                label={t('street')}
+                                                label={t('street') || 'الشارع'}
                                                 placeholder="Street Name"
                                                 value={shippingInfo.street}
                                                 onChangeText={v => updateField('street', v)}
@@ -578,6 +672,32 @@ export default function CheckoutScreen() {
                                         </View>
                                     </View>
                                 </Surface>
+
+                                {/* City Selection Overlay */}
+                                {showCityDropdown && suggestedCities.length > 0 && (
+                                    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000, justifyContent: 'center', padding: 20 }]}>
+                                        <Surface variant="glass" padding="md" style={{ maxHeight: '80%', borderRadius: 32 }}>
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                                <Text variant="title">{t('selectCity')}</Text>
+                                                <IconButton icon="close" onPress={() => setShowCityDropdown(false)} />
+                                            </View>
+                                            <ScrollView>
+                                                <View style={{ gap: 10 }}>
+                                                    {suggestedCities.map((city, idx) => (
+                                                        <TouchableOpacity
+                                                            key={idx}
+                                                            style={[styles.paymentOption, shippingInfo.city === city && { borderColor: tokens.colors.primary }]}
+                                                            onPress={() => selectCity(city)}
+                                                        >
+                                                            <Text style={{ textAlign: 'right', flex: 1 }}>{city}</Text>
+                                                            {shippingInfo.city === city && <Ionicons name="checkmark-circle" size={20} color={tokens.colors.primary} />}
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </ScrollView>
+                                        </Surface>
+                                    </View>
+                                )}
 
                                 {/* Optional Coupon Section - More subtle */}
                                 <Surface variant="glass" padding="md" style={{ marginBottom: 28, borderRadius: 20, borderStyle: 'dashed', borderWidth: 1, borderColor: tokens.colors.primary + '30' }}>
@@ -675,7 +795,7 @@ export default function CheckoutScreen() {
                                 <Text variant="subtitle" style={{ marginBottom: 16 }}>{t('paymentMethod')}</Text>
 
                                 <View style={styles.paymentMethods}>
-                                    {['cod', 'knet', 'card'].map(method => (
+                                    {['cod', 'knet', 'creditCard'].map(method => (
                                         <TouchableOpacity
                                             key={method}
                                             style={[
@@ -698,7 +818,7 @@ export default function CheckoutScreen() {
                                     ))}
                                 </View>
 
-                                {paymentMethod === 'card' && (
+                                {paymentMethod === 'creditCard' && (
                                     <View style={styles.cardForm}>
                                         {/* Saved Cards */}
                                         {savedPaymentMethods.length > 0 && (
@@ -733,9 +853,16 @@ export default function CheckoutScreen() {
                                             label={t('cardNumber')}
                                             placeholder="XXXX XXXX XXXX XXXX"
                                             value={cardInfo.number}
-                                            onChangeText={v => setCardInfo({ ...cardInfo, number: v })}
+                                            onChangeText={v => {
+                                                const formatted = formatCardNumber(v);
+                                                setCardInfo({ ...cardInfo, number: formatted });
+                                                setCardTypeState(getCardType(v));
+                                                if (cardErrors.number) setCardErrors(prev => ({ ...prev, number: null }));
+                                            }}
                                             keyboardType="numeric"
-                                            maxLength={16}
+                                            maxLength={19}
+                                            error={cardErrors.number}
+                                            icon={<Ionicons name={cardType?.icon || "card-outline"} size={20} color={tokens.colors.primary} />}
                                         />
                                         <View style={styles.row}>
                                             <View style={[styles.halfInput, { marginRight: 8 }]}>
@@ -743,8 +870,13 @@ export default function CheckoutScreen() {
                                                     label={t('expiryDate')}
                                                     placeholder="MM/YY"
                                                     value={cardInfo.expiry}
-                                                    onChangeText={v => setCardInfo({ ...cardInfo, expiry: v })}
+                                                    onChangeText={v => {
+                                                        const formatted = formatExpiry(v);
+                                                        setCardInfo({ ...cardInfo, expiry: formatted });
+                                                        if (cardErrors.expiry) setCardErrors(prev => ({ ...prev, expiry: null }));
+                                                    }}
                                                     maxLength={5}
+                                                    error={cardErrors.expiry}
                                                 />
                                             </View>
                                             <View style={[styles.halfInput, { marginLeft: 8 }]}>
@@ -752,9 +884,13 @@ export default function CheckoutScreen() {
                                                     label={t('cvv')}
                                                     placeholder="123"
                                                     value={cardInfo.cvv}
-                                                    onChangeText={v => setCardInfo({ ...cardInfo, cvv: v })}
+                                                    onChangeText={v => {
+                                                        setCardInfo({ ...cardInfo, cvv: v.replace(/\D/g, '') });
+                                                        if (cardErrors.cvv) setCardErrors(prev => ({ ...prev, cvv: null }));
+                                                    }}
                                                     keyboardType="numeric"
-                                                    maxLength={3}
+                                                    maxLength={cardType?.label === 'American Express' ? 4 : 3}
+                                                    error={cardErrors.cvv}
                                                 />
                                             </View>
                                         </View>

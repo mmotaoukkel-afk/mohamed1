@@ -3,28 +3,25 @@
  * Next-Gen Design System
  */
 
-import React from 'react';
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  Dimensions,
-  TouchableOpacity,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
+import {
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CartItemSkeleton } from '../../src/components/SkeletonLoader';
+import { Button, IconButton, Surface, Text } from '../../src/components/ui';
 import { useCart } from '../../src/context/CartContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import currencyService from '../../src/services/currencyService';
-import { Text, Button, Surface, IconButton } from '../../src/components/ui';
-import { CartItemSkeleton } from '../../src/components/SkeletonLoader';
 
 const { width } = Dimensions.get('window');
 
@@ -105,7 +102,7 @@ export default function CartScreen() {
       <View style={[styles.orb, { backgroundColor: tokens.colors.primary + '10', top: -50, right: -50 }]} />
       <View style={[styles.orb, { backgroundColor: tokens.colors.accent + '10', bottom: 100, left: -50 }]} />
 
-      <SafeAreaView style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingTop: insets.top }}>
         <View style={styles.header}>
           <IconButton
             icon="arrow-back"
@@ -190,7 +187,7 @@ export default function CartScreen() {
             </Surface>
           </>
         )}
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
@@ -214,7 +211,7 @@ const getStyles = (tokens, isDark, insets) => StyleSheet.create({
   },
   listContent: {
     padding: 20,
-    paddingBottom: 250,
+    paddingBottom: 220, // Enough space for the floating footer
   },
   cartItemContainer: {
     marginBottom: 16,
@@ -280,7 +277,7 @@ const getStyles = (tokens, isDark, insets) => StyleSheet.create({
   },
   summaryFooter: {
     position: 'absolute',
-    bottom: insets.bottom + 90, // Position above the Custom Tab Bar
+    bottom: insets.bottom + 100, // Balanced position above the Tab Bar
     left: 20,
     right: 20,
     borderRadius: 24, // Full rounded card

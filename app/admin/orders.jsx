@@ -5,38 +5,34 @@
  * Features: Status Flow, Filters, City Distribution, Daily Performance
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    TouchableOpacity,
-    TextInput,
     Alert,
-    RefreshControl,
-    ScrollView,
-    Platform,
-    ActivityIndicator,
+    Dimensions,
+    FlatList,
     Image,
     Linking,
-    Dimensions,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import {
     ORDER_STATUS_CONFIG,
-    MOROCCAN_CITIES,
     formatOrderId,
-    getStatusFlow,
     getAllOrders,
-    updateOrderStatus,
-    cancelOrder,
-    getOrdersByCity,
     getDailyPerformance,
+    getOrdersByCity,
+    getWhatsAppLink,
+    updateOrderStatus
 } from '../../src/services/adminOrderService';
 import { getAllProducts } from '../../src/services/adminProductService';
 import currencyService from '../../src/services/currencyService';
@@ -60,212 +56,118 @@ export default function AdminOrders() {
     const styles = getStyles(theme, isDark);
 
     const [orders, setOrders] = useState([]);
-    const [cityDistribution, setCityDistribution] = useState([]);
-    const [dailyPerformance, setDailyPerformance] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [dashboardData, setDashboardData] = useState({
+        cityDistribution: [],
+        dailyPerformance: [],
+        loading: true
+    });
+    const [stats, setStats] = useState({
+        total: 0,
+        pending: 0,
+        processing: 0,
+        shipping: 0,
+        completed: 0,
+    });
     const [selectedStatus, setSelectedStatus] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [refreshing, setRefreshing] = useState(false);
     const [showStats, setShowStats] = useState(true);
     const [productsMap, setProductsMap] = useState({});
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async (isRefresh = false) => {
         try {
-            setLoading(true);
+            if (isRefresh) setRefreshing(true);
+            else setDashboardData(prev => ({ ...prev, loading: true }));
+
             const [ordersData, cityData, performanceData, allProducts] = await Promise.all([
-                getAllOrders({ limitCount: 100 }),
+                getAllOrders({ limitCount: 200 }),
                 getOrdersByCity(),
                 getDailyPerformance(),
-                getAllProducts({ limitCount: 500 }), // Increased limit for lookup
+                getAllProducts({ limitCount: 500 }),
             ]);
 
-            // Create lookup map
+            // Build products map for fast lookup
             const pMap = {};
             allProducts.forEach(p => {
                 pMap[p.id] = p;
             });
             setProductsMap(pMap);
-            console.log('📦 Loaded products for lookup:', Object.keys(pMap).length);
 
+            // Calculate quick stats
+            const newStats = {
+                total: ordersData.length,
+                pending: ordersData.filter(o => o.status === 'pending').length,
+                processing: ordersData.filter(o => o.status === 'processing').length,
+                shipping: ordersData.filter(o => o.status === 'shipped').length,
+                completed: ordersData.filter(o => o.status === 'delivered').length,
+            };
+
+            setStats(newStats);
             setOrders(ordersData);
-            setCityDistribution(cityData);
-            setDailyPerformance(performanceData);
+            setDashboardData({
+                cityDistribution: cityData,
+                dailyPerformance: performanceData,
+                loading: false
+            });
         } catch (error) {
             console.error('Error fetching orders data:', error);
             Alert.alert('خطأ', 'فشل تحميل بيانات الطلبات');
         } finally {
-            setLoading(false);
             setRefreshing(false);
+            setDashboardData(prev => ({ ...prev, loading: false }));
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
-    const onRefresh = useCallback(() => {
-        setRefreshing(true);
-        fetchData();
-    }, []);
+    const onRefresh = () => fetchData(true);
 
-    // Filter orders
-    const filteredOrders = orders.filter(o => {
-        const matchesStatus = selectedStatus === 'all' || o.status === selectedStatus;
+    const handleUpdateStatus = async (orderId, newStatus) => {
+        try {
+            await updateOrderStatus(orderId, newStatus);
+            fetchData();
+            Alert.alert('نجاح', 'تم تحديث حالة الطلب');
+        } catch (error) {
+            Alert.alert('خطأ', 'فشل تحديث الحالة');
+        }
+    };
+
+    const handleWhatsApp = (phone, orderId) => {
+        const message = `مرحباً، بخصوص طلبك رقم ${formatOrderId(orderId)} من Kataraa...`;
+        const url = getWhatsAppLink(phone, message);
+        Linking.openURL(url);
+    };
+
+    const handleExportCSV = () => {
+        console.log('Exporting orders to CSV...');
+        Alert.alert('تصدير البيانات', 'سيتم تنزيل ملف CSV يحتوي على جميع الطلبات قريباً.');
+    };
+
+    const filteredOrders = orders.filter(order => {
+        const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
         const searchLower = searchQuery.toLowerCase();
         const matchesSearch =
-            (o.id && o.id.toLowerCase().includes(searchQuery.toLowerCase())) ||
-            (o.email && o.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-            (o.customerName && o.customerName.toLowerCase().includes(searchQuery.toLowerCase())); // Note: assuming customerName exists
+            order.id.toLowerCase().includes(searchLower) ||
+            order.customerName?.toLowerCase().includes(searchLower) ||
+            order.customerPhone?.includes(searchLower);
         return matchesStatus && matchesSearch;
     });
 
-    // Stats calculation
-    const stats = {
-        total: orders.length,
-        pending: orders.filter(o => o.status === 'pending').length,
-        processing: orders.filter(o => ['confirmed', 'processing'].includes(o.status)).length,
-        shipping: orders.filter(o => ['shipped', 'out_for_delivery'].includes(o.status)).length,
-        completed: orders.filter(o => o.status === 'delivered').length,
-        totalRevenue: orders.reduce((sum, o) => sum + (o.status !== 'cancelled' ? (o.total || 0) : 0), 0),
-    };
-
-    const handleStatusUpdate = (orderId, currentStatus) => {
-        const config = ORDER_STATUS_CONFIG[currentStatus];
-        if (!config?.nextStatus) {
-            Alert.alert('تنبيه', 'هذا الطلب في مرحلته النهائية');
-            return;
-        }
-
-        const nextConfig = ORDER_STATUS_CONFIG[config.nextStatus];
-
-        Alert.alert(
-            'تحديث حالة الطلب',
-            `تغيير الحالة إلى "${nextConfig.label}"؟`,
-            [
-                { text: 'إلغاء', style: 'cancel' },
-                {
-                    text: 'تأكيد',
-                    onPress: async () => {
-                        try {
-                            await updateOrderStatus(orderId, config.nextStatus);
-                            // Optimistic update or refresh
-                            setOrders(prev => prev.map(o =>
-                                o.id === orderId ? { ...o, status: config.nextStatus } : o
-                            ));
-                            Alert.alert('تم التحديث', `تم تغيير الحالة إلى "${nextConfig.label}"`);
-                        } catch (error) {
-                            console.error('Update failed:', error);
-                            Alert.alert('خطأ', 'فشل تحديث الحالة');
-                        }
-                    }
-                }
-            ]
-        );
-    };
-
-    const handleCancelOrder = (orderId, customerName) => {
-        const order = orders.find(o => o.id === orderId);
-        const config = ORDER_STATUS_CONFIG[order?.status];
-
-        if (!config?.canCancel) {
-            Alert.alert('تنبيه', 'لا يمكن إلغاء هذا الطلب في حالته الحالية');
-            return;
-        }
-
-        Alert.alert(
-            'إلغاء الطلب',
-            `هل أنت متأكد من إلغاء طلب ${customerName}؟`,
-            [
-                { text: 'لا', style: 'cancel' },
-                {
-                    text: 'إلغاء الطلب',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await cancelOrder(orderId, 'Deleted by admin');
-                            setOrders(prev => prev.map(o =>
-                                o.id === orderId ? { ...o, status: 'cancelled' } : o
-                            ));
-                        } catch (error) {
-                            console.error('Cancel failed:', error);
-                            Alert.alert('خطأ', 'فشل إلغاء الطلب');
-                        }
-                    }
-                }
-            ]
-        );
-    };
-
-    const getCityName = (cityId) => {
-        const city = MOROCCAN_CITIES.find(c => c.id === cityId);
-        return city?.name || cityId;
-    };
-
-    const renderStatusTimeline = (currentStatus) => {
-        const flow = getStatusFlow(currentStatus);
-        const visibleSteps = flow.slice(0, 6); // Exclude cancelled/refunded
-
-        return (
-            <View style={styles.timeline}>
-                {visibleSteps.map((step, index) => (
-                    <View key={step.status} style={styles.timelineStep}>
-                        <View style={[
-                            styles.timelineDot,
-                            {
-                                backgroundColor: step.isCompleted || step.isCurrent
-                                    ? step.color
-                                    : theme.border
-                            }
-                        ]}>
-                            {(step.isCompleted || step.isCurrent) && (
-                                <Ionicons
-                                    name={step.isCompleted ? "checkmark" : step.icon}
-                                    size={10}
-                                    color="#fff"
-                                />
-                            )}
-                        </View>
-                        {index < visibleSteps.length - 1 && (
-                            <View style={[
-                                styles.timelineLine,
-                                { backgroundColor: step.isCompleted ? step.color : theme.border }
-                            ]} />
-                        )}
-                    </View>
-                ))}
-            </View>
-        );
-    };
-
     const renderOrder = ({ item }) => {
-        const statusConfig = ORDER_STATUS_CONFIG[item.status];
-        const timeAgo = getTimeAgo(item.createdAt);
-        const customer = item.customer || {};
-        const shipping = item.shipping_info || item.billing || {};
-
-        // Polymorphic field mapping for backward compatibility
-        const rawItems = item.line_items || item.items || [];
-        const items = rawItems.map(li => {
-            const prodId = li.product_id || li.id;
-            const lookup = productsMap[prodId] || {};
-            return {
-                ...li,
-                name: li.name || lookup.name || 'منتج غير معروف',
-                image: li.image || lookup.images?.[0]?.src || (typeof lookup.images?.[0] === 'string' ? lookup.images[0] : null),
-                price: li.price || lookup.sale_price || lookup.price || 0
-            };
-        });
+        const statusConfig = ORDER_STATUS_CONFIG[item.status] || ORDER_STATUS_CONFIG.pending;
 
         return (
-            <View style={[styles.orderCard, { backgroundColor: theme.backgroundCard }]}>
-                {/* Header */}
-                <View style={[styles.orderHeader, { borderBottomWidth: 1, borderBottomColor: theme.border, paddingBottom: 12, marginBottom: 12 }]}>
+            <TouchableOpacity
+                style={[styles.orderCard, { backgroundColor: theme.backgroundCard }]}
+                onPress={() => router.push(`/admin/order/${item.id}`)}
+            >
+                <View style={styles.orderHeader}>
                     <View>
-                        <Text style={[styles.orderId, { color: theme.primary }]}>
-                            {formatOrderId(item.id)}
-                        </Text>
-                        <Text style={[styles.orderTime, { color: theme.textMuted }]}>
-                            {timeAgo}
+                        <Text style={[styles.orderId, { color: theme.text }]}>{formatOrderId(item.id)}</Text>
+                        <Text style={[styles.orderDate, { color: theme.textMuted }]}>
+                            {getTimeAgo(item.createdAt)}
                         </Text>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
@@ -276,214 +178,198 @@ export default function AdminOrders() {
                     </View>
                 </View>
 
-                {/* Customer Profile Section */}
-                <View style={styles.customerProfileRow}>
-                    <View style={[styles.avatarContainer, { backgroundColor: theme.primary + '20' }]}>
-                        {customer.photoURL ? (
-                            <Image source={{ uri: customer.photoURL }} style={styles.customerAvatar} />
-                        ) : (
-                            <Ionicons name="person" size={24} color={theme.primary} />
-                        )}
-                    </View>
+                <View style={styles.customerInfo}>
+                    {item.customerImage ? (
+                        <Image source={{ uri: item.customerImage }} style={styles.customerAvatar} />
+                    ) : (
+                        <View style={styles.customerAvatarPlaceholder}>
+                            <Ionicons name="person" size={20} color={theme.primary} />
+                        </View>
+                    )}
                     <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={[styles.customerFullName, { color: theme.text }]}>{customer.displayName || shipping.first_name || item.customerName || item.customer || 'زبون'}</Text>
-                        <Text style={[styles.customerEmail, { color: theme.textMuted }]}>{customer.email || item.email || 'guest@kataraa.com'}</Text>
-                        <TouchableOpacity
-                            style={styles.phoneLink}
-                            onPress={() => Linking.openURL(`tel:${shipping.phone}`)}
-                        >
-                            <Ionicons name="call" size={14} color={theme.primary} />
-                            <Text style={[styles.phoneText, { color: theme.primary }]}>{shipping.phone}</Text>
-                        </TouchableOpacity>
+                        <Text style={[styles.customerName, { color: theme.text }]}>
+                            {item.customerName || 'زبون مجهول'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                            <Ionicons name="call-outline" size={12} color={theme.textSecondary} style={{ marginLeft: 4 }} />
+                            <Text style={[styles.customerSub, { color: theme.textSecondary, marginRight: 8 }]}>
+                                {item.customerPhone}
+                            </Text>
+                            {item.shippingCity ? (
+                                <>
+                                    <View style={{ width: 1, height: 12, backgroundColor: theme.border, marginHorizontal: 8 }} />
+                                    <Ionicons name="location-outline" size={12} color={theme.textSecondary} style={{ marginLeft: 4 }} />
+                                    <Text style={[styles.customerSub, { color: theme.textSecondary }]}>
+                                        {item.shippingCity}
+                                    </Text>
+                                </>
+                            ) : null}
+                        </View>
                     </View>
                 </View>
 
-                {/* Shipping Location Details */}
-                <View style={[styles.locationCard, { backgroundColor: theme.background + '50' }]}>
-                    <View style={styles.locationHeader}>
-                        <Ionicons name="location" size={16} color={theme.primary} />
-                        <Text style={[styles.locationTitle, { color: theme.textSecondary }]}>عنوان التوصيل:</Text>
-                    </View>
-                    <Text style={[styles.fullAddress, { color: theme.text }]}>
-                        {shipping.city || item.city || 'غ/م'} - {shipping.state || shipping.governorate || 'غ/م'}
-                    </Text>
-                    <Text style={[styles.addressDetails, { color: theme.textSecondary }]}>
-                        القطعة: {shipping.block || 'غ/م'} | الشارع: {shipping.street || shipping.address_1 || 'غ/م'}
-                    </Text>
-                    {(shipping.building || shipping.floor || shipping.apartment) && (
-                        <Text style={[styles.addressDetails, { color: theme.textSecondary }]}>
-                            بناية: {shipping.building || '-'} | دور: {shipping.floor || '-'} | شقة: {shipping.apartment || '-'}
+                <View style={styles.productsSummary}>
+                    {item.items?.slice(0, 2).map((product, idx) => {
+                        const productDetails = productsMap[product.id];
+                        return (
+                            <View key={idx} style={styles.productItemRow}>
+                                <View style={[styles.productImageContainer, { backgroundColor: theme.border }]}>
+                                    {productDetails?.images?.[0] ? (
+                                        <Image source={{ uri: productDetails.images[0] }} style={styles.productThumb} />
+                                    ) : (
+                                        <Ionicons name="image-outline" size={20} color={theme.textMuted} />
+                                    )}
+                                </View>
+                                <View style={{ flex: 1, marginLeft: 10 }}>
+                                    <Text style={[styles.productName, { color: theme.text }]} numberOfLines={1}>
+                                        {productDetails?.name || product.name || 'منتج'}
+                                    </Text>
+                                    <Text style={[styles.productPrice, { color: theme.textSecondary }]}>
+                                        {product.quantity} × {currencyService.formatAdminPrice(product.price)}
+                                    </Text>
+                                </View>
+                            </View>
+                        );
+                    })}
+                    {item.items?.length > 2 && (
+                        <Text style={[styles.moreItemsText, { color: theme.primary }]}>
+                            + {item.items.length - 2} منتجات أخرى
                         </Text>
                     )}
-                    {shipping.notes && (
-                        <View style={styles.notesContainer}>
-                            <Text style={[styles.notesLabel, { color: theme.error }]}>ملاحظات:</Text>
-                            <Text style={[styles.notesText, { color: theme.text }]}>{shipping.notes}</Text>
-                        </View>
-                    )}
                 </View>
 
-                {/* Product List Section */}
-                <View style={styles.productsSection}>
-                    <View style={styles.sectionHeader}>
-                        <Ionicons name="list" size={16} color={theme.textSecondary} />
-                        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>المنتجات ({items.length}):</Text>
-                    </View>
-                    {items.map((prod, idx) => (
-                        <View key={idx} style={styles.productItemRow}>
-                            <View style={[styles.productImageContainer, { backgroundColor: theme.background }]}>
-                                {prod.image ? (
-                                    <Image source={{ uri: prod.image }} style={styles.productThumb} />
-                                ) : (
-                                    <Ionicons name="image-outline" size={20} color={theme.textMuted} />
-                                )}
-                            </View>
-                            <View style={{ flex: 1, marginLeft: 10 }}>
-                                <Text style={[styles.productName, { color: theme.text }]} numberOfLines={1}>{prod.name || 'منتج غير معروف'}</Text>
-                                <Text style={[styles.productPrice, { color: theme.textMuted }]}>{currencyService.formatAdminPrice(prod.price)}</Text>
-                            </View>
-                            <View style={[styles.qtyBadge, { backgroundColor: theme.primary }]}>
-                                <Text style={styles.qtyText}>x{prod.quantity}</Text>
-                            </View>
-                        </View>
-                    ))}
-                </View>
-
-                {/* Footer and Actions */}
-                <View style={[styles.orderFooter, { borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 12, marginTop: 12 }]}>
+                <View style={styles.orderFooter}>
                     <View style={styles.orderMeta}>
-                        <Text style={[styles.metaText, { color: theme.textSecondary }]}>
-                            الإجمالي:
-                        </Text>
+                        <Text style={[styles.metaText, { color: theme.textMuted }]}>الإجمالي:</Text>
                         <Text style={[styles.orderTotal, { color: theme.primary }]}>
                             {currencyService.formatAdminPrice(item.total)}
                         </Text>
                     </View>
-
                     <View style={styles.orderActions}>
-                        {statusConfig.nextStatus && (
-                            <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: statusConfig.color }]}
-                                onPress={() => handleStatusUpdate(item.id, item.status)}
-                            >
-                                <Ionicons name="arrow-forward" size={18} color="#FFF" />
-                                <Text style={{ color: '#FFF', fontWeight: '600', marginLeft: 4 }}>{ORDER_STATUS_CONFIG[statusConfig.nextStatus].label}</Text>
-                            </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: '#25D36620' }]}
+                            onPress={() => handleWhatsApp(item.customerPhone, item.id)}
+                        >
+                            <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
+    const renderStatsSection = () => {
+        const { cityDistribution, dailyPerformance } = dashboardData;
+        const maxCityCount = Math.max(...cityDistribution.map(c => c.count), 1);
+        const maxDailyOrders = Math.max(...dailyPerformance.map(d => d.orders), 1);
+        const weeklyTotalOrders = dailyPerformance.reduce((sum, d) => sum + (d.orders || 0), 0);
+        const weeklyTotalRevenue = dailyPerformance.reduce((sum, d) => sum + (d.revenue || 0), 0);
+
+        return (
+            <View collapsable={false} style={styles.statsSection}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.quickStats}>
+                        <View style={[styles.quickStatCard, { backgroundColor: theme.backgroundCard }]}>
+                            <Text style={[styles.quickStatValue, { color: theme.text }]}>{stats.total}</Text>
+                            <Text style={[styles.quickStatLabel, { color: theme.textSecondary }]}>إجمالي</Text>
+                        </View>
+                        <View style={[styles.quickStatCard, { backgroundColor: '#F59E0B20' }]}>
+                            <Text style={[styles.quickStatValue, { color: '#F59E0B' }]}>{stats.pending}</Text>
+                            <Text style={[styles.quickStatLabel, { color: '#F59E0B' }]}>في الانتظار</Text>
+                        </View>
+                        <View style={[styles.quickStatCard, { backgroundColor: '#8B5CF620' }]}>
+                            <Text style={[styles.quickStatValue, { color: '#8B5CF6' }]}>{stats.processing}</Text>
+                            <Text style={[styles.quickStatLabel, { color: '#8B5CF6' }]}>قيد التجهيز</Text>
+                        </View>
+                        <View style={[styles.quickStatCard, { backgroundColor: '#0EA5E920' }]}>
+                            <Text style={[styles.quickStatValue, { color: '#0EA5E9' }]}>{stats.shipping}</Text>
+                            <Text style={[styles.quickStatLabel, { color: '#0EA5E9' }]}>في الشحن</Text>
+                        </View>
+                        <View style={[styles.quickStatCard, { backgroundColor: '#10B98120' }]}>
+                            <Text style={[styles.quickStatValue, { color: '#10B981' }]}>{stats.completed}</Text>
+                            <Text style={[styles.quickStatLabel, { color: '#10B981' }]}>مكتمل</Text>
+                        </View>
+                    </View>
+                </ScrollView>
+
+                <View collapsable={false} style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
+                    <View style={styles.chartHeader}>
+                        <Ionicons name="location" size={18} color={theme.primary} />
+                        <Text style={[styles.chartTitle, { color: theme.text }]}>توزيع المدن</Text>
+                    </View>
+                    {cityDistribution.length > 0 ? cityDistribution.map((city, index) => (
+                        <View key={city.id || index} style={styles.cityRow}>
+                            <Text style={[styles.cityName, { color: theme.text }]}>{city.name}</Text>
+                            <View style={styles.cityBarContainer}>
+                                <View
+                                    style={[
+                                        styles.cityBar,
+                                        {
+                                            width: `${(city.count / maxCityCount) * 100}%`,
+                                            backgroundColor: theme.primary,
+                                        }
+                                    ]}
+                                />
+                            </View>
+                            <Text style={[styles.cityCount, { color: theme.textSecondary }]}>{city.count}</Text>
+                        </View>
+                    )) : (
+                        <Text style={[styles.noDataText, { color: theme.textMuted }]}>لا توجد طلبات بعد</Text>
+                    )}
+                </View>
+
+                <View collapsable={false} style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
+                    <View style={styles.chartHeader}>
+                        <Ionicons name="trending-up" size={18} color={theme.primary} />
+                        <Text style={[styles.chartTitle, { color: theme.text }]}>الأداء اليومي</Text>
+                    </View>
+                    <View style={styles.performanceChart}>
+                        {dailyPerformance.length > 0 ? dailyPerformance.map((day, index) => (
+                            <View key={index} style={styles.performanceBar}>
+                                <View style={styles.barWrapper}>
+                                    <LinearGradient
+                                        colors={[theme.primary, theme.primaryDark]}
+                                        style={[
+                                            styles.bar,
+                                            { height: `${(day.orders / maxDailyOrders) * 100}%` }
+                                        ]}
+                                    />
+                                </View>
+                                <Text style={[styles.barLabel, { color: theme.textSecondary }]}>{day.day}</Text>
+                            </View>
+                        )) : (
+                            <Text style={[styles.noDataText, { color: theme.textMuted }]}>لا توجد بيانات</Text>
                         )}
-                        {statusConfig.canCancel && (
-                            <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: '#EF444420', marginLeft: 8 }]}
-                                onPress={() => handleCancelOrder(item.id, customer.displayName || shipping.first_name)}
-                            >
-                                <Ionicons name="close" size={18} color="#EF4444" />
-                            </TouchableOpacity>
-                        )}
+                    </View>
+                    <View style={styles.performanceSummary}>
+                        <View style={styles.summaryItem}>
+                            <Text style={[styles.summaryValue, { color: theme.text }]}>
+                                {weeklyTotalOrders}
+                            </Text>
+                            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>طلب هذا الأسبوع</Text>
+                        </View>
+                        <View style={styles.summaryItem}>
+                            <Text style={[styles.summaryValue, { color: theme.primary }]}>
+                                {currencyService.formatAdminPrice(weeklyTotalRevenue)}
+                            </Text>
+                            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>إيرادات الأسبوع</Text>
+                        </View>
                     </View>
                 </View>
             </View>
         );
     };
 
-    const renderStatsSection = () => (
-        <View style={styles.statsSection}>
-            {/* Quick Stats */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.quickStats}>
-                    <View style={[styles.quickStatCard, { backgroundColor: theme.backgroundCard }]}>
-                        <Text style={[styles.quickStatValue, { color: theme.text }]}>{stats.total}</Text>
-                        <Text style={[styles.quickStatLabel, { color: theme.textSecondary }]}>إجمالي</Text>
-                    </View>
-                    <View style={[styles.quickStatCard, { backgroundColor: '#F59E0B20' }]}>
-                        <Text style={[styles.quickStatValue, { color: '#F59E0B' }]}>{stats.pending}</Text>
-                        <Text style={[styles.quickStatLabel, { color: '#F59E0B' }]}>في الانتظار</Text>
-                    </View>
-                    <View style={[styles.quickStatCard, { backgroundColor: '#8B5CF620' }]}>
-                        <Text style={[styles.quickStatValue, { color: '#8B5CF6' }]}>{stats.processing}</Text>
-                        <Text style={[styles.quickStatLabel, { color: '#8B5CF6' }]}>قيد التجهيز</Text>
-                    </View>
-                    <View style={[styles.quickStatCard, { backgroundColor: '#0EA5E920' }]}>
-                        <Text style={[styles.quickStatValue, { color: '#0EA5E9' }]}>{stats.shipping}</Text>
-                        <Text style={[styles.quickStatLabel, { color: '#0EA5E9' }]}>في الشحن</Text>
-                    </View>
-                    <View style={[styles.quickStatCard, { backgroundColor: '#10B98120' }]}>
-                        <Text style={[styles.quickStatValue, { color: '#10B981' }]}>{stats.completed}</Text>
-                        <Text style={[styles.quickStatLabel, { color: '#10B981' }]}>مكتمل</Text>
-                    </View>
-                </View>
-            </ScrollView>
-
-            {/* City Distribution */}
-            <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
-                <View style={styles.chartHeader}>
-                    <Ionicons name="location" size={18} color={theme.primary} />
-                    <Text style={[styles.chartTitle, { color: theme.text }]}>توزيع المدن</Text>
-                </View>
-                {cityDistribution.length > 0 ? cityDistribution.map((city, index) => (
-                    <View key={city.id || index} style={styles.cityRow}>
-                        <Text style={[styles.cityName, { color: theme.text }]}>{city.name}</Text>
-                        <View style={styles.cityBarContainer}>
-                            <View
-                                style={[
-                                    styles.cityBar,
-                                    {
-                                        width: `${cityDistribution.length > 0 ? (city.count / Math.max(...cityDistribution.map(c => c.count), 1)) * 100 : 0}%`,
-                                        backgroundColor: theme.primary,
-                                    }
-                                ]}
-                            />
-                        </View>
-                        <Text style={[styles.cityCount, { color: theme.textSecondary }]}>{city.count}</Text>
-                    </View>
-                )) : (
-                    <Text style={[styles.noDataText, { color: theme.textMuted }]}>لا توجد طلبات بعد</Text>
-                )}
+    const renderStatsHeader = () => {
+        return (
+            <View collapsable={false}>
+                {showStats ? renderStatsSection() : null}
             </View>
-
-            {/* Daily Performance */}
-            <View style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
-                <View style={styles.chartHeader}>
-                    <Ionicons name="trending-up" size={18} color={theme.primary} />
-                    <Text style={[styles.chartTitle, { color: theme.text }]}>الأداء اليومي</Text>
-                </View>
-                <View style={styles.performanceChart}>
-                    {dailyPerformance.length > 0 ? dailyPerformance.map((day, index) => (
-                        <View key={index} style={styles.performanceBar}>
-                            <View style={styles.barWrapper}>
-                                <LinearGradient
-                                    colors={[theme.primary, theme.primaryDark]}
-                                    style={[
-                                        styles.bar,
-                                        { height: `${dailyPerformance.length > 0 ? (day.orders / Math.max(...dailyPerformance.map(d => d.orders), 1)) * 100 : 0}%` }
-                                    ]}
-                                />
-                            </View>
-                            <Text style={[styles.barLabel, { color: theme.textSecondary }]}>{day.day}</Text>
-                        </View>
-                    )) : (
-                        <Text style={[styles.noDataText, { color: theme.textMuted }]}>لا توجد بيانات</Text>
-                    )}
-                </View>
-                <View style={styles.performanceSummary}>
-                    <View style={styles.summaryItem}>
-                        <Text style={[styles.summaryValue, { color: theme.text }]}>
-                            {dailyPerformance.reduce((sum, d) => sum + (d.orders || 0), 0)}
-                        </Text>
-                        <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>طلب هذا الأسبوع</Text>
-                    </View>
-                    <View style={styles.summaryItem}>
-                        <Text style={[styles.summaryValue, { color: theme.primary }]}>
-                            {currencyService.formatAdminPrice(dailyPerformance.reduce((sum, d) => sum + (d.revenue || 0), 0))}
-                        </Text>
-                        <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>إيرادات الأسبوع</Text>
-                    </View>
-                </View>
-            </View>
-        </View>
-    );
+        );
+    };
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {/* Header */}
             <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
                 <SafeAreaView edges={['top']}>
                     <View style={styles.headerRow}>
@@ -491,6 +377,12 @@ export default function AdminOrders() {
                             <Ionicons name="arrow-back" size={24} color="#fff" />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>مركز الطلبات</Text>
+                        <TouchableOpacity
+                            style={styles.statsToggleBtn}
+                            onPress={handleExportCSV}
+                        >
+                            <Ionicons name="download-outline" size={22} color="#fff" />
+                        </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.statsToggleBtn}
                             onPress={() => setShowStats(!showStats)}
@@ -501,7 +393,6 @@ export default function AdminOrders() {
                 </SafeAreaView>
             </LinearGradient>
 
-            {/* Search */}
             <View style={styles.searchContainer}>
                 <View style={[styles.searchBox, { backgroundColor: theme.backgroundCard }]}>
                     <Ionicons name="search" size={20} color={theme.textMuted} />
@@ -520,56 +411,56 @@ export default function AdminOrders() {
                 </View>
             </View>
 
-            {/* Status Filters */}
-            <FlatList
-                horizontal
-                data={STATUS_FILTERS}
-                keyExtractor={(item) => item.id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filtersContainer}
-                renderItem={({ item }) => {
-                    const count = item.id === 'all'
-                        ? orders.length
-                        : orders.filter(o => o.status === item.id).length;
-                    const statusColor = ORDER_STATUS_CONFIG[item.id]?.color || theme.primary;
+            <View style={{ height: 50 }}>
+                <FlatList
+                    horizontal
+                    data={STATUS_FILTERS}
+                    keyExtractor={(item) => item.id}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filtersContainer}
+                    renderItem={({ item }) => {
+                        const count = item.id === 'all'
+                            ? orders.length
+                            : orders.filter(o => o.status === item.id).length;
+                        const statusColor = ORDER_STATUS_CONFIG[item.id]?.color || theme.primary;
 
-                    return (
-                        <TouchableOpacity
-                            style={[
-                                styles.filterChip,
-                                {
-                                    backgroundColor: selectedStatus === item.id
-                                        ? (item.id === 'all' ? theme.primary : statusColor)
-                                        : theme.backgroundCard,
-                                }
-                            ]}
-                            onPress={() => setSelectedStatus(item.id)}
-                        >
-                            <Text style={[
-                                styles.filterText,
-                                { color: selectedStatus === item.id ? '#fff' : theme.text }
-                            ]}>
-                                {item.label}
-                            </Text>
-                            {count > 0 && (
-                                <View style={[
-                                    styles.filterBadge,
-                                    { backgroundColor: selectedStatus === item.id ? 'rgba(255,255,255,0.3)' : theme.border }
+                        return (
+                            <TouchableOpacity
+                                style={[
+                                    styles.filterChip,
+                                    {
+                                        backgroundColor: selectedStatus === item.id
+                                            ? (item.id === 'all' ? theme.primary : statusColor)
+                                            : theme.backgroundCard,
+                                    }
+                                ]}
+                                onPress={() => setSelectedStatus(item.id)}
+                            >
+                                <Text style={[
+                                    styles.filterText,
+                                    { color: selectedStatus === item.id ? '#fff' : theme.text }
                                 ]}>
-                                    <Text style={[
-                                        styles.filterBadgeText,
-                                        { color: selectedStatus === item.id ? '#fff' : theme.textSecondary }
+                                    {item.label}
+                                </Text>
+                                {count > 0 && (
+                                    <View style={[
+                                        styles.filterBadge,
+                                        { backgroundColor: selectedStatus === item.id ? 'rgba(255,255,255,0.3)' : theme.border }
                                     ]}>
-                                        {count}
-                                    </Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    );
-                }}
-            />
+                                        <Text style={[
+                                            styles.filterBadgeText,
+                                            { color: selectedStatus === item.id ? '#fff' : theme.textSecondary }
+                                        ]}>
+                                            {count}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        );
+                    }}
+                />
+            </View>
 
-            {/* Orders List with Stats Header */}
             <FlatList
                 data={filteredOrders}
                 keyExtractor={(item) => item.id}
@@ -579,7 +470,7 @@ export default function AdminOrders() {
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
                 }
-                ListHeaderComponent={showStats ? renderStatsSection : null}
+                ListHeaderComponent={renderStatsHeader}
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Ionicons name="receipt-outline" size={64} color={theme.textMuted} />
@@ -593,15 +484,16 @@ export default function AdminOrders() {
     );
 }
 
-// Helper function for time ago
 const getTimeAgo = (dateString) => {
-    const date = new Date(dateString);
+    if (!dateString) return 'منذ وقت طويل';
+    const date = dateString.toDate ? dateString.toDate() : new Date(dateString);
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
+    if (diffMins < 1) return 'الآن';
     if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
     if (diffHours < 24) return `منذ ${diffHours} ساعة`;
     return `منذ ${diffDays} يوم`;
@@ -635,118 +527,109 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         color: '#fff',
     },
     statsToggleBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        padding: 8,
+        borderRadius: 12,
         backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        marginLeft: 8,
     },
     searchContainer: {
         padding: 16,
-        paddingBottom: 8,
     },
     searchBox: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 12,
-        borderRadius: 12,
-        gap: 10,
+        paddingHorizontal: 12,
+        height: 50,
+        borderRadius: 15,
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
     searchInput: {
         flex: 1,
-        fontSize: 15,
+        marginLeft: 10,
+        fontSize: 14,
         textAlign: 'right',
     },
     filtersContainer: {
         paddingHorizontal: 16,
         paddingBottom: 12,
-        gap: 8,
     },
     filterChip: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 12,
-        marginRight: 10,
-        minWidth: 80,
-        height: 44,
-        justifyContent: 'center',
-        gap: 8,
+        paddingVertical: 8,
+        borderRadius: 20,
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
     filterText: {
         fontSize: 13,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     filterBadge: {
+        marginLeft: 6,
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 10,
-        minWidth: 20,
-        alignItems: 'center',
     },
     filterBadgeText: {
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    listContent: {
-        padding: 16,
-        paddingTop: 4,
+        fontSize: 10,
+        fontWeight: 'bold',
     },
     statsSection: {
-        marginBottom: 16,
+        padding: 16,
     },
     quickStats: {
         flexDirection: 'row',
-        gap: 10,
-        paddingBottom: 16,
+        marginBottom: 16,
     },
     quickStatCard: {
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 12,
+        width: 100,
+        padding: 12,
+        borderRadius: 16,
+        marginRight: 12,
         alignItems: 'center',
-        minWidth: 80,
     },
     quickStatValue: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
     },
     quickStatLabel: {
-        fontSize: 11,
+        fontSize: 10,
         marginTop: 4,
     },
     chartCard: {
         padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
+        borderRadius: 20,
+        marginBottom: 16,
     },
     chartHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
         marginBottom: 16,
     },
     chartTitle: {
         fontSize: 15,
-        fontWeight: '600',
+        fontWeight: 'bold',
+        marginLeft: 8,
     },
     cityRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 12,
     },
     cityName: {
         width: 80,
-        fontSize: 13,
+        fontSize: 12,
     },
     cityBarContainer: {
         flex: 1,
         height: 8,
-        backgroundColor: theme.border,
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 4,
-        marginHorizontal: 8,
+        marginHorizontal: 12,
         overflow: 'hidden',
     },
     cityBar: {
@@ -754,77 +637,82 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         borderRadius: 4,
     },
     cityCount: {
-        width: 24,
+        width: 30,
         fontSize: 12,
-        textAlign: 'right',
+        fontWeight: 'bold',
+        textAlign: 'left',
     },
     performanceChart: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'flex-end',
-        height: 100,
+        justifyContent: 'space-between',
+        height: 150,
+        paddingTop: 20,
         marginBottom: 16,
     },
     performanceBar: {
-        flex: 1,
         alignItems: 'center',
+        flex: 1,
     },
     barWrapper: {
-        width: 20,
-        height: 80,
-        backgroundColor: theme.border,
-        borderRadius: 10,
-        overflow: 'hidden',
+        height: 100,
+        width: 12,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        borderRadius: 6,
         justifyContent: 'flex-end',
+        overflow: 'hidden',
     },
     bar: {
         width: '100%',
-        borderRadius: 10,
+        borderRadius: 6,
     },
     barLabel: {
-        fontSize: 11,
-        marginTop: 6,
+        fontSize: 10,
+        marginTop: 8,
     },
     performanceSummary: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
-        paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: theme.border,
+        borderTopColor: 'rgba(0,0,0,0.05)',
+        paddingTop: 16,
     },
     summaryItem: {
+        flex: 1,
         alignItems: 'center',
     },
     summaryValue: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 'bold',
     },
     summaryLabel: {
-        fontSize: 12,
+        fontSize: 10,
         marginTop: 4,
     },
-    noDataText: {
-        fontSize: 14,
-        textAlign: 'center',
-        flex: 1,
-        paddingVertical: 30,
+    listContent: {
+        paddingHorizontal: 16,
+        paddingBottom: 100,
     },
     orderCard: {
         padding: 16,
-        borderRadius: 16,
+        borderRadius: 20,
         marginBottom: 12,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
     },
     orderHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 12,
+        marginBottom: 16,
     },
     orderId: {
         fontSize: 15,
         fontWeight: 'bold',
     },
-    orderTime: {
+    orderDate: {
         fontSize: 12,
         marginTop: 2,
     },
@@ -833,122 +721,49 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 10,
         paddingVertical: 5,
-        borderRadius: 8,
-        gap: 4,
+        borderRadius: 12,
     },
     statusText: {
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: 11,
+        fontWeight: 'bold',
+        marginLeft: 4,
     },
-    timeline: {
+    customerInfo: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 16,
-        paddingHorizontal: 8,
-    },
-    timelineStep: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    timelineDot: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    timelineLine: {
-        flex: 1,
-        height: 2,
-        marginHorizontal: 2,
-    },
-    customerProfileRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    avatarContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     customerAvatar: {
-        width: '100%',
-        height: '100%',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#f0f0f0',
     },
-    customerFullName: {
-        fontSize: 15,
-        fontWeight: 'bold',
-    },
-    customerEmail: {
-        fontSize: 12,
-        marginBottom: 4,
-    },
-    phoneLink: {
-        flexDirection: 'row',
+    customerAvatarPlaceholder: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        justifyContent: 'center',
         alignItems: 'center',
-        gap: 4,
     },
-    phoneText: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    locationCard: {
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 16,
-    },
-    locationHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 4,
-    },
-    locationTitle: {
-        fontSize: 11,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-    },
-    fullAddress: {
+    customerName: {
         fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 2,
-    },
-    addressDetails: {
-        fontSize: 12,
-    },
-    notesContainer: {
-        marginTop: 8,
-        paddingTop: 8,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
-    },
-    notesLabel: {
-        fontSize: 11,
         fontWeight: 'bold',
-        marginBottom: 2,
+        textAlign: 'left',
     },
-    notesText: {
+    customerSub: {
         fontSize: 12,
-        fontStyle: 'italic',
+        textAlign: 'left',
     },
-    productsSection: {
-        gap: 10,
+    customerPhone: {
+        display: 'none', // Deprecated in favor of detailed view
     },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 4,
-    },
-    sectionTitle: {
-        fontSize: 11,
-        fontWeight: '600',
-        textTransform: 'uppercase',
+    productsSummary: {
+        marginBottom: 16,
     },
     productItemRow: {
         flexDirection: 'row',
@@ -974,40 +789,37 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     productPrice: {
         fontSize: 11,
     },
-    qtyBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 10,
-    },
-    qtyText: {
-        color: '#FFF',
+    moreItemsText: {
         fontSize: 11,
-        fontWeight: 'bold',
+        fontWeight: '600',
+        marginTop: 4,
     },
     orderFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.05)',
     },
     orderMeta: {
         flex: 1,
     },
     metaText: {
         fontSize: 11,
-        fontWeight: '600',
     },
     orderTotal: {
         fontSize: 18,
         fontWeight: 'bold',
+        marginTop: 2,
     },
     orderActions: {
         flexDirection: 'row',
         alignItems: 'center',
     },
     actionBtn: {
-        flexDirection: 'row',
+        width: 40,
         height: 40,
-        paddingHorizontal: 12,
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
@@ -1019,5 +831,10 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     emptyText: {
         fontSize: 16,
         marginTop: 16,
+    },
+    noDataText: {
+        textAlign: 'center',
+        paddingVertical: 20,
+        fontSize: 13,
     },
 });

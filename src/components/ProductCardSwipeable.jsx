@@ -3,24 +3,24 @@
  * Light version without heavy animations
  */
 
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
     // Image, // Replaced with expo-image
     ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
-    useSharedValue,
     useAnimatedStyle,
-    withSpring,
+    useSharedValue,
     withSequence,
+    withSpring,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
 
@@ -41,6 +41,7 @@ const ProductCardSwipeable = React.memo(({
 
     const [activeIndex, setActiveIndex] = useState(0);
     const scrollRef = useRef(null);
+    const cardRef = useRef(null);
 
     // Heart animation only (no continuous animations)
     const heartScale = useSharedValue(1);
@@ -90,7 +91,7 @@ const ProductCardSwipeable = React.memo(({
     }, [cardWidth]);
 
     return (
-        <View style={[styles.card, { width: cardWidth }]}>
+        <View ref={cardRef} style={[styles.card, { width: cardWidth }]} collapsable={false}>
             {/* Image Section */}
             <TouchableOpacity activeOpacity={0.9} onPress={() => onPress?.(item)}>
                 <View style={styles.imageContainer}>
@@ -184,7 +185,7 @@ const ProductCardSwipeable = React.memo(({
             {!isOutOfStock ? (
                 <TouchableOpacity
                     style={styles.addToCartBtn}
-                    onPress={() => onAddToCart?.(item)}
+                    onPress={() => onAddToCart?.(item, cardRef)}
                 >
                     <LinearGradient
                         colors={[theme.primary, theme.primaryDark]}

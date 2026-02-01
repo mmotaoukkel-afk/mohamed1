@@ -2,18 +2,19 @@
  * Payment Screen - Kataraa
  * Updated: Order placed, team sends payment link
  */
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { useCheckout } from '../../src/context/CheckoutContext';
-import { useCart } from '../../src/context/CartContext';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
+import { useCart } from '../../src/context/CartContext';
+import { useCheckout } from '../../src/context/CheckoutContext';
 import api from '../../src/services/api';
 import PaymentService from '../../src/services/PaymentService';
-import * as Linking from 'expo-linking';
 
 export default function PaymentScreen() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export default function PaymentScreen() {
   const formatPrice = (price) => `${parseFloat(price || 0).toFixed(3)} د.ك`;
 
   const handlePlaceOrder = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
       const orderData = {
@@ -102,7 +104,13 @@ export default function PaymentScreen() {
       <LinearGradient colors={['#667eea', '#764ba2']} style={s.header}>
         <SafeAreaView>
           <View style={s.headerRow}>
-            <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
+              style={s.backBtn}
+            >
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             <Text style={s.headerTitle}>تأكيد الطلب</Text>
@@ -124,34 +132,45 @@ export default function PaymentScreen() {
           {shippingInfo.building && <Text style={s.txt}>مبنى {shippingInfo.building}</Text>}
         </View>
 
-        {/* Payment Method Info */}
+        {/* Payment Methods Selection */}
         <View style={s.card}>
           <View style={s.cardHeader}>
             <Ionicons name="card" size={20} color="#667eea" />
-            <Text style={s.cardTitle}>طريقة الدفع</Text>
+            <Text style={s.cardTitle}>اختر طريقة الدفع</Text>
           </View>
 
-          <View style={s.paymentInfo}>
-            <Ionicons name="shield-checkmark" size={40} color="#4CAF50" />
-            <Text style={s.paymentTitle}>حوالة مصرفية آمنة</Text>
-            <Text style={s.paymentDesc}>
-              خلك مطمئن... فريقنا يتواصل معك قريباً ويرسل لك رابط الدفع عشان نأكد طلبك ونجهّزه لك بأسرع وقت
+          <View style={s.paymentOption}>
+            <LinearGradient
+              colors={['#f8f9fa', '#fff']}
+              style={s.paymentInner}
+            >
+              <View style={s.paymentIconRow}>
+                <View style={[s.payIcon, { backgroundColor: '#00BFA5' }]}>
+                  <Text style={s.payIconTxt}>K</Text>
+                </View>
+                <View style={[s.payIcon, { backgroundColor: '#1A1F71' }]}>
+                  <Text style={s.payIconTxt}>V</Text>
+                </View>
+                <View style={[s.payIcon, { backgroundColor: '#000' }]}>
+                  <Ionicons name="logo-apple" size={20} color="#fff" />
+                </View>
+              </View>
+              <View style={s.paymentTxtBox}>
+                <Text style={s.paymentMethodTitle}>دفع إلكتروني آمن</Text>
+                <Text style={s.paymentMethodSub}>KNET, Visa, Mastercard, Apple Pay</Text>
+              </View>
+              <Ionicons name="checkmark-circle" size={24} color="#667eea" />
+            </LinearGradient>
+          </View>
+
+          <View style={s.securityNotice}>
+            <View style={s.securityBadge}>
+              <Ionicons name="shield-checkmark" size={14} color="#4CAF50" />
+              <Text style={s.securityLabel}>تشفير SSL 256-bit آمن</Text>
+            </View>
+            <Text style={s.securityDesc}>
+              سيتم توجيهك إلى صفحة الدفع الآمنة (MyFatoorah) لإتمام العملية
             </Text>
-          </View>
-
-          <View style={s.securityRow}>
-            <View style={s.securityItem}>
-              <Ionicons name="lock-closed" size={16} color="#667eea" />
-              <Text style={s.securityText}>دفع آمن</Text>
-            </View>
-            <View style={s.securityItem}>
-              <Ionicons name="time" size={16} color="#667eea" />
-              <Text style={s.securityText}>تواصل سريع</Text>
-            </View>
-            <View style={s.securityItem}>
-              <Ionicons name="checkmark-circle" size={16} color="#667eea" />
-              <Text style={s.securityText}>ضمان الجودة</Text>
-            </View>
           </View>
         </View>
 
@@ -422,5 +441,78 @@ const s = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
     marginTop: 10,
+  },
+  // New Payment Styles
+  paymentOption: {
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#667eea',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  paymentInner: {
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  paymentIconRow: {
+    flexDirection: 'row',
+    gap: -8, // Stacking effect
+  },
+  payIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  payIconTxt: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  paymentTxtBox: {
+    flex: 1,
+  },
+  paymentMethodTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1a1a2e',
+    textAlign: 'right',
+  },
+  paymentMethodSub: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'right',
+  },
+  securityNotice: {
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+  },
+  securityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  securityLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  securityDesc: {
+    fontSize: 11,
+    color: '#888',
+    textAlign: 'center',
   },
 });

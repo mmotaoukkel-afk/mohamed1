@@ -3,44 +3,38 @@
  * 🌙 Floating glass cards with ethereal animations
  */
 
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  Dimensions,
   FlatList,
+  StyleSheet,
+  Text,
   // Image, 
   TouchableOpacity,
-  Dimensions,
+  View,
 } from 'react-native';
-import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useFavorites } from '../../src/context/FavoritesContext';
-import { useCart } from '../../src/context/CartContext';
-import { useTheme } from '../../src/context/ThemeContext';
-import { useTranslation } from '../../src/hooks/useTranslation';
-import { useSettings } from '../../src/context/SettingsContext';
-import { Surface } from '../../src/components/ui';
-import { BlurView } from 'expo-blur';
 import Animated, {
   FadeInDown,
-  FadeInRight,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
+  FadeInRight
 } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Surface } from '../../src/components/ui';
+import { useCart } from '../../src/context/CartContext';
+import { useFavorites } from '../../src/context/FavoritesContext';
+import { useSettings } from '../../src/context/SettingsContext';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useTranslation } from '../../src/hooks/useTranslation';
 
 const { width } = Dimensions.get('window');
 
 export default function FavoritesScreen() {
   const router = useRouter();
   const { favorites, toggleFavorite } = useFavorites();
-  const { addToCart } = useCart();
+  const { triggerAddToCart } = useCart();
   const { theme, isDark } = useTheme();
   const { t } = useTranslation();
   const { language } = useSettings();
@@ -60,9 +54,15 @@ export default function FavoritesScreen() {
     router.push(`/product/${id}`);
   }, [router]);
 
-  const handleAddToCart = React.useCallback((item) => {
-    addToCart({ ...item, quantity: 1 });
-  }, [addToCart]);
+  const handleAddToCart = React.useCallback((item, ref) => {
+    if (ref?.current) {
+      ref.current.measureInWindow((x, y, width, height) => {
+        triggerAddToCart({ ...item, quantity: 1 }, { x: x + width / 2, y: y + height / 2 });
+      });
+    } else {
+      triggerAddToCart({ ...item, quantity: 1 });
+    }
+  }, [triggerAddToCart]);
 
   const handleToggleFavorite = React.useCallback((item) => {
     toggleFavorite(item);
@@ -107,7 +107,12 @@ export default function FavoritesScreen() {
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => handleAddToCart(item)}
+            onPress={() => {
+              const ref = { current: null }; // This is tricky in a list without refs array
+              // Actually, simpler to just use onLayout or just trigger without ref if we don't want to overcomplicate
+              // But let's try to get coordinates if possible.
+              handleAddToCart(item);
+            }}
           >
             <LinearGradient
               colors={[theme.primary + '30', theme.primary + '20']}

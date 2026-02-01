@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    FlatList,
-    Image,
-    Alert,
-    ActivityIndicator,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import Animated, { FadeInDown, FadeOut, Layout } from 'react-native-reanimated';
 import socialService from '../services/socialService';
 
@@ -57,7 +57,7 @@ const ReviewSection = ({ productId, user, theme, isDark, t }) => {
             userPhoto: user.photoURL || null,
             text: newComment.trim(),
             rating: rating,
-            createdAt: new Date(),
+            timestamp: new Date(), // Changed from createdAt to timestamp
         };
 
         setComments(prev => [optimisticComment, ...prev]);
@@ -158,7 +158,7 @@ const ReviewSection = ({ productId, user, theme, isDark, t }) => {
                             <View style={styles.ratingRow}>
                                 {renderStars(item.rating)}
                                 <Text style={[styles.date, { color: theme.textMuted }]}>
-                                    • {item.createdAt.toLocaleDateString()}
+                                    • {item.timestamp?.toLocaleDateString ? item.timestamp.toLocaleDateString() : new Date(item.timestamp).toLocaleDateString()}
                                 </Text>
                             </View>
                         </View>

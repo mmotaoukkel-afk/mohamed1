@@ -5,18 +5,18 @@
  */
 
 import {
+    addDoc,
     collection,
+    deleteDoc,
     doc,
     getDoc,
     getDocs,
-    addDoc,
-    updateDoc,
-    deleteDoc,
-    query,
-    where,
-    orderBy,
     limit,
-    serverTimestamp
+    orderBy,
+    query,
+    serverTimestamp,
+    updateDoc,
+    where
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
@@ -24,6 +24,7 @@ const PRODUCTS_COLLECTION = 'products';
 
 // Product categories from kataraa.com
 export const PRODUCT_CATEGORIES = [
+    { id: 'skincare', name: 'عناية بالبشرة', icon: '✨', slug: 'العناية-بالبشرة' },
     { id: 'serum', name: 'سيروم', icon: '💧', slug: 'سيروم' },
     { id: 'sunscreen', name: 'واقي الشمس', icon: '☀️', slug: 'واقي-الشمس' },
     { id: 'moisturizer', name: 'مرطب للبشرة', icon: '✨', slug: 'مرطب-للبشرة' },
@@ -33,7 +34,7 @@ export const PRODUCT_CATEGORIES = [
     { id: 'eyecare', name: 'العناية بالعين', icon: '👁️', slug: 'العناية-بالعين' },
     { id: 'haircare', name: 'العناية بالشعر', icon: '💇', slug: 'العناية-بالشعر' },
     { id: 'acne', name: 'حب الشباب', icon: '🎯', slug: 'حب-الشباب-والبثور' },
-    { id: 'antiaging', name: 'مكافحة التجاعيد', icon: '⏳', slug: 'تجاعيد-البشره' },
+    { id: 'antiaging', name: 'التجاعيد', icon: '⏳', slug: 'تجاعيد-البشره' },
     { id: 'pads', name: 'مسحات', icon: '🧴', slug: 'مسحات' },
     { id: 'makeup', name: 'المكياج', icon: '💄', slug: 'المكياج' },
 ];
@@ -60,7 +61,7 @@ export const DEFAULT_PRODUCT = {
     tags: [],
     images: [],
     variants: [],
-    status: PRODUCT_STATUS.DRAFT,
+    status: PRODUCT_STATUS.ACTIVE,
     sku: '',
     barcode: '',
     weight: 0,
@@ -79,11 +80,13 @@ export const getAllProducts = async (options = {}) => {
         let q = collection(db, PRODUCTS_COLLECTION);
         const constraints = [];
 
-        // Only use simple queries to avoid needing composite indexes
-        if (category) {
-            constraints.push(where('category', '==', category));
-        } else if (status) {
-            // Only filter by status if no category filter (to avoid composite index)
+        // IMPORTANT: Categories is an array of OBJECTS, not strings!
+        // Structure: [{ id: 112, name: "حيونة جروه", slug: "..." }, ...]
+        // Firestore doesn't support querying nested object properties in arrays
+        // So we fetch products and filter client-side
+
+        // Only filter by status in Firestore query
+        if (status) {
             constraints.push(where('status', '==', status));
         }
 
@@ -92,14 +95,40 @@ export const getAllProducts = async (options = {}) => {
         q = query(q, ...constraints);
         const snapshot = await getDocs(q);
 
-        // Map documents and sort client-side by createdAt desc
-        const products = snapshot.docs.map(doc => ({
+        // Map documents
+        let products = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
         }));
 
-        // Sort by createdAt descending (client-side to avoid composite index)
-        // Add secondary sort by ID to ensure deterministic order (fixes duplicate/unstable pagination)
+        // CLIENT-SIDE category filtering
+        if (category) {
+            const categoryDef = PRODUCT_CATEGORIES.find(c => c.id === category || c.slug === category);
+
+            products = products.filter(product => {
+                if (!product.categories || !Array.isArray(product.categories)) {
+                    return false;
+                }
+
+                // Check if any category object in the array matches
+                return product.categories.some(cat => {
+                    if (typeof cat === 'string') {
+                        // Fallback: if it's somehow a string, match directly
+                        return cat === category || cat === categoryDef?.slug || cat === categoryDef?.name;
+                    } else if (cat && typeof cat === 'object') {
+                        // Match by slug (Arabic name) or name
+                        return cat.slug === categoryDef?.slug ||
+                            cat.name === categoryDef?.name ||
+                            cat.name === categoryDef?.slug ||
+                            cat.slug === category ||
+                            cat.name === category;
+                    }
+                    return false;
+                });
+            });
+        }
+
+        // Sort by createdAt descending (client-side)
         products.sort((a, b) => {
             const dateA = a.createdAt?.toDate?.() || new Date(0);
             const dateB = b.createdAt?.toDate?.() || new Date(0);
@@ -110,11 +139,6 @@ export const getAllProducts = async (options = {}) => {
             // Secondary sort by ID if timestamps are equal
             return a.id.localeCompare(b.id);
         });
-
-        // If we have status filter and category isn't used, filter additionally
-        if (status && category) {
-            return products.filter(p => p.status === status);
-        }
 
         return products;
     } catch (error) {

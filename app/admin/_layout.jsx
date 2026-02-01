@@ -5,8 +5,8 @@
  */
 
 import { Stack } from 'expo-router';
-import { useTheme } from '../../src/context/ThemeContext';
 import RequireAdmin from '../../src/components/RequireAdmin';
+import { useTheme } from '../../src/context/ThemeContext';
 
 export default function AdminLayout() {
     const { theme } = useTheme();
@@ -27,10 +27,12 @@ export default function AdminLayout() {
                 <Stack.Screen name="products" />
                 <Stack.Screen name="orders" />
                 <Stack.Screen name="customers" />
+                <Stack.Screen name="reviews" />
 
                 {/* Analytics & Reports */}
                 <Stack.Screen name="analytics" />
                 <Stack.Screen name="analytics-dashboard" />
+                <Stack.Screen name="revenue" />
 
                 {/* Settings */}
                 <Stack.Screen name="settings" />

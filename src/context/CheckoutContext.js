@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import * as Linking from 'expo-linking';
+import { createContext, useContext, useEffect, useState } from 'react';
+import PaymentService from '../services/PaymentService';
+import userProfileService from '../services/userProfileService';
 import { storage } from '../utils/storage';
 import { useAuth } from './AuthContext';
-import { useNotifications } from './NotificationContext';
-import * as Linking from 'expo-linking';
-import PaymentService from '../services/PaymentService';
-import api from '../services/api';
 import { useCart } from './CartContext';
+import { useNotifications } from './NotificationContext';
 
 const CheckoutContext = createContext();
 
@@ -42,10 +42,11 @@ export const CheckoutProvider = ({ children }) => {
   const [savedPaymentMethods, setSavedPaymentMethods] = useState([]);
   const [pendingOrderId, setPendingOrderId] = useState(null);
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Load data from Storage
+  // Load data from Cloud (Firestore) and Local Storage
   useEffect(() => {
-    const loadSavedData = async () => {
+    const loadData = async () => {
       if (!user) {
         setOrders([]);
         setSavedAddresses([]);
@@ -53,23 +54,50 @@ export const CheckoutProvider = ({ children }) => {
         return;
       }
 
+      setIsSyncing(true);
       const suffix = user.email.toLowerCase();
       try {
+        // 1. Fetch from Firestore (Cloud) - Source of Truth
+        const [cloudOrders, cloudAddresses] = await Promise.all([
+          userProfileService.getUserOrders(user.uid),
+          userProfileService.getUserAddresses(user.uid)
+        ]);
+
+        // 2. Fetch from Local Storage (Backup/Legacy)
         const [storedOrders, storedAddresses, storedPayments] = await Promise.all([
           storage.getItem(`orders_${suffix}`),
           storage.getItem(`addresses_${suffix}`),
           storage.getItem(`payments_${suffix}`),
         ]);
 
-        if (storedOrders) setOrders(storedOrders);
-        if (storedAddresses) setSavedAddresses(storedAddresses);
+        // Merge and set state (Cloud takes precedence)
+        setOrders(cloudOrders.length > 0 ? cloudOrders : (storedOrders || []));
+        setSavedAddresses(cloudAddresses.length > 0 ? cloudAddresses : (storedAddresses || []));
         if (storedPayments) setSavedPaymentMethods(storedPayments);
+
+        // If cloud had no data but local did, sync local to cloud
+        if (cloudAddresses.length === 0 && storedAddresses?.length > 0) {
+          console.log('📦 Syncing local addresses to cloud...');
+          for (const addr of storedAddresses) {
+            await userProfileService.saveUserAddress(user.uid, addr);
+          }
+        }
+
+        if (cloudOrders.length === 0 && storedOrders?.length > 0) {
+          console.log('📦 Syncing local orders to cloud...');
+          for (const order of storedOrders) {
+            await userProfileService.saveUserOrder(user.uid, order);
+          }
+        }
+
       } catch (e) {
-        console.error('Error loading checkout data:', e);
+        console.error('Error loading checkout/profile data:', e);
+      } finally {
+        setIsSyncing(false);
       }
     };
 
-    loadSavedData();
+    loadData();
   }, [user]);
 
   // Handle Deep Linking for Payment Callbacks
@@ -165,6 +193,12 @@ export const CheckoutProvider = ({ children }) => {
     setSavedAddresses(newAddresses);
     if (user) {
       await storage.setItem(`addresses_${user.email.toLowerCase()}`, newAddresses);
+      // 🔥 Sync to Firestore
+      try {
+        await userProfileService.saveUserAddress(user.uid, address);
+      } catch (e) {
+        console.error('Cloud address save failed:', e);
+      }
     }
   };
 
@@ -173,6 +207,12 @@ export const CheckoutProvider = ({ children }) => {
     setSavedAddresses(newAddresses);
     if (user) {
       await storage.setItem(`addresses_${user.email.toLowerCase()}`, newAddresses);
+      // 🔥 Sync to Firestore
+      try {
+        await userProfileService.deleteUserAddress(user.uid, id);
+      } catch (e) {
+        console.error('Cloud address delete failed:', e);
+      }
     }
   };
 
@@ -197,6 +237,12 @@ export const CheckoutProvider = ({ children }) => {
     setOrders(newOrders);
     if (user) {
       await storage.setItem(`orders_${user.email.toLowerCase()}`, newOrders);
+      // 🔥 Sync to Firestore
+      try {
+        await userProfileService.saveUserOrder(user.uid, order);
+      } catch (e) {
+        console.error('Cloud order save failed:', e);
+      }
     }
   };
 
@@ -222,6 +268,7 @@ export const CheckoutProvider = ({ children }) => {
       setPendingOrderId,
       isVerifyingPayment,
       verifyPayment,
+      isSyncing,
       // Add more as needed
     }}>
       {children}

@@ -1,45 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "@jamsch/expo-speech-recognition";
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
     ActivityIndicator,
     Dimensions,
     FlatList,
-    Image,
+    StyleSheet,
+    Text,
     TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
+    FadeIn,
     useAnimatedStyle,
+    useSharedValue,
     withRepeat,
     withSpring,
-    useSharedValue,
-    withTiming,
-    FadeIn,
-    SlideInDown,
-    runOnJS,
-    useDerivedValue,
-    interpolate
+    withTiming
 } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "@jamsch/expo-speech-recognition";
-import { Audio } from 'expo-av';
-import { useRouter } from 'expo-router';
-import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { logQuery } from '../src/services/voiceAnalytics';
 
 
+import ProductCardSoko from '../src/components/ProductCardSoko';
+import { useAuth } from '../src/context/AuthContext';
+import { useCart } from '../src/context/CartContext';
+import { useFavorites } from '../src/context/FavoritesContext';
 import { useTheme } from '../src/context/ThemeContext';
 import { useTranslation } from '../src/hooks/useTranslation';
 import { searchByVoice } from '../src/services/voiceProductSearch';
-import { speakResponse, stopSpeaking, generateResponse } from '../src/services/voiceResponseService';
-import ProductCardSoko from '../src/components/ProductCardSoko';
-import { useCartAnimation } from '../src/context/CartAnimationContext';
-import { useFavorites } from '../src/context/FavoritesContext';
-import { useAuth } from '../src/context/AuthContext';
+import { generateResponse, speakResponse, stopSpeaking } from '../src/services/voiceResponseService';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_MAX_HEIGHT = height * 0.85; // Expanded height
@@ -49,7 +43,7 @@ export default function VoiceSearchScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
-    const { triggerAddToCart } = useCartAnimation();
+    const { addToCart, triggerAddToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { user } = useAuth();
 
@@ -199,6 +193,9 @@ export default function VoiceSearchScreen() {
             setProducts(result.products);
             setKeywords(result.keywords);
 
+            // Log to analytics
+            logQuery(text, result.keywords, result.products.length);
+
             const userName = user?.displayName || (user?.email ? user.email.split('@')[0] : null);
 
             // Pass the cleaned query (result.searchQuery) so the AI can speak it back specificially
@@ -222,14 +219,26 @@ export default function VoiceSearchScreen() {
         }
     };
 
-    const handleAddToCart = (item) => {
-        triggerAddToCart({
-            id: item.id,
-            name: item.name,
-            price: item.sale_price || item.price,
-            image: item.images?.[0]?.src,
-            quantity: 1,
-        });
+    const handleAddToCart = (item, ref) => {
+        if (ref?.current) {
+            ref.current.measureInWindow((x, y, btnWidth, btnHeight) => {
+                triggerAddToCart({
+                    id: item.id,
+                    name: item.name,
+                    price: item.sale_price || item.price,
+                    image: item.images?.[0]?.src,
+                    quantity: 1,
+                }, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
+            });
+        } else {
+            triggerAddToCart({
+                id: item.id,
+                name: item.name,
+                price: item.sale_price || item.price,
+                image: item.images?.[0]?.src,
+                quantity: 1,
+            });
+        }
     };
 
     const handleFavorite = (item) => {
@@ -357,25 +366,26 @@ export default function VoiceSearchScreen() {
 
                 {/* Results Section (Draggable) */}
                 {products.length > 0 && (state === 'results' || state === 'speaking' || state === 'idle') && (
-                    <GestureDetector gesture={panGesture}>
-                        <Animated.View style={[styles.resultsWrapper, sheetStyle]}>
-                            {/* Handle Bar */}
-                            <View style={styles.resultsHandle} />
+                    <Animated.View style={[styles.resultsWrapper, sheetStyle]}>
+                        <GestureDetector gesture={panGesture}>
+                            <View style={styles.dragHandleContainer}>
+                                {/* Handle Bar */}
+                                <View style={styles.resultsHandle} />
+                                <Text style={[styles.resultsTitle, { color: theme.text }]}>منتجات مقترحة لكِ ✨</Text>
+                            </View>
+                        </GestureDetector>
 
-                            <Text style={[styles.resultsTitle, { color: theme.text }]}>منتجات مقترحة لكِ ✨</Text>
-                            <FlatList
-                                data={products}
-                                renderItem={renderProduct}
-                                keyExtractor={(item) => item.id.toString()}
-                                numColumns={2}
-                                showsVerticalScrollIndicator={false}
-                                columnWrapperStyle={styles.productRow}
-                                contentContainerStyle={styles.listPadding}
-                                // Prevent FlatList scrolling when dragging the sheet itself
-                                scrollEnabled={true}
-                            />
-                        </Animated.View>
-                    </GestureDetector>
+                        <FlatList
+                            data={products}
+                            renderItem={renderProduct}
+                            keyExtractor={(item) => item.id.toString()}
+                            numColumns={2}
+                            showsVerticalScrollIndicator={true}
+                            columnWrapperStyle={styles.productRow}
+                            contentContainerStyle={styles.listPadding}
+                            scrollEnabled={true}
+                        />
+                    </Animated.View>
                 )}
 
                 {state === 'idle' && products.length === 0 && (
@@ -545,8 +555,13 @@ const styles = StyleSheet.create({
     resultsTitle: {
         fontSize: 20,
         fontWeight: '800',
-        marginBottom: 15,
+        marginBottom: 10,
         paddingLeft: 10,
+    },
+    dragHandleContainer: {
+        paddingTop: 15,
+        paddingBottom: 5,
+        width: '100%',
     },
     productRow: {
         justifyContent: 'space-between',

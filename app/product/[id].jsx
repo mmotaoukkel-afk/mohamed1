@@ -3,50 +3,49 @@
  * 🌙 Premium beauty product page with floating glass panels
  */
 
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  ScrollView,
-  Image,
-  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
   Linking,
   Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedScrollHandler,
-  withSpring,
-  withSequence,
   FadeInDown,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
 } from 'react-native-reanimated';
-import { useTheme } from '../../src/context/ThemeContext';
-import api from '../../src/services/api';
-import { useCart } from '../../src/context/CartContext';
-import { useFavorites } from '../../src/context/FavoritesContext';
-import { useAuth } from '../../src/context/AuthContext';
-import AddToCartSuccess from '../../src/components/AddToCartSuccess';
-import ReviewSection from '../../src/components/ReviewSection';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductImageGallery from '../../src/components/ProductImageGallery';
 import RelatedProducts from '../../src/components/RelatedProducts';
-import socialService from '../../src/services/socialService';
+import ReviewSection from '../../src/components/ReviewSection';
+import { Button, IconButton, Surface, Text } from '../../src/components/ui'; // UI Kit
+import { useAuth } from '../../src/context/AuthContext';
+
+import { useCart } from '../../src/context/CartContext';
+import { useFavorites } from '../../src/context/FavoritesContext';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
+import api from '../../src/services/api';
 import currencyService from '../../src/services/currencyService';
-import { Surface, Text, Button, IconButton } from '../../src/components/ui'; // UI Kit
+import socialService from '../../src/services/socialService';
 
 const { width } = Dimensions.get('window');
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { addToCart } = useCart();
+  const { triggerAddToCart } = useCart();
+
   const { toggleFavorite, isFavorite } = useFavorites();
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -56,12 +55,12 @@ export default function ProductDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [showAddedMessage, setShowAddedMessage] = useState(false);
   const [publicLikes, setPublicLikes] = useState(0);
 
   // Animation values
   const heartScale = useSharedValue(1);
   const scrollY = useSharedValue(0);
+  const imageRef = useRef(null);
 
   // Parallax handlers using reanimated
   const scrollHandler = useAnimatedScrollHandler({
@@ -132,20 +131,29 @@ export default function ProductDetailsScreen() {
 
   const handleAddToCart = () => {
     if (!product) return;
-    addToCart({
-      id: product.id,
-      name: product.name,
-      price: product.sale_price || product.price,
-      image: product.images?.[0]?.src,
-      quantity,
-    });
-    setShowAddedMessage(true);
+
+    // Measure image position for animation
+    if (imageRef.current) {
+      imageRef.current.measureInWindow((x, y, width, height) => {
+        triggerAddToCart({
+          ...product,
+          quantity,
+        }, { x: x + width / 2, y: y + height / 2 });
+      });
+    } else {
+      triggerAddToCart({
+        ...product,
+        quantity,
+      });
+    }
   };
 
   const handleBuyNow = () => {
     if (!product) return;
     handleAddToCart();
-    router.push('/checkout/shipping');
+    setTimeout(() => {
+      router.push('/checkout');
+    }, 850); // Wait for animation to finish
   };
 
   const handleHeartPress = async () => {
@@ -285,11 +293,13 @@ export default function ProductDetailsScreen() {
         </SafeAreaView>
 
         {/* Hero Image Gallery - Interactive with Zoom */}
-        <ProductImageGallery
-          images={images}
-          initialIndex={selectedImage}
-          tokens={tokens}
-        />
+        <View ref={imageRef} collapsable={false}>
+          <ProductImageGallery
+            images={images}
+            initialIndex={selectedImage}
+            tokens={tokens}
+          />
+        </View>
 
         {/* Content Section */}
         <View style={styles.contentSection}>
@@ -386,7 +396,10 @@ export default function ProductDetailsScreen() {
           </View>
 
           <TouchableOpacity style={styles.whatsappFloat} onPress={handleWhatsAppOrder}>
-            <LinearGradient colors={['#25D366', '#128C7E']} style={styles.waGradient}>
+            <LinearGradient
+              colors={['#25D366', '#128C7E']}
+              style={styles.waGradient}
+            >
               <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
               <Text variant="label" style={{ color: '#FFF' }}>
                 {t('orderViaWhatsapp', { price: currencyService.formatPrice(parseFloat(product.sale_price || product.price) * quantity) })}
@@ -396,11 +409,6 @@ export default function ProductDetailsScreen() {
         </Surface>
       </View>
 
-      {/* Success Modal */}
-      <AddToCartSuccess
-        visible={showAddedMessage}
-        onClose={() => setShowAddedMessage(false)}
-      />
     </View>
   );
 }

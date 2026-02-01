@@ -1,203 +1,184 @@
 /**
- * Fly-to-Cart Animation - Kataraa 🛍️✨
- * Product flies into bag, bag flies to cart - NO interruption!
+ * Add To Cart Animation - Simplified Logic 📉
+ * Based on user-provided snippet for maximum visibility
  */
 
-import React, { useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect } from 'react';
 import {
-    View,
-    StyleSheet,
-    Image,
     Dimensions,
-    Text,
+    Image,
+    StyleSheet,
+    View,
 } from 'react-native';
 import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-    withTiming,
-    withSequence,
-    withDelay,
     Easing,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withRepeat,
+    withSequence,
+    withTiming
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 
-const COLORS = {
-    primary: '#F5B5C8',
-    accent: '#B76E79',
+// Sparkle Component for additional flair
+const Sparkle = ({ delay = 0, size = 10, style }) => {
+    const scale = useSharedValue(0);
+    const opacity = useSharedValue(0);
+
+    useEffect(() => {
+        scale.value = withDelay(delay, withRepeat(
+            withSequence(
+                withTiming(1, { duration: 400 }),
+                withTiming(0, { duration: 400 })
+            ),
+            -1,
+            true
+        ));
+        opacity.value = withDelay(delay, withRepeat(
+            withSequence(
+                withTiming(1, { duration: 400 }),
+                withTiming(0, { duration: 400 })
+            ),
+            -1,
+            true
+        ));
+    }, []);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        position: 'absolute',
+        transform: [{ scale: scale.value }],
+        opacity: opacity.value,
+        zIndex: 10,
+    }));
+
+    return (
+        <Animated.View style={[animatedStyle, style]}>
+            <Ionicons name="sparkles" size={size} color="#D4AF76" />
+        </Animated.View>
+    );
 };
 
 export default function AddToCartAnimation({
-    visible,
-    productImage,
-    productName,
-    targetPosition,
-    onComplete,
+    state, // { productImage, sourcePosition }
+    onComplete
 }) {
-    // Animation values
-    const overlayOpacity = useSharedValue(0);
+    const insets = useSafeAreaInsets();
 
-    // Product animation
-    const productScale = useSharedValue(0);
-    const productY = useSharedValue(0);
-    const productOpacity = useSharedValue(1);
-    const productShake = useSharedValue(0);
+    // Animation Values - Dynamic Start
+    const translateY = useSharedValue(0);
+    const translateX = useSharedValue(0);
+    const scale = useSharedValue(0.5);
+    const opacity = useSharedValue(1);
+    const rotate = useSharedValue(0);
 
-    // Bag animation
-    const bagScale = useSharedValue(0);
-    const bagX = useSharedValue(0);
-    const bagY = useSharedValue(0);
-    const bagOpacity = useSharedValue(0);
-
-    // Target position (cart icon) - default to top-right
-    const cartX = targetPosition?.x || width - 50;
-    const cartY = targetPosition?.y || 50;
+    // Dynamic Target Calculation:
+    const targetY = height - insets.bottom - 84 + 5;
+    const cartIconX = (width / 5) * 2.5 - 40;
 
     useEffect(() => {
-        if (visible) {
-            runAnimation();
-        } else {
-            resetAnimation();
+        if (state) {
+            runPolishedAnimation();
         }
-    }, [visible]);
+    }, [state]);
 
-    const runAnimation = () => {
-        // Reset values
-        overlayOpacity.value = 0;
-        productScale.value = 0;
-        productY.value = 0;
-        productOpacity.value = 1;
-        productShake.value = 0;
-        bagScale.value = 0;
-        bagX.value = 0;
-        bagY.value = 0;
-        bagOpacity.value = 0;
+    const runPolishedAnimation = () => {
+        const { sourcePosition } = state;
 
-        // Phase 1: Light overlay (semi-transparent, not blocking)
-        overlayOpacity.value = withTiming(0.3, { duration: 150 });
+        // Initial setup from source if available
+        if (sourcePosition) {
+            translateX.value = sourcePosition.x - (width / 2 - 40); // Offset from center
+            translateY.value = sourcePosition.y;
+        } else {
+            translateX.value = 0;
+            translateY.value = -100;
+        }
 
-        // Phase 2: Product appears and shakes
-        productScale.value = withSpring(1, { damping: 12 });
-        productShake.value = withDelay(200, withSequence(
-            withTiming(-8, { duration: 60 }),
-            withTiming(8, { duration: 60 }),
-            withTiming(-5, { duration: 50 }),
-            withTiming(5, { duration: 50 }),
-            withTiming(0, { duration: 40 })
-        ));
+        scale.value = 0.5;
+        opacity.value = 1;
+        rotate.value = 0;
 
-        // Phase 3: Bag appears below product
-        bagScale.value = withDelay(400, withSpring(1, { damping: 14 }));
-        bagOpacity.value = withDelay(400, withTiming(1, { duration: 150 }));
+        // 1. Pop In
+        scale.value = withTiming(1.1, { duration: 200 });
 
-        // Phase 4: Product drops into bag
-        productY.value = withDelay(600, withSpring(80, { damping: 10 }));
-        productOpacity.value = withDelay(800, withTiming(0, { duration: 150 }));
-
-        // Phase 5: Bag flies to cart
-        const targetX = cartX - width / 2;
-        const targetY = cartY - height / 2 - 100;
-
-        bagX.value = withDelay(950, withTiming(targetX, {
-            duration: 500,
+        // 2. Drop with Gravity (Accelerate) & Rotate
+        translateY.value = withTiming(targetY, {
+            duration: 1000,
             easing: Easing.bezier(0.25, 0.1, 0.25, 1)
-        }));
-        bagY.value = withDelay(950, withTiming(targetY, {
-            duration: 500,
+        }, (finished) => {
+            if (finished) {
+                runOnJS(onComplete)();
+            }
+        });
+
+        // Move horizontally towards the cart tab
+        translateX.value = withTiming(cartIconX - (width / 2 - 40), {
+            duration: 1000,
             easing: Easing.bezier(0.25, 0.1, 0.25, 1)
-        }));
-        bagScale.value = withDelay(950, withTiming(0.3, { duration: 500 }));
+        });
 
-        // Phase 6: Bag disappears at cart
-        bagOpacity.value = withDelay(1350, withTiming(0, { duration: 150 }));
-        overlayOpacity.value = withDelay(1300, withTiming(0, { duration: 200 }));
+        rotate.value = withTiming(15, { duration: 1000 });
 
-        // Complete animation
-        setTimeout(() => {
-            if (onComplete) onComplete();
-        }, 1600);
+        // 3. "Enter" Cart Effect (Suck in)
+        scale.value = withDelay(800, withTiming(0, { duration: 250 }));
+        opacity.value = withDelay(900, withTiming(0, { duration: 150 }));
     };
 
-    const resetAnimation = () => {
-        overlayOpacity.value = 0;
-        productScale.value = 0;
-        productY.value = 0;
-        productOpacity.value = 1;
-        productShake.value = 0;
-        bagScale.value = 0;
-        bagX.value = 0;
-        bagY.value = 0;
-        bagOpacity.value = 0;
-    };
-
-    // Animated styles
-    const overlayStyle = useAnimatedStyle(() => ({
-        opacity: overlayOpacity.value,
-    }));
-
-    const productStyle = useAnimatedStyle(() => ({
-        opacity: productOpacity.value,
+    const animatedStyle = useAnimatedStyle(() => ({
+        position: 'absolute',
+        top: 0,
+        left: width / 2 - 40,
+        width: 80,
+        height: 80,
+        opacity: opacity.value,
         transform: [
-            { scale: productScale.value },
-            { translateY: productY.value },
-            { translateX: productShake.value },
+            { translateX: translateX.value },
+            { translateY: translateY.value },
+            { scale: scale.value },
+            { rotate: `${rotate.value}deg` }
         ],
+        zIndex: 99999,
+        elevation: 99999,
     }));
 
-    const bagStyle = useAnimatedStyle(() => ({
-        opacity: bagOpacity.value,
-        transform: [
-            { scale: bagScale.value },
-            { translateX: bagX.value },
-            { translateY: bagY.value },
-        ],
-    }));
+    if (!state) return null;
 
-    if (!visible) return null;
+    // Robust source derivation
+    let source = null;
+    if (state.productImage) {
+        if (typeof state.productImage === 'string') {
+            source = { uri: state.productImage };
+        } else if (state.productImage.uri) {
+            source = state.productImage;
+        } else if (state.productImage.src) {
+            source = { uri: state.productImage.src };
+        }
+    }
 
     return (
         <View style={styles.container} pointerEvents="none">
-            {/* Light overlay - doesn't block interaction */}
-            <Animated.View style={[styles.overlay, overlayStyle]} />
+            <Animated.View style={animatedStyle}>
+                {/* Decorative Sparkles */}
+                <Sparkle delay={0} size={20} style={{ top: -15, right: -15 }} />
+                <Sparkle delay={200} size={16} style={{ top: -25, left: 10 }} />
+                <Sparkle delay={400} size={24} style={{ bottom: 10, left: -20 }} />
+                <Sparkle delay={100} size={14} style={{ bottom: -10, right: 10 }} />
 
-            {/* Product Image */}
-            <Animated.View style={[styles.productContainer, productStyle]}>
-                {productImage ? (
+                {source && source.uri ? (
                     <Image
-                        source={{ uri: productImage }}
-                        style={styles.productImage}
-                        resizeMode="contain"
+                        source={source}
+                        style={styles.image}
+                        resizeMode="cover"
                     />
                 ) : (
-                    <View style={styles.productPlaceholder}>
-                        <Ionicons name="bag-add" size={40} color={COLORS.accent} />
+                    <View style={styles.placeholder}>
+                        <Ionicons name="cart" size={40} color="#fff" />
                     </View>
                 )}
-            </Animated.View>
-
-            {/* Gift Bag */}
-            <Animated.View style={[styles.bagContainer, bagStyle]}>
-                <LinearGradient
-                    colors={[COLORS.primary, COLORS.accent]}
-                    style={styles.bag}
-                >
-                    <View style={styles.handles}>
-                        <View style={styles.handle} />
-                        <View style={styles.handle} />
-                    </View>
-                    <View style={styles.bagTop} />
-                    <View style={styles.bagBody}>
-                        <Text style={styles.bagText}>🌸</Text>
-                    </View>
-                </LinearGradient>
-            </Animated.View>
-
-            {/* Sparkle at cart */}
-            <Animated.View style={[styles.sparkleContainer, bagStyle]}>
-                <Text style={styles.sparkle}>✨</Text>
             </Animated.View>
         </View>
     );
@@ -206,91 +187,34 @@ export default function AddToCartAnimation({
 const styles = StyleSheet.create({
     container: {
         ...StyleSheet.absoluteFillObject,
-        zIndex: 9999,
+        zIndex: 2147483647,
+        elevation: 2147483647,
+        pointerEvents: "none"
     },
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(255, 249, 245, 0.5)',
-    },
-    productContainer: {
-        position: 'absolute',
-        top: height * 0.35,
-        alignSelf: 'center',
-        zIndex: 20,
-    },
-    productImage: {
-        width: 100,
-        height: 100,
-        borderRadius: 18,
-        backgroundColor: '#fff',
-        shadowColor: COLORS.accent,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.25,
-        shadowRadius: 15,
-        elevation: 10,
-    },
-    productPlaceholder: {
-        width: 100,
-        height: 100,
-        borderRadius: 18,
-        backgroundColor: '#fff',
-        justifyContent: 'center',
-        alignItems: 'center',
-        elevation: 10,
-    },
-    bagContainer: {
-        position: 'absolute',
-        top: height * 0.45,
-        alignSelf: 'center',
-        zIndex: 15,
-    },
-    bag: {
-        width: 80,
-        height: 90,
-        borderRadius: 12,
-        alignItems: 'center',
-        shadowColor: COLORS.accent,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        elevation: 8,
-    },
-    handles: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: 40,
-        position: 'absolute',
-        top: -12,
-    },
-    handle: {
-        width: 14,
-        height: 18,
-        borderRadius: 7,
-        borderWidth: 2.5,
-        borderColor: COLORS.accent,
-    },
-    bagTop: {
+    image: {
         width: '100%',
-        height: 12,
-        backgroundColor: 'rgba(0,0,0,0.1)',
-        borderTopLeftRadius: 12,
-        borderTopRightRadius: 12,
+        height: '100%',
+        borderRadius: 40,
+        backgroundColor: '#fff',
+        borderWidth: 2,
+        borderColor: '#F5B5C8',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
     },
-    bagBody: {
-        flex: 1,
+    placeholder: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 40,
+        backgroundColor: '#F5B5C8', // Standard color
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    bagText: {
-        fontSize: 24,
-    },
-    sparkleContainer: {
-        position: 'absolute',
-        top: height * 0.45 - 20,
-        alignSelf: 'center',
-        zIndex: 25,
-    },
-    sparkle: {
-        fontSize: 28,
-    },
+        borderWidth: 2,
+        borderColor: '#FFF',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    }
 });

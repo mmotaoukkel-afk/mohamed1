@@ -7,22 +7,20 @@ import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { CartProvider } from '../src/context/CartContext';
-import { FavoritesProvider } from '../src/context/FavoritesContext';
-import { CheckoutProvider } from '../src/context/CheckoutContext';
-import { CartAnimationProvider } from '../src/context/CartAnimationContext';
-import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
-import { AuthProvider } from '../src/context/AuthContext';
-import { SettingsProvider } from '../src/context/SettingsContext';
-import { NotificationProvider } from '../src/context/NotificationContext';
+import { StatusBar } from 'expo-status-bar';
 import { ErrorBoundary } from 'react-error-boundary';
+import AddToCartAnimation from '../src/components/AddToCartAnimation';
 import { ErrorFallback } from '../src/components/GlobalErrorBoundary';
-import { PatternBackground } from '../src/components/ui';
+import { AuthProvider } from '../src/context/AuthContext';
+import { CartProvider, useCart } from '../src/context/CartContext';
+import { CheckoutProvider } from '../src/context/CheckoutContext';
+import { FavoritesProvider } from '../src/context/FavoritesContext';
+import { NotificationProvider } from '../src/context/NotificationContext';
+import { SettingsProvider } from '../src/context/SettingsContext';
+import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import '../src/services/firebaseConfig';
 
-import { useFonts } from 'expo-font';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -75,13 +73,11 @@ export default function RootLayout() {
               <ErrorBoundary FallbackComponent={ErrorFallback}>
                 <AuthProvider>
                   <CartProvider>
-                    <CartAnimationProvider>
-                      <FavoritesProvider>
-                        <CheckoutProvider>
-                          <AppNavigator />
-                        </CheckoutProvider>
-                      </FavoritesProvider>
-                    </CartAnimationProvider>
+                    <FavoritesProvider>
+                      <CheckoutProvider>
+                        <AppNavigator />
+                      </CheckoutProvider>
+                    </FavoritesProvider>
                   </CartProvider>
                 </AuthProvider>
               </ErrorBoundary>
@@ -93,8 +89,11 @@ export default function RootLayout() {
   );
 }
 
+
 function AppNavigator() {
   const { theme } = useTheme();
+  const { animationState, endAnimation } = useCart();
+
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -114,7 +113,14 @@ function AppNavigator() {
         <Stack.Screen name="orders" />
         <Stack.Screen name="voice-search" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
+
+      {/* Global Add to Cart Animation Overlay */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, elevation: 99999 }} pointerEvents="box-none">
+        <AddToCartAnimation
+          state={animationState}
+          onComplete={endAnimation}
+        />
+      </View>
     </View>
   );
 }
-

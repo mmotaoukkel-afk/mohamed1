@@ -1,8 +1,4 @@
 
-import { useState, useEffect } from 'react';
-import { I18nManager } from 'react-native';
-import * as Updates from 'expo-updates';
-import { storage } from '../utils/storage';
 import { useSettings } from '../context/SettingsContext';
 
 
@@ -162,6 +158,9 @@ const translations = {
         cardNumber: 'Card Number',
         expiryDate: 'Expiry Date (MM/YY)',
         cvv: 'CVV',
+        invalidCardNumber: 'Invalid Card Number',
+        invalidExpiry: 'Invalid Expiry Date',
+        invalidCVV: 'Invalid CVV',
         // Profile & Missing
         ordersTitle: 'Orders',
         addresses: 'Saved Addresses',
@@ -315,6 +314,36 @@ const translations = {
         paymentErrorTitle: "Payment Error",
         paymentErrorMsg: "We could not verify the payment. Please try again.",
         notifOrderFailed: "Order Verification Failed",
+
+        // Quiz
+        quizQuestionType: 'What is your skin type?',
+        quizOptionOily: 'Oily',
+        quizOptionDry: 'Dry',
+        quizOptionCombination: 'Combination',
+        quizOptionSensitive: 'Sensitive',
+        quizQuestionConcern: 'What is your primary concern?',
+        quizOptionAcne: 'Acne',
+        quizOptionAging: 'Aging',
+        quizOptionPigmentation: 'Pigmentation',
+        quizOptionHydration: 'Hydration',
+        quizQuestionAge: 'What is your age group?',
+        quizOptionTeens20s: 'Teens & 20s',
+        quizOption30s40s: '30s & 40s',
+        quizOption50plus: '50+',
+        quizRoutineDescription: 'Personalized Routine',
+        quizRoutineAcne: 'Acne Fighting Routine',
+        quizRoutineAging: 'Advanced Anti-Aging Routine',
+        quizRoutinePigmentation: 'Brightening & Glow Routine',
+        quizRoutineDry: 'Deep Hydration Routine',
+        quizRoutineGeneral: 'Daily Care Routine',
+        yourRoutine: 'Your Routine',
+        routineFor: 'Routine for',
+        recommendedForYou: 'Recommended for You',
+        backToHome: 'Back to Home',
+        step: 'Step',
+        takeSkinQuiz: 'Take Skin Quiz',
+        discoverYourRoutine: 'Discover Your Perfect Routine',
+        quizBannerSub: 'Answer 3 questions to find your match',
     },
     ar: {
         // ... (existing arabic translations)
@@ -472,6 +501,9 @@ const translations = {
         cardNumber: 'رقم البطاقة',
         expiryDate: 'تاريخ الانتهاء (MM/YY)',
         cvv: 'رمز التحقق (CVV)',
+        invalidCardNumber: 'رقم بطاقة غير صالح',
+        invalidExpiry: 'تاريخ انتهاء غير صالح',
+        invalidCVV: 'رمز التحقق غير صالح',
         // Profile & Missing
         ordersTitle: 'الطلبات',
         addresses: 'العناوين المحفوظة',
@@ -625,6 +657,36 @@ const translations = {
         paymentErrorTitle: "خطأ في الدفع",
         paymentErrorMsg: "لم نتمكن من التحقق من عملية الدفع. يرجى المحاولة مرة أخرى.",
         notifOrderFailed: "فشل التحقق من الطلب",
+
+        // Quiz
+        quizQuestionType: 'ما هو نوع بشرتك؟',
+        quizOptionOily: 'دهنية',
+        quizOptionDry: 'جافة',
+        quizOptionCombination: 'مختلطة',
+        quizOptionSensitive: 'حساسة',
+        quizQuestionConcern: 'ما هو اهتمامك الأساسي؟',
+        quizOptionAcne: 'حب الشباب',
+        quizOptionAging: 'تجاعيد',
+        quizOptionPigmentation: 'تصبغات',
+        quizOptionHydration: 'ترطيب',
+        quizQuestionAge: 'ما هي فئتك العمرية؟',
+        quizOptionTeens20s: 'المراهقة والعشرينيات',
+        quizOption30s40s: 'الثلاثينيات والأربعينيات',
+        quizOption50plus: '50 وأكثر',
+        quizRoutineDescription: 'روتين مخصص لك',
+        quizRoutineAcne: 'روتين محاربة حب الشباب',
+        quizRoutineAging: 'روتين مكافحة التجاعيد المتقدم',
+        quizRoutinePigmentation: 'روتين النضارة واللمعان',
+        quizRoutineDry: 'روتين الترطيب العميق',
+        quizRoutineGeneral: 'روتين العناية اليومي',
+        yourRoutine: 'روتينك الخاص',
+        routineFor: 'روتين خاص بـ',
+        recommendedForYou: 'مقترح لك',
+        backToHome: 'العودة للرئيسية',
+        step: 'خطوة',
+        takeSkinQuiz: 'اختبار البشرة',
+        discoverYourRoutine: 'اكتشفي روتينك المثالي',
+        quizBannerSub: 'أجيبي على 3 أسئلة لنجد لكِ ما يناسبكِ',
     }
 }
 

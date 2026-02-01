@@ -425,13 +425,18 @@ export function buildSearchQuery(keywords) {
     const words = remainingText.split(/\s+/);
     const cleanedWords = words.map(word => {
         let cleaned = word;
-        // Only strip 'al' and 'li'/'lil' which are safe.
-        // Stripping 'wa' (and), 'ba' (with), 'fa' (so) is risky for words like 'Waqi' (Sunscreen) or 'Bashra' (Skin)
-        // REMOVED: 'و', 'ف', 'ب' to be safe.
-        for (const prefix of ['لل', 'ال', 'كال', 'فال', 'بال']) {
+        // Strip common Arabic prefixes safely
+        const prefixes = ['لل', 'ال', 'كال', 'فال', 'بال', 'و', 'ب', 'ل'];
+        for (const prefix of prefixes) {
             if (cleaned.startsWith(prefix) && cleaned.length > prefix.length + 2) {
-                cleaned = cleaned.substring(prefix.length);
-                break;
+                // Special check for important products starting with 'W' (Waqi) or 'B' (Bashra)
+                const isImportantWord = (prefix === 'و' || prefix === 'ب' || prefix === 'ل') &&
+                    ['واقي', 'بشرة', 'لبشرة'].some(w => cleaned.startsWith(w));
+
+                if (!isImportantWord) {
+                    cleaned = cleaned.substring(prefix.length);
+                    break;
+                }
             }
         }
         return cleaned;

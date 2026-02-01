@@ -4,16 +4,17 @@
  * Dark Mode Supported 🌙
  */
 
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
-    View,
+    Dimensions,
     StyleSheet,
     TouchableOpacity,
-    Dimensions,
+    View,
 } from 'react-native';
-import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
 import currencyService from '../services/currencyService';
@@ -33,6 +34,9 @@ const ProductCardSoko = React.memo(({
     const { tokens, isDark } = useTheme();
     const { t } = useTranslation();
     const styles = getStyles(tokens, isDark, t);
+
+    const addToCartRef = React.useRef(null);
+
 
     const getImageSource = () => {
         const firstImage = item?.images?.[0];
@@ -59,12 +63,14 @@ const ProductCardSoko = React.memo(({
         <TouchableOpacity
             onPress={() => onPress?.(item)}
             activeOpacity={0.9}
+            collapsable={false}
         >
             <Surface
                 style={styles.card}
                 padding="none"
                 radius="lg"
                 variant={isDark ? 'elevated' : 'default'}
+                collapsable={false}
             >
                 {/* Image Container */}
                 <View style={styles.imageContainer}>
@@ -78,7 +84,10 @@ const ProductCardSoko = React.memo(({
                     {/* Favorite Button */}
                     <TouchableOpacity
                         style={styles.favoriteBtn}
-                        onPress={() => onFavorite?.(item)}
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            onFavorite?.(item);
+                        }}
                     >
                         <Ionicons
                             name={isFavorite ? 'heart' : 'heart-outline'}
@@ -110,11 +119,18 @@ const ProductCardSoko = React.memo(({
                     {/* Add to Cart Button - kept custom for specific sizing */}
                     {!isOutOfStock && (
                         <TouchableOpacity
+                            ref={addToCartRef}
                             style={styles.addToCartBtn}
-                            onPress={() => onAddToCart?.(item)}
+                            onPress={() => {
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                onAddToCart?.(item, addToCartRef);
+                            }}
                         >
                             <LinearGradient
-                                colors={[tokens.colors.primary, tokens.colors.primaryDark]}
+                                colors={[
+                                    tokens?.colors?.primary || '#D4AF76',
+                                    tokens?.colors?.primaryDark || '#B8924F'
+                                ]}
                                 style={styles.addToCartGradient}
                             >
                                 <Ionicons name="add" size={16} color="#fff" />
