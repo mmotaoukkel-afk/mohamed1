@@ -17,8 +17,10 @@ import {
     Platform,
     Alert,
     Image,
+    ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import {
     PRODUCT_CATEGORIES,
@@ -27,6 +29,7 @@ import {
     createProduct,
     updateProduct,
 } from '../../services/adminProductService';
+import { uploadImage } from '../../services/imageUploadService';
 
 const SAMPLE_IMAGES = [
     'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400',
@@ -45,6 +48,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
     const [selectedCategory, setSelectedCategory] = useState('');
     const [tagInput, setTagInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
 
     useEffect(() => {
@@ -82,12 +86,44 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
         handleChange('tags', formData.tags.filter(t => t !== tag));
     };
 
-    const handleAddImage = () => {
-        // For demo, add a random sample image
-        const randomImage = SAMPLE_IMAGES[Math.floor(Math.random() * SAMPLE_IMAGES.length)];
-        // Ensure we store as object
-        const imageObj = { src: randomImage };
-        handleChange('images', [...formData.images, imageObj]);
+    const handleAddImage = async () => {
+        try {
+            const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+            if (permissionResult.granted === false) {
+                Alert.alert('مطلوب إذن', 'يرجى السماح بالوصول إلى الصور لإضافة صور للمنتج.');
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 4], // Square for products usually good
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                setUploading(true);
+                const uri = result.assets[0].uri;
+
+                try {
+                    // Upload to Firebase
+                    const downloadUrl = await uploadImage(uri, 'products');
+
+                    // Add to form data
+                    handleChange('images', [...formData.images, { src: downloadUrl }]);
+                } catch (error) {
+                    Alert.alert('خطأ', 'فشل رفع الصورة. يرجى المتابعة لاحقا.');
+                    // Fallback for demo if upload fails (optional)
+                } finally {
+                    setUploading(false);
+                }
+            }
+        } catch (error) {
+            console.error('Image picker error:', error);
+            Alert.alert('خطأ', 'حدث خطأ أثناء اختيار الصورة');
+            setUploading(false);
+        }
     };
 
     const handleRemoveImage = (image) => {
@@ -112,6 +148,10 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
 
     const handleSubmit = async () => {
         if (!validateForm()) return;
+        if (uploading) {
+            Alert.alert('انتظر', 'يرجى انتظار اكتمال رفع الصور');
+            return;
+        }
 
         setLoading(true);
         try {
@@ -380,8 +420,13 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
                                     <TouchableOpacity
                                         style={[styles.addImageBtn, { backgroundColor: theme.backgroundCard, borderColor: theme.border }]}
                                         onPress={handleAddImage}
+                                        disabled={uploading}
                                     >
-                                        <Ionicons name="add" size={28} color={theme.primary} />
+                                        {uploading ? (
+                                            <ActivityIndicator size="small" color={theme.primary} />
+                                        ) : (
+                                            <Ionicons name="add" size={28} color={theme.primary} />
+                                        )}
                                     </TouchableOpacity>
                                 </View>
                             </View>

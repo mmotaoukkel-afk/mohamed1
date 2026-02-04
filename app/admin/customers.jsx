@@ -9,17 +9,21 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
     View,
     Text,
-    StyleSheet,
-    FlatList,
     TouchableOpacity,
-    TextInput,
-    RefreshControl,
-    ScrollView,
-    Modal,
-    Dimensions,
-    ActivityIndicator,
     Image,
+    Modal,
+    ScrollView,
+    TextInput,
+    ActivityIndicator,
+    StyleSheet,
+    Dimensions,
+    FlatList,
+    RefreshControl,
+    Linking,
+    Alert,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
+import Animated, { FadeInRight, FadeInDown, Layout } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +38,7 @@ import {
     getAllCustomers,
     getCustomerStats,
     getAIRecommendations,
+    updateCustomerNotes,
 } from '../../src/services/adminCustomerService';
 
 const { width } = Dimensions.get('window');
@@ -74,6 +79,8 @@ export default function AdminCustomers() {
         atRisk: 0,
         avgScore: 0,
     });
+    const [customerNotes, setCustomerNotes] = useState('');
+    const [savingNotes, setSavingNotes] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -128,14 +135,51 @@ export default function AdminCustomers() {
     });
 
     const openProfile = (customer) => {
-        // Generate recommendations on the fly if not present
         const customerWithRecs = {
             ...customer,
             recommendations: customer.recommendations || AI_RECOMMENDATIONS_FALLBACK,
             purchaseHistory: customer.purchaseHistory || []
         };
         setSelectedCustomer(customerWithRecs);
+        setCustomerNotes(customer.notes || '');
         setShowProfile(true);
+    };
+
+    const handleSaveNotes = async () => {
+        if (!selectedCustomer) return;
+        try {
+            setSavingNotes(true);
+            await updateCustomerNotes(selectedCustomer.id, customerNotes);
+
+            // Update local state
+            setCustomers(prev => prev.map(c =>
+                c.id === selectedCustomer.id ? { ...c, notes: customerNotes } : c
+            ));
+
+            Alert.alert('تم', 'تم حفظ الملاحظات بنجاح');
+        } catch (error) {
+            Alert.alert('خطأ', 'فشل حفظ الملاحظات');
+        } finally {
+            setSavingNotes(false);
+        }
+    };
+
+    const handleWhatsApp = (phone) => {
+        if (!phone) return;
+        const cleanPhone = phone.replace(/[^\d]/g, '');
+        const url = `whatsapp://send?phone=${cleanPhone}`;
+        Linking.canOpenURL(url).then(supported => {
+            if (supported) {
+                Linking.openURL(url);
+            } else {
+                Alert.alert('خطأ', 'الواتساب غير مثبّت');
+            }
+        });
+    };
+
+    const handleCall = (phone) => {
+        if (!phone) return;
+        Linking.openURL(`tel:${phone}`);
     };
 
     const getInitials = (name) => {
@@ -153,69 +197,85 @@ export default function AdminCustomers() {
         return '#EF4444';
     };
 
-    const renderCustomer = ({ item }) => {
+    const renderCustomer = ({ item, index }) => {
         const segmentConfig = SEGMENT_CONFIG[item.segment];
 
         return (
-            <TouchableOpacity
-                style={[styles.customerCard, { backgroundColor: theme.backgroundCard }]}
-                onPress={() => openProfile(item)}
-                activeOpacity={0.7}
+            <Animated.View
+                entering={FadeInRight.delay(index * 100).springify()}
+                layout={Layout.springify()}
             >
-                {/* Avatar & Info */}
-                <View style={styles.customerMain}>
-                    <View style={[styles.avatar, { backgroundColor: getAvatarColor(item.segment) }]}>
-                        {item.photoURL ? (
-                            <Image source={{ uri: item.photoURL }} style={styles.avatarImage} />
-                        ) : (
-                            <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
-                        )}
-                    </View>
-
-                    <View style={styles.customerInfo}>
-                        <View style={styles.nameRow}>
-                            <Text style={[styles.customerName, { color: theme.text }]}>{item.name}</Text>
-                            {item.segment === 'vip' && (
-                                <View style={styles.vipBadge}>
-                                    <Ionicons name="star" size={10} color="#F59E0B" />
-                                </View>
+                <TouchableOpacity
+                    style={[styles.customerCard, { backgroundColor: theme.backgroundCard }]}
+                    onPress={() => openProfile(item)}
+                    activeOpacity={0.7}
+                >
+                    <View style={styles.cardHeader}>
+                        <View style={[styles.avatar, { backgroundColor: getAvatarColor(item.segment) }]}>
+                            {item.photoURL ? (
+                                <Image source={{ uri: item.photoURL }} style={styles.avatarImage} />
+                            ) : (
+                                <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
                             )}
                         </View>
-                        <Text style={[styles.customerEmail, { color: theme.textMuted }]}>{item.email}</Text>
-                        <View style={styles.customerMeta}>
-                            <View style={[styles.segmentBadge, { backgroundColor: segmentConfig.color + '20' }]}>
-                                <Ionicons name={segmentConfig.icon} size={10} color={segmentConfig.color} />
-                                <Text style={[styles.segmentText, { color: segmentConfig.color }]}>
-                                    {segmentConfig.label}
+
+                        <View style={styles.customerInfo}>
+                            <View style={styles.nameRow}>
+                                <Text style={[styles.customerName, { color: theme.text }]}>
+                                    {item.name || 'زبون مجهول'}
+                                </Text>
+                                {item.segment === 'vip' && (
+                                    <View style={styles.vipBadge}>
+                                        <Ionicons name="star" size={10} color="#F59E0B" />
+                                    </View>
+                                )}
+                            </View>
+                            <Text style={[styles.customerEmail, { color: theme.textMuted }]} numberOfLines={1}>
+                                {item.email || 'لا يوجد بريد'}
+                            </Text>
+                        </View>
+
+                        <View style={styles.quickActions}>
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { backgroundColor: '#25D36620' }]}
+                                onPress={() => handleWhatsApp(item.phone)}
+                            >
+                                <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { backgroundColor: theme.primary + '20' }]}
+                                onPress={() => handleCall(item.phone)}
+                            >
+                                <Ionicons name="call" size={18} color={theme.primary} />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <View style={styles.cardMeta}>
+                        <View style={[styles.segmentBadge, { backgroundColor: segmentConfig.color + '20' }]}>
+                            <Ionicons name={segmentConfig.icon} size={10} color={segmentConfig.color} />
+                            <Text style={[styles.segmentText, { color: segmentConfig.color }]}>
+                                {segmentConfig.label}
+                            </Text>
+                        </View>
+                        <Text style={[styles.cityText, { color: theme.textSecondary }]}>
+                            📍 {item.city || 'غير محدد'}
+                        </Text>
+                        <View style={styles.flex} />
+                        <View style={styles.cardStats}>
+                            <View style={styles.miniStat}>
+                                <Text style={[styles.miniStatValue, { color: theme.text }]}>{item.orderCount}</Text>
+                                <Text style={[styles.miniStatLabel, { color: theme.textMuted }]}>طلب</Text>
+                            </View>
+                            <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(item.score) + '20' }]}>
+                                <Text style={[styles.scoreBadgeText, { color: getScoreColor(item.score) }]}>
+                                    {item.score}
                                 </Text>
                             </View>
-                            <Text style={[styles.cityText, { color: theme.textSecondary }]}>
-                                📍 {item.city}
-                            </Text>
                         </View>
                     </View>
-                </View>
-
-                {/* Stats */}
-                <View style={styles.customerStats}>
-                    <View style={styles.statBox}>
-                        <Text style={[styles.statValue, { color: theme.text }]}>{item.orderCount}</Text>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>طلبات</Text>
-                    </View>
-                    <View style={styles.statBox}>
-                        <Text style={[styles.statValue, { color: theme.primary }]}>{item.totalSpent}</Text>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>MAD</Text>
-                    </View>
-                    <View style={styles.scoreBox}>
-                        <View style={[styles.scoreCircle, { borderColor: getScoreColor(item.score) }]}>
-                            <Text style={[styles.scoreValue, { color: getScoreColor(item.score) }]}>
-                                {item.score}
-                            </Text>
-                        </View>
-                        <Text style={[styles.statLabel, { color: theme.textMuted }]}>نقاط</Text>
-                    </View>
-                </View>
-            </TouchableOpacity>
+                </TouchableOpacity>
+            </Animated.View>
         );
     };
 
@@ -323,58 +383,73 @@ export default function AdminCustomers() {
                                 </View>
                             </View>
                         </View>
-
                         {/* Purchase History */}
                         <View style={[styles.profileSection, { backgroundColor: theme.backgroundCard }]}>
                             <Text style={[styles.sectionTitle, { color: theme.text }]}>سجل المشتريات</Text>
-                            {selectedCustomer.purchaseHistory?.length > 0 ? (
-                                selectedCustomer.purchaseHistory.map((purchase, index) => (
+                            {selectedCustomer.purchaseHistory && selectedCustomer.purchaseHistory.length > 0 ? (
+                                selectedCustomer.purchaseHistory.map((item, index) => (
                                     <View key={index} style={styles.purchaseRow}>
-                                        <View style={[styles.purchaseIcon, { backgroundColor: theme.primary + '20' }]}>
-                                            <Ionicons name="bag-outline" size={16} color={theme.primary} />
+                                        <View style={[styles.purchaseIcon, { backgroundColor: theme.primary + '10' }]}>
+                                            <Ionicons name="basket-outline" size={18} color={theme.primary} />
                                         </View>
                                         <View style={styles.purchaseInfo}>
-                                            <Text style={[styles.purchaseName, { color: theme.text }]}>
-                                                {purchase.name}
-                                            </Text>
-                                            <Text style={[styles.purchaseDate, { color: theme.textMuted }]}>
-                                                {new Date(purchase.date).toLocaleDateString('ar-MA')}
-                                            </Text>
+                                            <Text style={[styles.purchaseName, { color: theme.text }]}>طلب #{item.id}</Text>
+                                            <Text style={[styles.purchaseDate, { color: theme.textMuted }]}>{item.date}</Text>
                                         </View>
-                                        <Text style={[styles.purchaseAmount, { color: theme.primary }]}>
-                                            {purchase.amount} MAD
-                                        </Text>
+                                        <Text style={[styles.purchaseAmount, { color: theme.primary }]}>{item.total} MAD</Text>
                                     </View>
                                 ))
                             ) : (
-                                <Text style={[styles.emptyHistory, { color: theme.textMuted }]}>
-                                    لا توجد مشتريات حتى الآن
-                                </Text>
+                                <Text style={[styles.emptyText, { color: theme.textMuted }]}>لا توجد مشتريات سابقة</Text>
                             )}
                         </View>
 
                         {/* AI Recommendations */}
                         <View style={[styles.profileSection, { backgroundColor: theme.backgroundCard }]}>
                             <View style={styles.sectionHeader}>
-                                <Ionicons name="sparkles" size={18} color="#8B5CF6" />
-                                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>
-                                    توصيات ذكية
-                                </Text>
+                                <Ionicons name="sparkles" size={18} color="#F59E0B" />
+                                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>توصيات AI</Text>
                             </View>
-                            {(selectedCustomer.recommendations || AI_RECOMMENDATIONS_FALLBACK).map((rec, index) => (
-                                <View key={index} style={styles.recommendationRow}>
-                                    <View style={[styles.recIcon, { backgroundColor: '#8B5CF620' }]}>
-                                        <Ionicons name="gift-outline" size={16} color="#8B5CF6" />
+                            {selectedCustomer.recommendations.map((item, index) => (
+                                <View key={item.id} style={styles.recommendationRow}>
+                                    <View style={[styles.recIcon, { backgroundColor: '#F59E0B10' }]}>
+                                        <Ionicons name="gift-outline" size={18} color="#F59E0B" />
                                     </View>
                                     <View style={styles.recInfo}>
-                                        <Text style={[styles.recName, { color: theme.text }]}>{rec.name}</Text>
-                                        <Text style={[styles.recReason, { color: theme.textMuted }]}>{rec.reason}</Text>
+                                        <Text style={[styles.recName, { color: theme.text }]}>{item.name}</Text>
+                                        <Text style={[styles.recReason, { color: theme.textMuted }]}>{item.reason}</Text>
                                     </View>
-                                    <Text style={[styles.recPrice, { color: theme.primary }]}>{rec.price} MAD</Text>
+                                    <Text style={[styles.recPrice, { color: theme.textSecondary }]}>{item.price} MAD</Text>
                                 </View>
                             ))}
                         </View>
 
+                        {/* Notes Section */}
+                        <View style={[styles.profileSection, { backgroundColor: theme.backgroundCard }]}>
+                            <View style={styles.sectionHeader}>
+                                <Ionicons name="document-text-outline" size={18} color={theme.primary} />
+                                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>ملاحظات الإدارة</Text>
+                            </View>
+                            <TextInput
+                                style={[styles.notesInput, { color: theme.text, borderColor: theme.border }]}
+                                multiline
+                                placeholder="أضف ملاحظات حول هذا الزبون..."
+                                placeholderTextColor={theme.textMuted}
+                                value={customerNotes}
+                                onChangeText={setCustomerNotes}
+                            />
+                            <TouchableOpacity
+                                style={[styles.saveNotesBtn, { backgroundColor: theme.primary }]}
+                                onPress={handleSaveNotes}
+                                disabled={savingNotes}
+                            >
+                                {savingNotes ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={styles.saveNotesText}>حفظ الملاحظات</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                         <View style={styles.bottomPadding} />
                     </ScrollView>
                 </View>
@@ -384,51 +459,58 @@ export default function AdminCustomers() {
 
     const renderStatsHeader = () => (
         <View style={styles.statsHeader}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.statsRow}>
-                    <View style={[styles.statCard, { backgroundColor: theme.backgroundCard }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
+                <View style={[styles.statCard, { backgroundColor: theme.backgroundCard }]}>
+                    <BlurView intensity={isDark ? 20 : 40} style={StyleSheet.absoluteFill} />
+                    <View style={[styles.statIcon, { backgroundColor: theme.primary + '20' }]}>
                         <Ionicons name="people" size={20} color={theme.primary} />
-                        <Text style={[styles.statCardValue, { color: theme.text }]}>{stats.total}</Text>
-                        <Text style={[styles.statCardLabel, { color: theme.textSecondary }]}>إجمالي</Text>
                     </View>
-                    <View style={[styles.statCard, { backgroundColor: '#F59E0B20' }]}>
+                    <Text style={[styles.statCardValue, { color: theme.text }]}>{stats.total}</Text>
+                    <Text style={[styles.statCardLabel, { color: theme.textSecondary }]}>إجمالي الزبناء</Text>
+                </View>
+
+                <View style={[styles.statCard, { backgroundColor: '#F59E0B15' }]}>
+                    <BlurView intensity={isDark ? 20 : 40} style={StyleSheet.absoluteFill} />
+                    <View style={[styles.statIcon, { backgroundColor: '#F59E0B20' }]}>
                         <Ionicons name="star" size={20} color="#F59E0B" />
-                        <Text style={[styles.statCardValue, { color: '#F59E0B' }]}>{stats.vip}</Text>
-                        <Text style={[styles.statCardLabel, { color: '#F59E0B' }]}>VIP</Text>
                     </View>
-                    <View style={[styles.statCard, { backgroundColor: '#10B98120' }]}>
+                    <Text style={[styles.statCardValue, { color: '#F59E0B' }]}>{stats.vip}</Text>
+                    <Text style={[styles.statCardLabel, { color: '#F59E0B' }]}>زبناء VIP</Text>
+                </View>
+
+                <View style={[styles.statCard, { backgroundColor: '#10B98115' }]}>
+                    <BlurView intensity={isDark ? 20 : 40} style={StyleSheet.absoluteFill} />
+                    <View style={[styles.statIcon, { backgroundColor: '#10B98120' }]}>
                         <Ionicons name="refresh" size={20} color="#10B981" />
-                        <Text style={[styles.statCardValue, { color: '#10B981' }]}>{stats.returning}</Text>
-                        <Text style={[styles.statCardLabel, { color: '#10B981' }]}>عائد</Text>
                     </View>
-                    <View style={[styles.statCard, { backgroundColor: '#3B82F620' }]}>
-                        <Ionicons name="person-add" size={20} color="#3B82F6" />
-                        <Text style={[styles.statCardValue, { color: '#3B82F6' }]}>{stats.new}</Text>
-                        <Text style={[styles.statCardLabel, { color: '#3B82F6' }]}>جديد</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: '#EF444420' }]}>
+                    <Text style={[styles.statCardValue, { color: '#10B981' }]}>{stats.returning}</Text>
+                    <Text style={[styles.statCardLabel, { color: '#10B981' }]}>زبناء عائدون</Text>
+                </View>
+
+                <View style={[styles.statCard, { backgroundColor: '#EF444415' }]}>
+                    <BlurView intensity={isDark ? 20 : 40} style={StyleSheet.absoluteFill} />
+                    <View style={[styles.statIcon, { backgroundColor: '#EF444420' }]}>
                         <Ionicons name="warning" size={20} color="#EF4444" />
-                        <Text style={[styles.statCardValue, { color: '#EF4444' }]}>{stats.atRisk}</Text>
-                        <Text style={[styles.statCardLabel, { color: '#EF4444' }]}>في خطر</Text>
                     </View>
+                    <Text style={[styles.statCardValue, { color: '#EF4444' }]}>{stats.atRisk}</Text>
+                    <Text style={[styles.statCardLabel, { color: '#EF4444' }]}>في خطر</Text>
                 </View>
             </ScrollView>
 
-            {/* Avg Score */}
             <View style={[styles.avgScoreCard, { backgroundColor: theme.backgroundCard }]}>
-                <Text style={[styles.avgScoreLabel, { color: theme.textSecondary }]}>متوسط النقاط</Text>
-                <View style={styles.avgScoreRow}>
-                    <View style={[styles.avgScoreBar, { backgroundColor: theme.border }]}>
-                        <View
-                            style={[
-                                styles.avgScoreFill,
-                                { width: `${stats.avgScore}%`, backgroundColor: getScoreColor(stats.avgScore) }
-                            ]}
-                        />
-                    </View>
+                <View style={styles.scoreHeader}>
+                    <Text style={[styles.avgScoreLabel, { color: theme.textSecondary }]}>متوسط رضاء الزبناء</Text>
                     <Text style={[styles.avgScoreValue, { color: getScoreColor(stats.avgScore) }]}>
-                        {stats.avgScore}
+                        {stats.avgScore}%
                     </Text>
+                </View>
+                <View style={styles.avgScoreBar}>
+                    <LinearGradient
+                        colors={[getScoreColor(stats.avgScore), getScoreColor(stats.avgScore) + '80']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[styles.avgScoreFill, { width: `${stats.avgScore}%` }]}
+                    />
                 </View>
             </View>
         </View>
@@ -452,67 +534,72 @@ export default function AdminCustomers() {
             </LinearGradient>
 
             {/* Search */}
-            <View style={styles.searchContainer}>
-                <View style={[styles.searchBox, { backgroundColor: theme.backgroundCard }]}>
-                    <Ionicons name="search" size={20} color={theme.textMuted} />
-                    <TextInput
-                        style={[styles.searchInput, { color: theme.text }]}
-                        placeholder="البحث بالاسم أو البريد أو الهاتف..."
-                        placeholderTextColor={theme.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                </View>
+            <View style={styles.searchFloatingContainer}>
+                <BlurView intensity={80} style={styles.searchBlur}>
+                    <View style={styles.searchBox}>
+                        <Ionicons name="search" size={20} color={theme.textMuted} />
+                        <TextInput
+                            style={[styles.searchInput, { color: theme.text }]}
+                            placeholder="البحث بالاسم أو البريد أو الهاتف..."
+                            placeholderTextColor={theme.textMuted}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                    </View>
+                </BlurView>
             </View>
 
             {/* Segment Filters */}
-            <FlatList
-                horizontal
-                data={SEGMENT_FILTERS}
-                keyExtractor={(item) => item.id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filtersContainer}
-                renderItem={({ item }) => {
-                    const count = item.id === 'all'
-                        ? customers.length
-                        : customers.filter(c => c.segment === item.id).length;
-                    const segmentColor = SEGMENT_CONFIG[item.id]?.color || theme.primary;
+            <View style={styles.filtersWrapper}>
+                <FlatList
+                    horizontal
+                    data={SEGMENT_FILTERS}
+                    keyExtractor={(item) => item.id}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filtersContainer}
+                    renderItem={({ item }) => {
+                        const count = item.id === 'all'
+                            ? customers.length
+                            : customers.filter(c => c.segment === item.id).length;
+                        const segmentColor = SEGMENT_CONFIG[item.id]?.color || theme.primary;
 
-                    return (
-                        <TouchableOpacity
-                            style={[
-                                styles.filterChip,
-                                {
-                                    backgroundColor: selectedSegment === item.id
-                                        ? (item.id === 'all' ? theme.primary : segmentColor)
-                                        : theme.backgroundCard,
-                                }
-                            ]}
-                            onPress={() => setSelectedSegment(item.id)}
-                        >
-                            <Text style={[
-                                styles.filterText,
-                                { color: selectedSegment === item.id ? '#fff' : theme.text }
-                            ]}>
-                                {item.label}
-                            </Text>
-                            {count > 0 && (
-                                <View style={[
-                                    styles.filterBadge,
-                                    { backgroundColor: selectedSegment === item.id ? 'rgba(255,255,255,0.3)' : theme.border }
+                        return (
+                            <TouchableOpacity
+                                style={[
+                                    styles.filterChip,
+                                    {
+                                        backgroundColor: selectedSegment === item.id
+                                            ? (item.id === 'all' ? theme.primary : segmentColor)
+                                            : theme.backgroundCard,
+                                        borderColor: selectedSegment === item.id ? 'transparent' : theme.border,
+                                    }
+                                ]}
+                                onPress={() => setSelectedSegment(item.id)}
+                            >
+                                <Text style={[
+                                    styles.filterText,
+                                    { color: selectedSegment === item.id ? '#fff' : theme.text }
                                 ]}>
-                                    <Text style={[
-                                        styles.filterBadgeText,
-                                        { color: selectedSegment === item.id ? '#fff' : theme.textSecondary }
+                                    {item.label}
+                                </Text>
+                                {count > 0 && (
+                                    <View style={[
+                                        styles.filterBadge,
+                                        { backgroundColor: selectedSegment === item.id ? 'rgba(255,255,255,0.3)' : theme.border }
                                     ]}>
-                                        {count}
-                                    </Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    );
-                }}
-            />
+                                        <Text style={[
+                                            styles.filterBadgeText,
+                                            { color: selectedSegment === item.id ? '#fff' : theme.textSecondary }
+                                        ]}>
+                                            {count}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        );
+                    }}
+                />
+            </View>
 
             {/* Customers List */}
             <FlatList
@@ -521,10 +608,19 @@ export default function AdminCustomers() {
                 renderItem={renderCustomer}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                removeClippedSubviews={true}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
                 }
-                ListHeaderComponent={renderStatsHeader}
+                ListHeaderComponent={
+                    <>
+                        <View style={styles.headerSpacer} />
+                        {renderStatsHeader()}
+                    </>
+                }
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Ionicons name="people-outline" size={64} color={theme.textMuted} />
@@ -546,7 +642,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingBottom: 16,
+        paddingBottom: 60,
     },
     headerRow: {
         flexDirection: 'row',
@@ -564,7 +660,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#fff',
     },
@@ -576,38 +672,55 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    searchContainer: {
-        padding: 16,
-        paddingBottom: 8,
+    headerSpacer: {
+        height: 20,
+    },
+    searchFloatingContainer: {
+        marginTop: -30,
+        marginHorizontal: 16,
+        borderRadius: 20,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 8,
+        zIndex: 10,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+    },
+    searchBlur: {
+        padding: 4,
     },
     searchBox: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 12,
-        borderRadius: 12,
-        gap: 10,
+        paddingHorizontal: 16,
+        gap: 12,
     },
     searchInput: {
         flex: 1,
         fontSize: 15,
         textAlign: 'right',
+        height: 40,
+    },
+    filtersWrapper: {
+        paddingBottom: 12,
     },
     filtersContainer: {
         paddingHorizontal: 16,
-        paddingBottom: 12,
-        gap: 8,
+        gap: 10,
     },
     filterChip: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 8,
-        borderRadius: 20,
-        marginRight: 10,
-        backgroundColor: theme.backgroundCard,
+        borderRadius: 22,
         borderWidth: 1,
-        borderColor: theme.border,
-        height: 38,
+        height: 42,
     },
     filterText: {
         fontSize: 13,
@@ -619,6 +732,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         borderRadius: 10,
         minWidth: 20,
         alignItems: 'center',
+        marginLeft: 6,
     },
     filterBadgeText: {
         fontSize: 11,
@@ -629,72 +743,99 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         paddingTop: 0,
     },
     statsHeader: {
-        marginBottom: 16,
+        marginBottom: 20,
     },
-    statsRow: {
-        flexDirection: 'row',
-        paddingHorizontal: 16,
+    statsScroll: {
+        paddingHorizontal: 0,
         gap: 12,
-        marginBottom: 16,
+        paddingBottom: 8,
     },
     statCard: {
-        flex: 1,
-        padding: 16,
-        borderRadius: 20,
+        width: width * 0.42,
+        padding: 20,
+        borderRadius: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 100,
+        marginRight: 15,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    statIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    statCardValue: {
+        fontSize: 24,
+        fontWeight: '800',
+    },
+    statCardLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        marginTop: 4,
+    },
+    avgScoreCard: {
+        padding: 24,
+        borderRadius: 24,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
         elevation: 2,
     },
-    statCardValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginTop: 4,
-    },
-    statCardLabel: {
-        fontSize: 11,
-        marginTop: 2,
-    },
-    avgScoreCard: {
-        padding: 16,
-        borderRadius: 12,
+    scoreHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
     },
     avgScoreLabel: {
-        fontSize: 13,
-        marginBottom: 8,
+        fontSize: 15,
+        fontWeight: '600',
     },
-    avgScoreRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
+    avgScoreValue: {
+        fontSize: 20,
+        fontWeight: '800',
     },
     avgScoreBar: {
-        flex: 1,
-        height: 8,
-        borderRadius: 4,
+        height: 12,
+        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+        borderRadius: 6,
         overflow: 'hidden',
     },
     avgScoreFill: {
         height: '100%',
-        borderRadius: 4,
-    },
-    avgScoreValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        minWidth: 30,
+        borderRadius: 6,
     },
     customerCard: {
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
+        padding: 18,
+        borderRadius: 24,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        elevation: 3,
     },
-    customerMain: {
+    cardHeader: {
         flexDirection: 'row',
-        marginBottom: 12,
+        alignItems: 'center',
+        marginBottom: 18,
+        gap: 12,
     },
     avatar: {
         width: 54,
@@ -715,84 +856,93 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
     customerInfo: {
         flex: 1,
-        marginLeft: 12,
+        alignItems: 'flex-end',
     },
     nameRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        justifyContent: 'flex-end',
+        gap: 8,
     },
     customerName: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 17,
+        fontWeight: '800',
+        textAlign: 'right',
     },
     vipBadge: {
         backgroundColor: '#F59E0B20',
         padding: 4,
-        borderRadius: 10,
+        borderRadius: 8,
     },
     customerEmail: {
         fontSize: 13,
-        marginTop: 2,
+        marginTop: 3,
+        textAlign: 'right',
     },
-    customerMeta: {
+    quickActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    actionBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    cardMeta: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 6,
-        gap: 10,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.05)',
+        gap: 12,
     },
     segmentBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
+        paddingVertical: 4,
+        borderRadius: 8,
         gap: 4,
     },
     segmentText: {
         fontSize: 10,
-        fontWeight: '600',
+        fontWeight: 'bold',
     },
     cityText: {
-        fontSize: 11,
+        fontSize: 12,
     },
-    customerStats: {
+    cardStats: {
         flexDirection: 'row',
-        borderTopWidth: 1,
-        borderTopColor: theme.border,
-        paddingTop: 12,
-    },
-    statBox: {
-        flex: 1,
         alignItems: 'center',
+        gap: 12,
     },
-    statValue: {
-        fontSize: 16,
+    miniStat: {
+        alignItems: 'flex-end',
+    },
+    miniStatValue: {
+        fontSize: 13,
         fontWeight: 'bold',
     },
-    statLabel: {
-        fontSize: 11,
-        marginTop: 2,
+    miniStatLabel: {
+        fontSize: 10,
     },
-    scoreBox: {
-        flex: 1,
-        alignItems: 'center',
+    scoreBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
     },
-    scoreCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        borderWidth: 2,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scoreValue: {
-        fontSize: 14,
+    scoreBadgeText: {
+        fontSize: 12,
         fontWeight: 'bold',
+    },
+    flex: {
+        flex: 1,
     },
     emptyState: {
         alignItems: 'center',
-        paddingVertical: 60,
+        paddingVertical: 80,
     },
     emptyText: {
         fontSize: 16,
@@ -803,7 +953,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flex: 1,
     },
     profileHeader: {
-        paddingBottom: 30,
+        paddingBottom: 40,
     },
     profileHeaderRow: {
         flexDirection: 'row',
@@ -813,8 +963,8 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         paddingTop: 8,
     },
     profileHeaderTitle: {
-        fontSize: 17,
-        fontWeight: '600',
+        fontSize: 18,
+        fontWeight: 'bold',
         color: '#fff',
     },
     profileInfo: {
@@ -822,13 +972,13 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         marginTop: 20,
     },
     profileAvatar: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
+        width: 100,
+        height: 100,
+        borderRadius: 50,
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
-        borderWidth: 3,
+        borderWidth: 4,
         borderColor: 'rgba(255,255,255,0.3)',
     },
     profileAvatarImage: {
@@ -837,85 +987,94 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
     profileAvatarText: {
         color: '#fff',
-        fontSize: 28,
+        fontSize: 32,
         fontWeight: 'bold',
     },
     profileName: {
         color: '#fff',
-        fontSize: 22,
-        fontWeight: 'bold',
+        fontSize: 24,
+        fontWeight: 'extrabold',
         marginTop: 12,
     },
     profileSegment: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        marginTop: 8,
-        gap: 4,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        marginTop: 12,
+        gap: 6,
     },
     profileSegmentText: {
         color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: 13,
+        fontWeight: 'bold',
     },
     scoreRing: {
-        alignItems: 'center',
-        marginTop: 16,
+        position: 'absolute',
+        right: 20,
+        bottom: -30,
     },
     scoreRingInner: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        borderWidth: 3,
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        borderWidth: 4,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 6,
     },
     scoreRingValue: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
     },
     scoreRingLabel: {
         fontSize: 10,
-        color: 'rgba(255,255,255,0.7)',
+        color: 'rgba(255,255,255,0.8)',
     },
     profileContent: {
         flex: 1,
-        marginTop: -15,
+        marginTop: -20,
     },
     profileSection: {
         margin: 16,
-        marginBottom: 0,
-        padding: 16,
-        borderRadius: 16,
+        marginBottom: 8,
+        padding: 20,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        marginBottom: 12,
+        marginBottom: 16,
     },
     sectionTitle: {
-        fontSize: 15,
-        fontWeight: '600',
-        marginBottom: 12,
+        fontSize: 16,
+        fontWeight: '700',
     },
     contactRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        paddingVertical: 8,
+        paddingVertical: 10,
     },
     contactText: {
-        fontSize: 14,
+        fontSize: 15,
     },
     ltvGrid: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
+        justifyContent: 'space-between',
+        marginTop: 8,
     },
     ltvItem: {
+        flex: 1,
         alignItems: 'center',
     },
     ltvValue: {
@@ -926,17 +1085,39 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         fontSize: 11,
         marginTop: 4,
     },
+    notesInput: {
+        minHeight: 100,
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 16,
+        fontSize: 14,
+        textAlign: 'right',
+        backgroundColor: 'rgba(0,0,0,0.02)',
+        textAlignVertical: 'top',
+        marginBottom: 16,
+    },
+    saveNotesBtn: {
+        paddingVertical: 14,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    saveNotesText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: 'bold',
+    },
     purchaseRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
+        paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: theme.border,
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     purchaseIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -946,31 +1127,27 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
     purchaseName: {
         fontSize: 14,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     purchaseDate: {
         fontSize: 12,
         marginTop: 2,
     },
     purchaseAmount: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: 'bold',
-    },
-    emptyHistory: {
-        textAlign: 'center',
-        paddingVertical: 20,
     },
     recommendationRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
+        paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: theme.border,
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     recIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -980,17 +1157,17 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
     recName: {
         fontSize: 14,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     recReason: {
         fontSize: 11,
         marginTop: 2,
     },
     recPrice: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: 'bold',
     },
     bottomPadding: {
-        height: 40,
+        height: 60,
     },
 });

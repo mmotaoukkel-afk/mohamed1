@@ -14,6 +14,8 @@ import { useTranslation } from '../hooks/useTranslation';
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
         shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
     }),
@@ -235,12 +237,13 @@ async function registerForPushNotificationsAsync() {
     let token;
 
     if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
+        const channelRes = await Notifications.setNotificationChannelAsync('default', {
             name: 'default',
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#FF231F7C',
         });
+        console.log('🔔 Android Channel Created:', channelRes ? 'Success' : 'Failed');
     }
 
     if (Device.isDevice) {
@@ -251,29 +254,34 @@ async function registerForPushNotificationsAsync() {
             finalStatus = status;
         }
         if (finalStatus !== 'granted') {
-            console.warn('Failed to get push token for push notification!');
+            console.warn('❌ Permission not granted for push notifications!');
             return;
         }
 
         try {
             const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+            console.log('🔑 EAS Project ID:', projectId || 'MISSING');
+
             if (!projectId) {
-                console.warn('No EAS Project ID found in config. Check your app.json.');
+                console.warn('⚠️ No EAS Project ID found in config. Check your app.json.');
+                // We typically stop here, but let's try getting token anyway (might fail or warn)
             }
 
-            // Timeout token fetch to prevent stalling (max 5s)
+            // Timeout token fetch to prevent stalling (max 10s now)
             const tokenPromise = Notifications.getExpoPushTokenAsync({ projectId });
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Push token timeout')), 5000)
+                setTimeout(() => reject(new Error('Push token timeout (10s)')), 10000)
             );
 
-            token = (await Promise.race([tokenPromise, timeoutPromise])).data;
+            const tokenData = await Promise.race([tokenPromise, timeoutPromise]);
+            token = tokenData.data;
+            console.log('✅ Token Generated:', token);
         } catch (e) {
-            console.warn('Push notification registration skipped:', e.message);
+            console.error('❌ Push registration failed:', e.message);
             // Non-blocking: App continues even if notifications fail
         }
     } else {
-        // Physical device required for Push Notifications
+        console.log('⚠️ Physical device required for Push Notifications');
     }
 
     return token;

@@ -28,7 +28,6 @@ import Animated, {
   withSequence,
   FadeInDown,
 } from 'react-native-reanimated';
-import { useRecentlyViewed } from '../../src/context/RecentlyViewedContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import api from '../../src/services/api';
 import { useCart } from '../../src/context/CartContext';
@@ -60,18 +59,8 @@ export default function ProductDetailsScreen() {
   const [selectedImage, setSelectedImage] = useState(0);
   const [publicLikes, setPublicLikes] = useState(0);
   const { triggerAddToCart } = useCartAnimation();
-  const { addProductToRecent } = useRecentlyViewed();
 
-  useEffect(() => {
-    if (product) {
-      addProductToRecent({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.images?.[0]?.src,
-      });
-    }
-  }, [product, addProductToRecent]);
+
 
   const handleShare = async () => {
     try {
@@ -137,7 +126,7 @@ export default function ProductDetailsScreen() {
       stock_status: product.stock > 0 ? 'instock' : 'outofstock',
       in_stock: product.stock > 0,
       short_description: product.description || '',
-      categories: product.category ? [{ name: product.category }] : [],
+      categories: product.categories || (product.category ? [{ name: product.category }] : []),
     };
   }, [product]);
 

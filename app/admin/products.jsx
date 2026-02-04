@@ -20,7 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import AddProductModal from '../../src/components/admin/AddProductModal';
 import {
@@ -36,8 +36,9 @@ export default function AdminProducts() {
     const { theme, isDark } = useTheme();
     const styles = getStyles(theme, isDark);
 
+    const { search } = useLocalSearchParams();
     const [products, setProducts] = useState([]);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(search || '');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
@@ -152,9 +153,12 @@ export default function AdminProducts() {
         return { label: 'متوفر', color: '#10B981', icon: 'checkmark-circle' };
     };
 
-    const getCategoryName = (categoryId) => {
-        const cat = PRODUCT_CATEGORIES.find(c => c.id === categoryId);
-        return cat ? cat.name : categoryId;
+    const getCategoryName = (item) => {
+        if (item.categories?.[0]?.name) {
+            return item.categories[0].name;
+        }
+        const cat = PRODUCT_CATEGORIES.find(c => c.id === item.category);
+        return cat ? cat.name : (item.category || 'غير مصنف');
     };
 
     const renderProduct = ({ item }) => {
@@ -186,7 +190,7 @@ export default function AdminProducts() {
                             {currencyService.formatAdminPrice(item.price)}
                         </Text>
                         <Text style={[styles.categoryText, { color: theme.textMuted }]}>
-                            {getCategoryName(item.category)}
+                            {getCategoryName(item)}
                         </Text>
                     </View>
 

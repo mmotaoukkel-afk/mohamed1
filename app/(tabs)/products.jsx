@@ -27,6 +27,7 @@ import { useCart } from '../../src/context/CartContext';
 import { useCartAnimation } from '../../src/context/CartAnimationContext';
 import { useFavorites } from '../../src/context/FavoritesContext';
 import { useTheme } from '../../src/context/ThemeContext';
+import { PRODUCT_CATEGORIES } from '../../src/services/adminProductService';
 
 // Components
 import SearchHeader from '../../src/components/SearchHeader';
@@ -54,21 +55,7 @@ export default function ProductsScreen() {
     const [filterModalVisible, setFilterModalVisible] = useState(false);
     const [sortBy, setSortBy] = useState('newest'); // 'newest', 'price_low', 'price_high', 'name'
 
-    // Real categories from kataraa.com
-    const realCategories = [
-        { id: 'سيروم', name: 'سيروم', icon: '💧' },
-        { id: 'واقي الشمس', name: 'واقي الشمس', icon: '☀️' },
-        { id: 'مرطب للبشرة', name: 'مرطب', icon: '✨' },
-        { id: 'غسول', name: 'غسول', icon: '🧼' },
-        { id: 'تونر', name: 'تونر', icon: '💦' },
-        { id: 'ماسك للوجه', name: 'ماسك', icon: '🎭' },
-        { id: 'العناية بالعين', name: 'العين', icon: '👁️' },
-        { id: 'العناية بالشعر', name: 'الشعر', icon: '💇' },
-        { id: 'حب الشباب والبثور', name: 'حب الشباب', icon: '🎯' },
-        { id: 'تجاعيد البشره', name: 'التجاعيد', icon: '⏳' },
-        { id: 'مسحات', name: 'مسحات', icon: '🧴' },
-        { id: 'المكياج', name: 'المكياج', icon: '💄' },
-    ];
+    // Unified categories from adminProductService
 
     // Map sort values to API values
     const getSortOption = () => {
@@ -315,8 +302,8 @@ export default function ProductsScreen() {
                     ]}>الكل</Text>
                 </TouchableOpacity>
 
-                {/* Real Categories */}
-                {realCategories.map((cat) => (
+                {/* Unified Categories */}
+                {PRODUCT_CATEGORIES.map((cat) => (
                     <TouchableOpacity
                         key={cat.id}
                         style={styles.categoryCircleWrapper}
@@ -430,7 +417,7 @@ export default function ProductsScreen() {
                                 <Ionicons name="checkmark" size={20} color={theme.primary} />
                             )}
                         </TouchableOpacity>
-                        {realCategories.map(cat => (
+                        {PRODUCT_CATEGORIES.map(cat => (
                             <TouchableOpacity
                                 key={cat.id}
                                 style={[

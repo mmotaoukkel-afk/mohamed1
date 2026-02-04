@@ -26,7 +26,25 @@ export default function AdminBroadcast() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const [loading, setLoading] = useState(false);
+    const [testLoading, setTestLoading] = useState(false);
     const [form, setForm] = useState({ title: '', body: '' });
+    const [deviceCount, setDeviceCount] = useState(null);
+
+    // Import service dynamically or ensure it imports new functions
+    // We need useEffect to load count
+    React.useEffect(() => {
+        const loadCount = async () => {
+            try {
+                // Dynamic import to avoid cycles or ensure freshness
+                const { getReachabilityCount } = await import('../../src/services/adminNotificationService');
+                const count = await getReachabilityCount();
+                setDeviceCount(count);
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        loadCount();
+    }, []);
 
     const handleSend = async () => {
         if (!form.title || !form.body) {
@@ -34,9 +52,14 @@ export default function AdminBroadcast() {
             return;
         }
 
+        if (deviceCount === 0) {
+            Alert.alert('تنبيه', 'لا توجد أجهزة مسجلة لاستلام الإشعارات. جرب فتح التطبيق من هاتف حقيقي.');
+            return;
+        }
+
         Alert.alert(
             'تأكيد الإرسال',
-            'هل أنت متأكد من إرسال هذا الإشعار لجميع الزبناء؟ لا يمكن التراجع عن هذه الخطوة.',
+            `سيتم الإرسال إلى ${deviceCount || '?'} جهاز. هل أنت متأكد؟`,
             [
                 { text: 'إلغاء', style: 'cancel' },
                 {
@@ -61,6 +84,25 @@ export default function AdminBroadcast() {
         );
     };
 
+    const handleTestSend = async () => {
+        try {
+            setTestLoading(true);
+            const { useNotifications } = await import('../../src/context/NotificationContext');
+            // We can't use hook inside async callback, so we assume we are testing on THIS device.
+            // But we can't access context here easily without being inside the component flow properly.
+            // Better approach: Get token from context (need to update component to use hook)
+
+            // Re-implementing simplified test fetch because hooking context dynamically is tricky
+            // We'll rely on the user knowing they need to be logged in and valid.
+
+            // Actually, let's just use the service if check passed
+            const { sendTestNotification } = await import('../../src/services/adminNotificationService');
+
+            // We need a token. We don't have access to MY token here easily unless we use the hook at top level.
+            // Let's Alert user for now.
+        } catch (e) { }
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
@@ -77,12 +119,30 @@ export default function AdminBroadcast() {
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 <Surface variant="elevated" radius="xl" padding="lg" style={styles.formCard}>
-                    <View style={styles.infoBox}>
-                        <Ionicons name="information-circle-outline" size={24} color={theme.primary} />
-                        <Text variant="caption" style={{ color: theme.textSecondary, flex: 1, marginLeft: 10 }}>
-                            سيصل هذا الإشعار لجميع الزبناء الذين حملوا التطبيق وقاموا بتفعيل الإشعارات.
-                        </Text>
+
+                    {/* Reachability Banner */}
+                    <View style={[
+                        styles.infoBox,
+                        { backgroundColor: deviceCount === 0 ? '#FEF2F2' : 'rgba(99, 102, 241, 0.1)' }
+                    ]}>
+                        <Ionicons
+                            name={deviceCount === 0 ? "warning" : "people"}
+                            size={24}
+                            color={deviceCount === 0 ? "#EF4444" : theme.primary}
+                        />
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text variant="caption" style={{ color: theme.text, fontWeight: 'bold' }}>
+                                {deviceCount !== null ? `${deviceCount} جهاز نشط` : 'جاري التحميل...'}
+                            </Text>
+                            <Text variant="caption" style={{ color: theme.textSecondary }}>
+                                {deviceCount === 0
+                                    ? "⚠️ تنبيه: لا توجد أجهزة مسجلة. الإشعارات لن تصل لأحد. تأكد من فتح التطبيق على هاتف حقيقي."
+                                    : "سيصل الإشعار لجميع هؤلاء الزبناء."}
+                            </Text>
+                        </View>
                     </View>
+
+                    <TestNotificationButton />
 
                     <Text variant="label" style={styles.label}>عنوان الإشعار (Title)</Text>
                     <TextInput
@@ -122,9 +182,91 @@ export default function AdminBroadcast() {
                         variant="primary"
                         style={{ marginTop: 20 }}
                         icon={<Ionicons name="send" size={20} color="#FFF" />}
+                        disabled={deviceCount === 0}
                     />
                 </Surface>
             </ScrollView>
+        </View>
+    );
+}
+
+// Separate component to hook into context easily
+function TestNotificationButton() {
+    const { expoPushToken, registrationError } = require('../../src/context/NotificationContext').useNotifications();
+    const { theme } = useTheme(); // Added useTheme hook
+    const [sending, setSending] = React.useState(false);
+    const [showDetails, setShowDetails] = React.useState(false);
+
+    const sendTest = async () => {
+        if (!expoPushToken) {
+            Alert.alert(
+                'مشكلة في الجهاز',
+                `هذا الجهاز ليس مسجلاً في الإشعارات.\nالسبب: ${registrationError || 'غير معروف (ربما محاكي؟)'}`
+            );
+            return;
+        }
+        setSending(true);
+        try {
+            const { sendTestNotification } = await import('../../src/services/adminNotificationService');
+
+            // Show toast or alert
+            const result = await sendTestNotification(expoPushToken);
+            if (result.success) {
+                Alert.alert('✅ تم الإرسال من السيرفر', 'تم قبول الطلب من طرف Expo.\n\nإذا لم يصلك الإشعار، فهذا يعني:\n1. القناة (Channel) في Android محظورة.\n2. أو أن الهاتف في وضع "عدم الإزعاج".');
+            } else {
+                Alert.alert('❌ رفض من السيرفر', `التفاصيل:\n${result.error}\n\nتأكد من Project ID.`);
+            }
+        } catch (e) {
+            Alert.alert('خطأ', 'حدث خطأ غير متوقع: ' + e.message);
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <View style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <TouchableOpacity
+                    onPress={() => setShowDetails(!showDetails)}
+                    style={{ backgroundColor: 'rgba(0,0,0,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                >
+                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>
+                        {showDetails ? '👁️ إخفاء التفاصيل' : '🛠️ عرض التفاصيل التقنية'}
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={sendTest} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {sending ? <ActivityIndicator size="small" color="#6366F1" /> : <Ionicons name="construct-outline" size={16} color="#6366F1" />}
+                    <Text style={{ color: '#6366F1', fontSize: 13, fontWeight: '600' }}>
+                        {sending ? 'جاري الفحص...' : 'فحص استلام الإشعار'}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
+            {showDetails && (
+                <View style={{ marginTop: 8, padding: 8, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 8 }}>
+                    <Text style={{ fontSize: 10, fontFamily: 'monospace', color: theme.text }}>
+                        Token: {expoPushToken || 'None'}
+                    </Text>
+                    {registrationError && (
+                        <Text style={{ fontSize: 10, color: '#EF4444', marginTop: 4 }}>
+                            Error: {registrationError}
+                        </Text>
+                    )}
+                </View>
+            )}
+
+            {/* Status Line */}
+            {!expoPushToken && (
+                <Text style={{ color: '#EF4444', fontSize: 10, textAlign: 'right', marginTop: 4 }}>
+                    ⚠️ غير جاهز للاستلام: {registrationError || 'بدون توكن'}
+                </Text>
+            )}
+            {expoPushToken && (
+                <Text style={{ color: '#10B981', fontSize: 10, textAlign: 'right', marginTop: 4 }}>
+                    ✅ التوكن جاهز
+                </Text>
+            )}
         </View>
     );
 }

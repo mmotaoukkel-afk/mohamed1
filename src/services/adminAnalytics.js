@@ -54,10 +54,10 @@ export async function getDashboardStats() {
         const productCount = productSnapshot.data().count;
 
         return {
-            customers: { value: userCount.toString(), change: '+New', isPositive: true },
-            orders: { value: orderCount.toString(), change: pendingOrders > 0 ? `${pendingOrders} Pending` : 'All Clear', isPositive: true },
-            revenue: { value: currencyService.formatAdminPrice(totalRevenue), change: 'Total', isPositive: true },
-            products: { value: productCount > 0 ? productCount.toString() : 'Mock', change: '', isPositive: true }
+            customers: { value: userCount.toString(), change: 'إجمالي المشتركين', isPositive: true },
+            orders: { value: orderCount.toString(), change: pendingOrders > 0 ? `${pendingOrders} قيد الانتظار` : 'جميعها مكتملة', isPositive: true },
+            revenue: { value: currencyService.formatAdminPrice(totalRevenue), change: 'إجمالي المبيعات', isPositive: true },
+            products: { value: productCount.toString(), change: 'في الكتالوج', isPositive: true }
         };
 
     } catch (error) {
@@ -179,9 +179,10 @@ export async function getCategorySales() {
 
         snapshot.docs.forEach(doc => {
             const data = doc.data();
-            // detailed items usually in data.items array
-            if (data.items && Array.isArray(data.items)) {
-                data.items.forEach(item => {
+            // detailed items usually in data.line_items or data.items array
+            const items = data.line_items || data.items;
+            if (items && Array.isArray(items)) {
+                items.forEach(item => {
                     const cat = item.category || 'أخرى'; // Default to 'Other' if missing
                     const price = parseFloat(item.price || 0);
                     const qty = parseInt(item.quantity || 1);
@@ -222,6 +223,60 @@ export async function getCategorySales() {
 
     } catch (error) {
         console.error('Error fetching category sales:', error);
+        return [];
+    }
+}
+
+/**
+ * Get Top Selling Products
+ * Aggregates product sales and revenue from recent orders
+ */
+export async function getTopSellingProducts(limitCount = 5) {
+    try {
+        const q = query(
+            collection(db, COLLECTIONS.ORDERS),
+            orderBy('createdAt', 'desc'),
+            limit(100) // Analyze last 100 orders
+        );
+        const snapshot = await getDocs(q);
+
+        const productMap = {};
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const items = data.line_items || data.items;
+            if (items && Array.isArray(items)) {
+                items.forEach(item => {
+                    const id = item.product_id || item.id || item.productId;
+                    const name = item.name || 'منتج';
+                    const price = parseFloat(item.price || 0);
+                    const qty = parseInt(item.quantity || 1);
+                    const image = item.image || item.imageURL;
+
+                    if (productMap[name]) {
+                        productMap[name].sales += qty;
+                        productMap[name].revenue += (price * qty);
+                    } else {
+                        productMap[name] = {
+                            id,
+                            name,
+                            sales: qty,
+                            revenue: price * qty,
+                            image: image || null
+                        };
+                    }
+                });
+            }
+        });
+
+        const sortedProducts = Object.values(productMap)
+            .sort((a, b) => b.sales - a.sales)
+            .slice(0, limitCount);
+
+        return sortedProducts;
+
+    } catch (error) {
+        console.error('Error fetching top selling products:', error);
         return [];
     }
 }

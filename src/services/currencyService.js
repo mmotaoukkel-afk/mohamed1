@@ -50,6 +50,7 @@ class CurrencyService {
                 const data = docSnap.data();
                 if (data.currency && CURRENCIES[data.currency]) {
                     this.customerCurrency = data.currency;
+                    this.adminCurrency = data.currency; // Admin sees selected store currency
                     console.log('✅ Currency loaded from Firestore:', this.customerCurrency);
                 }
             }

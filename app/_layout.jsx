@@ -19,7 +19,6 @@ import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { AuthProvider } from '../src/context/AuthContext';
 import { SettingsProvider } from '../src/context/SettingsContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
-import { RecentlyViewedProvider } from '../src/context/RecentlyViewedContext';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../src/components/GlobalErrorBoundary';
 import { PatternBackground } from '../src/components/ui';
@@ -80,11 +79,9 @@ export default function RootLayout() {
                   <CartProvider>
                     <CartAnimationProvider>
                       <FavoritesProvider>
-                        <RecentlyViewedProvider>
-                          <CheckoutProvider>
-                            <AppNavigator />
-                          </CheckoutProvider>
-                        </RecentlyViewedProvider>
+                        <CheckoutProvider>
+                          <AppNavigator />
+                        </CheckoutProvider>
                       </FavoritesProvider>
                     </CartAnimationProvider>
                   </CartProvider>

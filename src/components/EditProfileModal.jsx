@@ -20,7 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 export default function EditProfileModal({ visible, onClose }) {
     const { theme, isDark } = useTheme();
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, logout } = useAuth();
     const { t } = useTranslation();
 
     const [name, setName] = useState(user?.displayName || '');
@@ -58,7 +58,28 @@ export default function EditProfileModal({ visible, onClose }) {
             Alert.alert(t('success'), t('profileUpdated') || 'Profile updated successfully!');
         } catch (error) {
             console.error('Update failed:', error);
-            Alert.alert(t('error'), t('updateFailed') || 'Update failed');
+            const isRecentLoginError = error.code === 'auth/requires-recent-login' ||
+                error.message?.includes('requires-recent-login');
+
+            if (isRecentLoginError) {
+                Alert.alert(
+                    t('error'),
+                    t('requiresRecentLogin'),
+                    [
+                        { text: t('cancel'), style: 'cancel' },
+                        {
+                            text: t('logout'),
+                            style: 'destructive',
+                            onPress: async () => {
+                                onClose();
+                                await logout();
+                            }
+                        }
+                    ]
+                );
+            } else {
+                Alert.alert(t('error'), error.message || t('updateFailed'));
+            }
         } finally {
             setLoading(false);
         }

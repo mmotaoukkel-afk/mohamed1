@@ -14,7 +14,8 @@ import {
     where,
     orderBy,
     serverTimestamp,
-    limit
+    limit,
+    getCountFromServer
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
@@ -50,6 +51,19 @@ export const getAllPushTokens = async () => {
     } catch (error) {
         console.error('Error fetching tokens:', error);
         return [];
+    }
+};
+
+/**
+ * Get count of reachable devices (users with tokens)
+ */
+export const getReachabilityCount = async () => {
+    try {
+        const snapshot = await getCountFromServer(collection(db, TOKENS_COLLECTION));
+        return snapshot.data().count;
+    } catch (error) {
+        console.error('Error counting tokens:', error);
+        return 0;
     }
 };
 
@@ -113,6 +127,8 @@ export const sendBroadcast = async ({ title, body, data = {} }) => {
                 sound: 'default',
                 title: title,
                 body: body,
+                priority: 'high', // Critical for background visibility
+                channelId: 'default', // Matches the channel created in Context
                 data: { ...data, type: 'broadcast', isRemote: true },
             }));
 
@@ -162,6 +178,7 @@ export const triggerAdminAlert = async ({ type, title, body, data = {} }) => {
                 title: adminTitle,
                 body: body,
                 priority: 'high',
+                channelId: 'default',
                 data: { ...data, type: 'admin_alert', isRemote: true },
             }));
 
@@ -198,5 +215,94 @@ export const getAdminAlerts = async (limitCount = 50) => {
     } catch (error) {
         console.error('Error fetching admin alerts:', error);
         return [];
+    }
+};
+
+/**
+ * Send a Test Notification to a specific token (Debug)
+ */
+export const sendTestNotification = async (token, title = 'تجربة إشعار', body = 'هل وصلك هذا الإشعار؟ 🔔') => {
+    try {
+        if (!token) throw new Error('No token provided');
+
+        const message = {
+            to: token,
+            sound: 'default',
+            title: title,
+            body: body,
+            priority: 'high',
+            channelId: 'default',
+            data: { type: 'test', isRemote: true },
+        };
+
+        const response = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Accept-encoding': 'gzip, deflate',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify([message]),
+        });
+
+        const result = await response.json();
+
+        if (result.errors && result.errors.length > 0) {
+            return { success: false, error: result.errors[0].message + ' (' + result.errors[0].code + ')' };
+        }
+
+        const data = result.data?.[0];
+        if (data?.status === 'ok') {
+            return { success: true };
+        } else {
+            return { success: false, error: data?.message || data?.details?.error || 'Unknown Expo Error' };
+        }
+    } catch (error) {
+        console.error('Test notification failed:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
+ * DIAGNOSTIC: Check if my token is correctly registered as Admin
+ */
+export const checkAdminTokenHealth = async (userId) => {
+    try {
+        if (!userId) return { status: 'error', message: 'No User ID' };
+
+        const docRef = doc(db, TOKENS_COLLECTION, userId);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+            return { status: 'missing', message: 'No token document found for this user.' };
+        }
+
+        const data = docSnap.data();
+        const role = data.role || 'unknown';
+        const isAdmin = ['admin', 'super_admin', 'manager', 'support'].includes(role);
+
+        return {
+            status: isAdmin ? 'ok' : 'mismatch',
+            storedRole: role,
+            token: data.token,
+            message: isAdmin
+                ? `✅ Your token is active using role: ${role}`
+                : `⚠️ Issue: Your token is stored as '${role}', so you won't receive admin alerts.`
+        };
+    } catch (error) {
+        return { status: 'error', message: error.message };
+    }
+};
+
+/**
+ * DIAGNOSTIC: Force update my token role to match my real role
+ */
+export const fixAdminTokenRole = async (userId, realRole) => {
+    try {
+        const docRef = doc(db, TOKENS_COLLECTION, userId);
+        await setDoc(docRef, { role: realRole }, { merge: true });
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
     }
 };

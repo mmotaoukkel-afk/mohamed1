@@ -1,4 +1,4 @@
-import { getAllProducts, getProductById, PRODUCT_CATEGORIES } from './adminProductService';
+import { getAllProducts, getProductById, PRODUCT_CATEGORIES, normalizeProduct } from './adminProductService';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { triggerAdminAlert } from './adminNotificationService';
@@ -10,53 +10,66 @@ const api = {
       console.log(`🔌 Fetching products from Firestore (Page: ${page})`, { category, ...options });
 
       const fetchOptions = {
-        limitCount: 1000, // Fetch all to allow proper sorting and client-side pagination
+        limitCount: 1000, // Fetch all to allow proper sorting and client-side pagination/filtering
         status: 'active', // Only show active products to customers
       };
 
-      if (category) {
-        fetchOptions.category = category;
-      }
-
-      // Fetch all matching products
+      // Fetch ALL active products once
       let allProducts = await getAllProducts(fetchOptions);
 
-      // 1. Filter by Skin Type (using tags)
+      // 1. Apply Normalization FIRST (so we have valid category objects for filtering)
+      const normalizedAll = allProducts.map(normalizeProduct);
+
+      // 2. Filter by Category Client-Side (Supports aliases and name-based fallback)
+      let filtered = normalizedAll;
+      if (category) {
+        const catObj = PRODUCT_CATEGORIES.find(c => c.id === category);
+        filtered = normalizedAll.filter(p => {
+          // Match by ANY of the normalized IDs
+          const matchesNormalized = p.categories.some(c => c.id === category);
+          if (matchesNormalized) return true;
+
+          // Fallback: match by aliases if the product still has raw data
+          if (catObj && catObj.aliases) {
+            return catObj.aliases.includes(p.category);
+          }
+          return p.category === category;
+        });
+      }
+
+      // 3. Filter by Skin Type (using tags)
       if (options.skin) {
         const skinType = options.skin.trim().toLowerCase();
-        allProducts = allProducts.filter(p =>
+        filtered = filtered.filter(p =>
           p.tags && p.tags.some(tag => tag.trim().toLowerCase() === skinType) ||
           p.skinType && p.skinType.trim().toLowerCase() === skinType
         );
       }
 
-      // 2. Sort Products
+      // 4. Sort Products
       if (options.sortBy) {
         switch (options.sortBy) {
           case 'price-asc':
-            allProducts.sort((a, b) => a.price - b.price);
+            filtered.sort((a, b) => a.price - b.price);
             break;
           case 'price-desc':
-            allProducts.sort((a, b) => b.price - a.price);
+            filtered.sort((a, b) => b.price - a.price);
             break;
           case 'alphabetic':
-            allProducts.sort((a, b) => a.name.localeCompare(b.name));
+            filtered.sort((a, b) => a.name.localeCompare(b.name));
             break;
-          // 'newest' is default from getAllProducts
           default:
             break;
         }
       }
 
-      // Calculate start and end indices for pagination
+      // Pagination
       const start = (page - 1) * perPage;
       const end = start + perPage;
+      const paginated = filtered.slice(start, end);
 
-      // Slice the array for the requested page
-      const products = allProducts.slice(start, end);
-
-      console.log(`✅ Loaded ${products.length} products (Page ${page}: ${start}-${end} of ${allProducts.length})`);
-      return products;
+      console.log(`✅ Loaded ${paginated.length} products (Page ${page}: filtering ${filtered.length} matches from ${normalizedAll.length} total)`);
+      return paginated;
 
     } catch (error) {
       console.error('❌ API Error (getProducts):', error.message);
@@ -68,7 +81,8 @@ const api = {
   async getProduct(id) {
     try {
       console.log(`🔌 Fetching product ${id}`);
-      return await getProductById(id);
+      const product = await getProductById(id);
+      return product ? normalizeProduct(product) : null;
     } catch (error) {
       console.error('❌ API Error (getProduct):', error.message);
       return null;
@@ -89,14 +103,15 @@ const api = {
   async searchProducts(query, page = 1, perPage = 20) {
     try {
       console.log(`🔍 Searching: ${query}`);
-      // Basic client-side filtering for search as Firestore doesn't support full-text search natively
-      const allProducts = await getAllProducts({ status: 'active', limitCount: 100 });
+      const allProducts = await getAllProducts({ status: 'active', limitCount: 1000 });
 
       const lowerQuery = query.toLowerCase();
-      return allProducts.filter(p =>
-        p.name.toLowerCase().includes(lowerQuery) ||
-        p.description?.toLowerCase().includes(lowerQuery)
-      );
+      return allProducts
+        .filter(p =>
+          p.name.toLowerCase().includes(lowerQuery) ||
+          p.description?.toLowerCase().includes(lowerQuery)
+        )
+        .map(normalizeProduct);
     } catch (error) {
       console.error('❌ API Error (searchProducts):', error.message);
       return [];
@@ -111,10 +126,9 @@ const api = {
       const docRef = await addDoc(ordersRef, {
         ...orderData,
         createdAt: serverTimestamp(),
-        status: 'pending', // Default status
+        status: 'pending',
       });
 
-      // 🚨 Trigger Admin Alert
       triggerAdminAlert({
         type: 'order',
         title: 'طلب جديد! 🛍️',

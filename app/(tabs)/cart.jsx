@@ -283,7 +283,8 @@ const getStyles = (tokens, isDark, insets) => StyleSheet.create({
   },
   listContent: {
     padding: 20,
-    paddingBottom: 250,
+    paddingBottom: 380, // Increased to account for fixed summary footer + tab bar
+    flexGrow: 1,
   },
   cartItemContainer: {
     marginBottom: 16,

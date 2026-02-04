@@ -34,7 +34,6 @@ import { useFavorites } from '../../src/context/FavoritesContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotifications } from '../../src/context/NotificationContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
-import { useRecentlyViewed } from '../../src/context/RecentlyViewedContext';
 import { useProducts, useCategories } from '../../src/hooks/useProducts';
 import { getAllBanners } from '../../src/services/adminBannerService';
 import { FlashList } from '@shopify/flash-list';
@@ -385,7 +384,6 @@ export default function HomeScreen() {
   const { cartItems } = useCart();
   const { triggerAddToCart } = useCartAnimation();
   const { toggleFavorite, isFavorite } = useFavorites();
-  const { recentlyViewed } = useRecentlyViewed();
   const { tokens, isDark } = useTheme(); // Use tokens
   const { t } = useTranslation();
   const { addNotification, notifications } = useNotifications();
@@ -646,27 +644,7 @@ export default function HomeScreen() {
               )}
             </View>
 
-            {/* 🕒 Recently Viewed */}
-            {recentlyViewed.length > 0 && (
-              <View style={styles.section}>
-                <ElegantSectionHeader
-                  title={t('recentlyViewed') || 'تمت مشاهدتها مؤخراً'}
-                  subtitle={t('recentlyViewedSub') || 'المنتجات التي اهتممت بها'}
-                  onViewAll={() => { }}
-                  tokens={tokens}
-                  styles={styles}
-                  t={t}
-                />
-                <ProductCarousel
-                  products={recentlyViewed}
-                  onProductPress={handleProductPress}
-                  onAddToCart={handleAddToCart}
-                  onFavorite={handleFavorite}
-                  isFavorite={isFavorite}
-                  styles={styles}
-                />
-              </View>
-            )}
+
 
             {/* 🌟 Why Shop With Us */}
             <WhyShopWithUs tokens={tokens} styles={styles} t={t} isDark={isDark} />

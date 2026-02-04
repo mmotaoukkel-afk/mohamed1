@@ -2,8 +2,8 @@
  * Admin Analytics Service - Kataraa
  * Service for analytics, KPIs, and reporting
  * 🔐 Admin only
+ * (Updated)
  */
-
 
 import {
     collection,
@@ -12,7 +12,8 @@ import {
     getDocs,
     orderBy,
     limit,
-    Timestamp
+    Timestamp,
+    getCountFromServer
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import currencyService from './currencyService';
@@ -50,14 +51,23 @@ export const fetchRealAnalyticsData = async (range = DATE_RANGES.LAST_7_DAYS) =>
         const config = DATE_RANGE_CONFIG[range];
         const { start, previousStart, previousEnd } = getDateRangeParams(range);
 
-        // 1. Fetch current period orders
-        const q = query(
+        // 1. Fetch current period orders & users concurrently
+        const ordersQuery = query(
             collection(db, 'orders'),
             where('createdAt', '>=', start),
             orderBy('createdAt', 'desc')
         );
-        const snapshot = await getDocs(q);
+
+        // Get total users to use as "Visitors" base (approximation)
+        const userColl = collection(db, 'users');
+
+        const [snapshot, userSnapshot] = await Promise.all([
+            getDocs(ordersQuery),
+            getCountFromServer(userColl)
+        ]);
+
         const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const realUserCount = userSnapshot.data().count;
 
         // 2. Fetch previous period orders for comparison
         const qPrev = query(
@@ -70,9 +80,9 @@ export const fetchRealAnalyticsData = async (range = DATE_RANGES.LAST_7_DAYS) =>
         const prevOrders = snapshotPrev.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         // 3. Process data
-        const dailyData = processDailyData(orders, range);
-        const totals = calculateTotalsFromOrders(orders);
-        const prevTotals = calculateTotalsFromOrders(prevOrders);
+        const dailyData = processDailyData(orders, range, realUserCount);
+        const totals = calculateTotalsFromOrders(orders, realUserCount);
+        const prevTotals = calculateTotalsFromOrders(prevOrders, realUserCount); // Comparison might be slightly off if user count grew, but acceptable for trend
 
         // 4. Calculate comparisons
         const comparisons = calculateRealComparisons(totals, prevTotals);
@@ -81,16 +91,39 @@ export const fetchRealAnalyticsData = async (range = DATE_RANGES.LAST_7_DAYS) =>
         const topProducts = aggregateTopProducts(orders);
         const categorySales = aggregateCategorySales(orders);
         const hourlyDistribution = aggregateHourlyDistribution(orders);
+        const topCustomers = aggregateTopCustomers(orders);
+        const recentOrders = orders.slice(0, 5).map(o => ({
+            id: o.id,
+            customerName: o.shippingInfo?.fullName || o.customerName || 'عميل',
+            total: o.total || o.amount || 0,
+            status: o.status || 'pending',
+            createdAt: o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt),
+            itemsCount: o.items?.length || 0,
+        }));
+
+        // 6. Calculate additional metrics
+        const avgOrderValue = totals.orders > 0 ? totals.revenue / totals.orders : 0;
+        const completedOrders = orders.filter(o => o.status === 'delivered' || o.status === 'completed').length;
+        const cancelledOrders = orders.filter(o => o.status === 'cancelled').length;
+        const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'processing').length;
 
         return {
             range,
             daily: dailyData,
-            totals,
+            totals: {
+                ...totals,
+                avgOrderValue: Math.round(avgOrderValue),
+                completedOrders,
+                cancelledOrders,
+                pendingOrders,
+            },
             comparisons,
             topProducts,
             categorySales,
-            conversionFunnel: getConversionFunnel(), // Harder to track real visitors for now, keep mock
+            conversionFunnel: getConversionFunnel(totals.visitors, totals.orders),
             hourlyDistribution,
+            topCustomers,
+            recentOrders,
         };
     } catch (error) {
         console.error('Error fetching real analytics data:', error);
@@ -132,25 +165,28 @@ const getDateRangeParams = (range) => {
 /**
  * Process raw orders into daily trend data
  */
-const processDailyData = (orders, range) => {
+const processDailyData = (orders, range, totalUsers) => {
     const config = DATE_RANGE_CONFIG[range];
     const days = config?.days || 7;
-    const data = [];
-    const today = new Date();
-
-    // Map to group by date
     const dailyMap = {};
 
+    // Initialize map
     for (let i = 0; i < days; i++) {
         const d = new Date();
         d.setDate(d.getDate() - (days - 1 - i));
         const dateStr = d.toISOString().split('T')[0];
+
+        // Approximate daily visitors based on total users (just for visualization trend)
+        // In real app, you'd query daily sessions. Here we just distribute total users slightly randomly
+        const baseDailyVisitors = Math.floor(totalUsers / 30) || 10;
+        const randomVar = Math.floor(Math.random() * baseDailyVisitors * 0.2);
+
         dailyMap[dateStr] = {
             date: dateStr,
             dayName: getDayName(d),
             orders: 0,
             revenue: 0,
-            visitors: 200 + Math.floor(Math.random() * 100), // Simulate visitors
+            visitors: baseDailyVisitors + randomVar,
         };
     }
 
@@ -169,10 +205,12 @@ const processDailyData = (orders, range) => {
 /**
  * Calculate totals from order array
  */
-const calculateTotalsFromOrders = (orders) => {
+const calculateTotalsFromOrders = (orders, totalUsers) => {
     const totalRevenue = orders.reduce((sum, o) => sum + parseFloat(o.total || o.amount || 0), 0);
     const orderCount = orders.length;
-    const visitors = orderCount * 15; // Placeholder multiplier for visitors
+    // Use totalUsers as "visitors" - this assumes every user visited. 
+    // It's a better proxy than random numbers for now.
+    const visitors = totalUsers > 0 ? totalUsers : (orderCount || 1) * 2;
 
     return {
         orders: orderCount,
@@ -215,7 +253,7 @@ const aggregateTopProducts = (orders) => {
                         name: item.name || 'منتج',
                         sales: 0,
                         revenue: 0,
-                        growth: Math.floor(Math.random() * 20), // Mock growth for now
+                        growth: 0,
                     };
                 }
                 productMap[id].sales += parseInt(item.quantity || 1);
@@ -275,6 +313,46 @@ const aggregateHourlyDistribution = (orders) => {
     });
 
     return hours;
+};
+
+/**
+ * Aggregate top customers from real orders
+ */
+const aggregateTopCustomers = (orders) => {
+    const customerMap = {};
+
+    orders.forEach(order => {
+        const email = order.shippingInfo?.email || order.customerEmail || order.userId || 'unknown';
+        const name = order.shippingInfo?.fullName || order.customerName || 'عميل';
+
+        if (!customerMap[email]) {
+            customerMap[email] = {
+                id: email,
+                name: name,
+                email: email !== 'unknown' ? email : '',
+                ordersCount: 0,
+                totalSpent: 0,
+                lastOrder: null,
+                avatar: null,
+            };
+        }
+
+        customerMap[email].ordersCount += 1;
+        customerMap[email].totalSpent += parseFloat(order.total || order.amount || 0);
+
+        const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+        if (!customerMap[email].lastOrder || orderDate > customerMap[email].lastOrder) {
+            customerMap[email].lastOrder = orderDate;
+        }
+    });
+
+    return Object.values(customerMap)
+        .sort((a, b) => b.totalSpent - a.totalSpent)
+        .slice(0, 5)
+        .map((customer, index) => ({
+            ...customer,
+            rank: index + 1,
+        }));
 };
 
 /**
@@ -414,21 +492,33 @@ const getCategorySales = () => [
 
 /**
  * Get conversion funnel data
+ * @param {number} visitors - Total visitors
+ * @param {number} orders - Total orders
  * @returns {Array}
  */
-const getConversionFunnel = () => [
-    { stage: 'الزوار', count: 2450, percent: 100 },
-    { stage: 'شاهدوا المنتجات', count: 1820, percent: 74 },
-    { stage: 'أضافوا للسلة', count: 580, percent: 24 },
-    { stage: 'بدأوا الدفع', count: 320, percent: 13 },
-    { stage: 'أكملوا الشراء', count: 156, percent: 6.4 },
-];
+const getConversionFunnel = (visitors = 2450, orders = 156) => {
+    // Calculate funnel steps based on real order count logic
+    // We'll estimate funnel drops based on realistic ecommerce benchmarks
+    const viewed = Math.round(visitors * 0.74);
+    const addedToCart = Math.round(viewed * 0.32);
+    const startedCheckout = Math.round(addedToCart * 0.55);
+    const completed = orders;
+
+    return [
+        { stage: 'الزوار', count: visitors, percent: 100 },
+        { stage: 'شاهدوا المنتجات', count: viewed, percent: visitors > 0 ? Math.round((viewed / visitors) * 100) : 0 },
+        { stage: 'أضافوا للسلة', count: addedToCart, percent: visitors > 0 ? Math.round((addedToCart / visitors) * 100) : 0 },
+        { stage: 'بدأوا الدفع', count: startedCheckout, percent: visitors > 0 ? Math.round((startedCheckout / visitors) * 100) : 0 },
+        { stage: 'أكملوا الشراء', count: completed, percent: visitors > 0 ? ((completed / visitors) * 100).toFixed(1) : 0 },
+    ];
+};
 
 /**
  * Get hourly order distribution
  * @returns {Array}
  */
 const getHourlyDistribution = () => {
+    // This function is still mock for getAnalyticsData, but fetchRealAnalyticsData uses aggregateHourlyDistribution
     const hours = [];
     for (let i = 0; i < 24; i++) {
         // Peak hours: 10-12, 18-21
@@ -486,7 +576,8 @@ export const getKPICards = (totals, comparisons) => [
     {
         id: 'revenue',
         title: 'الإيرادات',
-        value: `${formatCurrency(totals.revenue)} MAD`,
+        // USE REAL CURRENCY FORMAT
+        value: currencyService.formatAdminPrice(totals.revenue),
         change: comparisons.revenueChange,
         icon: 'cash-outline',
         color: '#10B981',
@@ -501,7 +592,7 @@ export const getKPICards = (totals, comparisons) => [
     },
     {
         id: 'visitors',
-        title: 'الزوار',
+        title: 'الزوار (المستخدمين)',
         value: formatCurrency(totals.visitors),
         change: comparisons.visitorsChange,
         icon: 'eye-outline',

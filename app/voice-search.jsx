@@ -357,25 +357,27 @@ export default function VoiceSearchScreen() {
 
                 {/* Results Section (Draggable) */}
                 {products.length > 0 && (state === 'results' || state === 'speaking' || state === 'idle') && (
-                    <GestureDetector gesture={panGesture}>
-                        <Animated.View style={[styles.resultsWrapper, sheetStyle]}>
-                            {/* Handle Bar */}
-                            <View style={styles.resultsHandle} />
+                    <Animated.View style={[styles.resultsWrapper, sheetStyle]}>
+                        {/* Handle Bar - Only this area is draggable */}
+                        <GestureDetector gesture={panGesture}>
+                            <View style={styles.handleArea}>
+                                <View style={styles.resultsHandle} />
+                                <Text style={[styles.resultsTitle, { color: theme.text }]}>منتجات مقترحة لكِ ✨</Text>
+                            </View>
+                        </GestureDetector>
 
-                            <Text style={[styles.resultsTitle, { color: theme.text }]}>منتجات مقترحة لكِ ✨</Text>
-                            <FlatList
-                                data={products}
-                                renderItem={renderProduct}
-                                keyExtractor={(item) => item.id.toString()}
-                                numColumns={2}
-                                showsVerticalScrollIndicator={false}
-                                columnWrapperStyle={styles.productRow}
-                                contentContainerStyle={styles.listPadding}
-                                // Prevent FlatList scrolling when dragging the sheet itself
-                                scrollEnabled={true}
-                            />
-                        </Animated.View>
-                    </GestureDetector>
+                        <FlatList
+                            data={products}
+                            renderItem={renderProduct}
+                            keyExtractor={(item) => item.id.toString()}
+                            numColumns={2}
+                            showsVerticalScrollIndicator={true}
+                            columnWrapperStyle={styles.productRow}
+                            contentContainerStyle={styles.listPadding}
+                            scrollEnabled={true}
+                            nestedScrollEnabled={true}
+                        />
+                    </Animated.View>
                 )}
 
                 {state === 'idle' && products.length === 0 && (
@@ -540,7 +542,10 @@ const styles = StyleSheet.create({
         borderRadius: 3,
         alignSelf: 'center',
         marginTop: 15,
-        marginBottom: 20,
+        marginBottom: 10,
+    },
+    handleArea: {
+        paddingBottom: 10,
     },
     resultsTitle: {
         fontSize: 20,

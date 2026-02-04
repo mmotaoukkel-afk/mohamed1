@@ -32,12 +32,19 @@ export const syncMockProductsToFirestore = async () => {
                     onSale: product.on_sale || false,
                     stock: product.stock_status === 'instock' ? 50 : 0, // Default 50 stock if in stock
                     lowStockThreshold: 5,
-                    category: product.categories?.[0]?.name === 'العناية بالبشرة' ? 'skincare'
-                        : product.categories?.[0]?.name === 'المكياج' ? 'makeup'
-                            : product.categories?.[0]?.name === 'الشعر' ? 'haircare'
-                                : product.categories?.[0]?.name === 'حب الشباب' ? 'skincare'
-                                    : product.categories?.[0]?.name === 'تونر' ? 'skincare'
-                                        : 'skincare',
+                    category: product.categories?.[0]?.name === 'سيروم' ? 'serum'
+                        : product.categories?.[0]?.name === 'واقي الشمس' ? 'sunscreen'
+                            : product.categories?.[0]?.name === 'مرطب للبشرة' ? 'moisturizer'
+                                : product.categories?.[0]?.name === 'غسول' ? 'cleanser'
+                                    : product.categories?.[0]?.name === 'تونر' ? 'toner'
+                                        : product.categories?.[0]?.name === 'ماسك للوجه' ? 'mask'
+                                            : product.categories?.[0]?.name === 'العناية بالعين' ? 'eyecare'
+                                                : product.categories?.[0]?.name === 'العناية بالشعر' ? 'haircare'
+                                                    : product.categories?.[0]?.name === 'حب الشباب' ? 'acne'
+                                                        : product.categories?.[0]?.name === 'تجاعيد البشره' ? 'antiaging'
+                                                            : product.categories?.[0]?.name === 'مسحات' ? 'pads'
+                                                                : product.categories?.[0]?.name === 'المكياج' ? 'makeup'
+                                                                    : 'serum', // Default to serum
                     tags: product.categories?.map(c => c.name) || [],
                     images: product.images?.map(img => img.src) || [],
                     status: 'active',

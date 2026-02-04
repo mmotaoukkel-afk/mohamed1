@@ -193,14 +193,7 @@ export const AuthProvider = ({ children }) => {
                         addNotification('notifEmailVerifyTitle', 'notifEmailVerifyMsg', 'info', { email: updates.email });
                     } catch (authError) {
                         console.error('Firebase Auth email update failed:', authError);
-                        // If it's a recent login requirement, propagate it
-                        if (authError.code === 'auth/requires-recent-login') {
-                            throw new Error('Please log in again to change your email.');
-                        }
-                        if (authError.code === 'auth/operation-not-allowed') {
-                            throw new Error('Email update is currently restricted. Please contact support.');
-                        }
-                        // Continue to update Firestore even if Auth fails (for local accounts)
+                        throw authError; // Re-throw original Firebase error
                     }
                 }
             }

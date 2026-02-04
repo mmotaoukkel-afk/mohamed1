@@ -32,7 +32,6 @@ import EditProfileModal from "../../src/components/EditProfileModal";
 import SavedAddresses from "../../src/components/SavedAddresses";
 import PaymentMethods from "../../src/components/PaymentMethods";
 import { ProfileSkeleton } from "../../src/components/SkeletonLoader";
-import { useRecentlyViewed } from "../../src/context/RecentlyViewedContext";
 import { useCartAnimation } from "../../src/context/CartAnimationContext";
 import ProductCardCinematic from "../../src/components/ProductCardCinematic";
 import { LinearGradient } from "expo-linear-gradient";
@@ -46,7 +45,6 @@ const Profile = () => {
   const { savedAddresses, deleteAddress, saveAddress, deletePaymentMethod, savePaymentMethod } = useCheckout();
   const { favorites, isFavorite, toggleFavorite } = useFavorites();
   const { savedPaymentMethods } = useCheckout();
-  const { recentlyViewed } = useRecentlyViewed();
   const { triggerAddToCart } = useCartAnimation();
 
   const [loadingImage, setLoadingImage] = useState(false);
@@ -127,60 +125,21 @@ const Profile = () => {
     });
   };
 
-  // Loyalty Card Component
-  const LoyaltyCard = () => (
-    <Surface style={styles.loyaltyCard} elevation={2}>
-      <LinearGradient
-        colors={[theme.primary, theme.primaryDark || theme.primary]}
-        style={styles.loyaltyGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.loyaltyLeft}>
-          <View style={styles.loyaltyIconBox}>
-            <Ionicons name="sparkles" size={24} color="#FFF" />
-          </View>
-          <View>
-            <Text style={styles.loyaltyTitle}>{t('loyaltyPoints')}</Text>
-            <Text style={styles.loyaltySub}>{t('kataraaRewards')}</Text>
-          </View>
-        </View>
-        <View style={styles.loyaltyRight}>
-          <Text style={styles.loyaltyPoints}>500</Text>
-          <Text style={styles.loyaltyUnit}>{t('pts')}</Text>
-        </View>
-      </LinearGradient>
-    </Surface>
-  );
 
-  // Product Carousel (Simplified version for Profile)
-  const SimpleProductCarousel = () => (
-    <View style={styles.recentSection}>
-      <View style={styles.sectionHeader}>
-        <Text variant="title" style={{ fontSize: 18 }}>{t('recentlyViewed')}</Text>
-        <TouchableOpacity onPress={() => router.push('/products')}>
-          <Text style={{ color: theme.primary, fontWeight: '600' }}>{t('viewAll')}</Text>
-        </TouchableOpacity>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselScroll}>
-        {recentlyViewed.map((item, index) => (
-          <View key={item.id} style={{ width: 160, marginRight: 12 }}>
-            <ProductCardCinematic
-              item={item}
-              onPress={handleProductPress}
-              onAddToCart={handleAddToCart}
-              onFavorite={handleFavorite}
-              isFavorite={isFavorite(item.id)}
-              index={index}
-            />
-          </View>
-        ))}
-      </ScrollView>
-    </View>
-  );
+
+
 
   // New Menu Items Config
   const menuItems = [
+    ...(isAdmin ? [{
+      id: 'admin',
+      label: t('adminDashboard'),
+      icon: 'shield-checkmark-outline',
+      onPress: () => router.push('/admin/overview'),
+      showChevron: true,
+      color: theme.primary,
+      isHighlighted: true
+    }] : []),
     {
       id: 'favorites',
       label: t('favorites'),
@@ -241,14 +200,6 @@ const Profile = () => {
       showChevron: true,
       color: '#25D366'
     },
-    ...(isAdmin ? [{
-      id: 'admin',
-      label: t('adminDashboard'),
-      icon: 'shield-checkmark-outline',
-      onPress: () => router.push('/admin/overview'),
-      showChevron: true,
-      color: theme.primary
-    }] : []),
     {
       id: 'privacy',
       label: t('privacyPolicy') || (language === 'ar' ? 'الخصوصية والأمان' : 'Privacy & Safety'),
@@ -358,14 +309,22 @@ const Profile = () => {
             <TouchableOpacity style={styles.editBtn} onPress={() => setShowEditProfile(true)}>
               <Text style={styles.editBtnText}>{t('editProfile')}</Text>
             </TouchableOpacity>
+
+            {isAdmin && (
+              <TouchableOpacity
+                style={[styles.editBtn, { backgroundColor: theme.primary, marginTop: 8 }]}
+                onPress={() => router.push('/admin/overview')}
+              >
+                <Ionicons name="speedometer-outline" size={14} color="#FFF" style={{ marginRight: 6 }} />
+                <Text style={styles.editBtnText}>{t('adminDashboard')}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
-        {/* Loyalty Points */}
-        <LoyaltyCard />
 
-        {/* Recently Viewed */}
-        {recentlyViewed.length > 0 && <SimpleProductCarousel />}
+
+
 
         {/* Menu List */}
         <View style={styles.menuContainer}>
@@ -551,55 +510,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     overflow: 'hidden',
     paddingTop: 10
   },
-  // Loyalty Card
-  loyaltyCard: {
-    marginHorizontal: 24,
-    marginBottom: 24,
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  loyaltyGradient: {
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  loyaltyLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loyaltyIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loyaltyTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  loyaltySub: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-  },
-  loyaltyRight: {
-    alignItems: 'center',
-  },
-  loyaltyPoints: {
-    color: '#FFF',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  loyaltyUnit: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: -4,
-  },
+
   // Recent Section
   recentSection: {
     marginBottom: 24,
