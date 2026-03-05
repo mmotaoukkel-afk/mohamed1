@@ -2,8 +2,8 @@
  * Root Layout - Kataraa
  */
 
-import { useEffect } from 'react';
-import { View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Stack } from 'expo-router';
@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ErrorBoundary } from 'react-error-boundary';
 import AddToCartAnimation from '../src/components/AddToCartAnimation';
 import { ErrorFallback } from '../src/components/GlobalErrorBoundary';
+import PremiumSplash from '../src/components/PremiumSplash';
 import { AuthProvider } from '../src/context/AuthContext';
 import { CartProvider, useCart } from '../src/context/CartContext';
 import { CheckoutProvider } from '../src/context/CheckoutContext';
@@ -35,7 +36,9 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  // Keep splash screen visible while loading
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Keep native splash screen visible while loading
   SplashScreen.preventAutoHideAsync();
 
   // Load premium fonts (Uncomment when you have the .ttf files in assets/fonts)
@@ -51,7 +54,7 @@ export default function RootLayout() {
   const fontsLoaded = true;
 
   useEffect(() => {
-    // Hide splash screen only when fonts are ready
+    // Hide native splash screen immediately to show our custom PremiumSplash
     if (fontsLoaded) {
       const hideSplash = async () => {
         await SplashScreen.hideAsync();
@@ -64,6 +67,18 @@ export default function RootLayout() {
   if (!fontsLoaded) {
     return null;
   }
+
+  // Show our custom PremiumSplash with the new kataraa logo
+  if (showSplash) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider>
+          <PremiumSplash onFinish={() => setShowSplash(false)} />
+        </ThemeProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
@@ -75,7 +90,7 @@ export default function RootLayout() {
                   <CartProvider>
                     <FavoritesProvider>
                       <CheckoutProvider>
-                        <AppNavigator />
+                        <InnerApp />
                       </CheckoutProvider>
                     </FavoritesProvider>
                   </CartProvider>
@@ -89,22 +104,41 @@ export default function RootLayout() {
   );
 }
 
-
-function AppNavigator() {
-  const { theme } = useTheme();
+function InnerApp() {
   const { animationState, endAnimation } = useCart();
 
+  return (
+    <>
+      <AppNavigator />
+      {/* Global Add to Cart Animation Overlay */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, elevation: 99999 }} pointerEvents="box-none">
+        <AddToCartAnimation
+          state={animationState}
+          onComplete={endAnimation}
+        />
+      </View>
+    </>
+  );
+}
+
+
+function AppNavigator() {
+  const { theme, isDark, tokens } = useTheme();
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <StatusBar style={theme.isDark ? "light" : "dark"} />
+
+      {/* ✨ Premium Background Pattern - Logo Colors (Global) */}
+
+
       <Stack screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
         gestureEnabled: true,
-        contentStyle: { backgroundColor: 'transparent' },
+        contentStyle: { backgroundColor: theme.background },
       }}>
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
         <Stack.Screen name="product/[id]" />
         <Stack.Screen name="checkout/shipping" />
         <Stack.Screen name="checkout/payment" />
@@ -113,14 +147,36 @@ function AppNavigator() {
         <Stack.Screen name="orders" />
         <Stack.Screen name="voice-search" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
-
-      {/* Global Add to Cart Animation Overlay */}
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, elevation: 99999 }} pointerEvents="box-none">
-        <AddToCartAnimation
-          state={animationState}
-          onComplete={endAnimation}
-        />
-      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  bgOrb1: {
+    position: 'absolute',
+    top: -100,
+    right: -80,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    zIndex: 0,
+  },
+  bgOrb2: {
+    position: 'absolute',
+    bottom: 50,
+    left: -80,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    zIndex: 0,
+  },
+  bgOrb3: {
+    position: 'absolute',
+    top: 300, // Fixed value instead of height * 0.4
+    right: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    zIndex: 0,
+  },
+});

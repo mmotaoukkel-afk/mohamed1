@@ -191,8 +191,8 @@ export async function getAllCoupons() {
         const coupons = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
-                id: doc.id,
                 ...data,
+                id: doc.id,
                 // Convert Firestore Timestamp to string
                 validUntil: data.validUntil?.toDate ? data.validUntil.toDate().toISOString().split('T')[0] : data.validUntil,
                 createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
@@ -285,20 +285,28 @@ export async function updateCouponUsage(couponId) {
 }
 
 /**
- * Initialize coupons collection with mock data (first time setup)
+ * Initialize coupons collection with mock data (manual setup only)
+ * @param {boolean} force - Must be true to proceed with initialization
  * @returns {Promise<void>}
  */
-export async function initializeCoupons() {
+export async function initializeCoupons(force = false) {
     try {
+        if (!force) {
+            console.log('⚠️ initializeCoupons called without force=true. Skipping re-seeding.');
+            return;
+        }
+
         const couponsRef = collection(db, 'coupons');
         const snapshot = await getDocs(couponsRef);
 
-        // Only initialize if empty
-        if (snapshot.empty) {
+        // Only initialize if empty or forced
+        if (snapshot.empty || force) {
             console.log('Initializing coupons collection with mock data...');
             for (const coupon of MOCK_COUPONS) {
+                // Remove the mock ID to let Firestore generate one, or use it as doc ID
+                const { id, ...couponData } = coupon;
                 await addDoc(couponsRef, {
-                    ...coupon,
+                    ...couponData,
                     createdAt: Timestamp.now(),
                 });
             }

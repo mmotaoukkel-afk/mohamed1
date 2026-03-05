@@ -56,9 +56,8 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
 
     const styles = getStyles(tokens, isDark);
 
-    const TabIcon = ({ iconName, label, isFocused, onPress, routeName }) => {
-        const { cartItems, animationState } = useCart();
-        const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    const TabIcon = ({ iconName, label, isFocused, onPress, routeName, cartCount }) => {
+        const { animationState } = useCart();
         const impactScale = useSharedValue(1);
 
         useEffect(() => {
@@ -159,6 +158,7 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
                                 isFocused={isFocused}
                                 onPress={onPress}
                                 routeName={route.name}
+                                cartCount={cartCount}
                             />
                         );
                     })}

@@ -1,21 +1,20 @@
 
-import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useRouter } from 'expo-router';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    Linking,
     Dimensions,
     Image,
+    Linking,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../src/context/ThemeContext';
 import { useTranslation } from '../src/hooks/useTranslation';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
@@ -84,8 +83,11 @@ export default function AboutScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Header Feature */}
                 <View style={styles.header}>
-                    <Image
-                        source={require('../assets/images/hero_premium.png')}
+                    <LinearGradient
+                        colors={isDark
+                            ? ['#1A1128', '#2D1B4E', '#1A1128']
+                            : ['#2D1B4E', '#1A1128', '#2D1B4E']
+                        }
                         style={styles.headerImage}
                     />
                     <LinearGradient
@@ -93,7 +95,11 @@ export default function AboutScreen() {
                         style={styles.headerOverlay}
                     />
                     <View style={styles.headerContent}>
-                        <Animated.Text entering={FadeInDown.delay(200)} style={styles.brandName}>KATARAA</Animated.Text>
+                        <Image
+                            source={require('../assets/images/kataraa_logo_new.jpg')}
+                            style={[styles.aboutLogo, { borderRadius: 20 }]}
+                            resizeMode="contain"
+                        />
                         <Animated.Text entering={FadeInDown.delay(400)} style={styles.brandTagline}>K-Beauty Excellence</Animated.Text>
                     </View>
                 </View>
@@ -180,11 +186,10 @@ const styles = StyleSheet.create({
         width: '100%',
         alignItems: 'center',
     },
-    brandName: {
-        fontSize: 36,
-        fontWeight: '900',
-        color: '#fff',
-        letterSpacing: 4,
+    aboutLogo: {
+        width: 180,
+        height: 70,
+        marginBottom: 10,
     },
     brandTagline: {
         fontSize: 16,

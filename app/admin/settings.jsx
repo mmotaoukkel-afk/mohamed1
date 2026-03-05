@@ -6,53 +6,56 @@
  * ✨ NEW: Editable Store Settings with Firestore persistence
  */
 
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    Switch,
-    TextInput,
+    ActivityIndicator,
     Alert,
     Modal,
-    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useTheme } from '../../src/context/ThemeContext';
-import { useAuth } from '../../src/context/AuthContext';
 import {
+    ADMIN_COLORS,
+    ADMIN_GRADIENTS,
+    ADMIN_SHADOWS,
+    BORDER_RADIUS
+} from '../../src/constants/adminDesignTokens';
+import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
+import {
+    addCountry,
+    addUpdateZone,
     ADMIN_ROLE_CONFIG,
     COUPON_TYPE_CONFIG,
+    createCoupon,
+    deleteCountry,
+    deleteCoupon,
+    DELIVERY_ZONES,
+    generateCouponCode,
+    getAllCountries,
+    getAllCoupons,
+    getStoreSettings,
     MOCK_ADMINS,
     MOCK_COUPONS,
-    DELIVERY_ZONES,
-    TAX_CONFIG,
     STORE_SETTINGS,
-    getStoreSettings,
-    updateStoreSettings,
-    generateCouponCode,
-    getAllCoupons,
-    createCoupon,
-    deleteCoupon,
-    initializeCoupons,
-    getAllCountries,
-    addCountry,
-    updateCountry,
-    deleteCountry,
-    addUpdateZone,
+    TAX_CONFIG,
+    updateStoreSettings
 } from '../../src/services/adminSettingsService';
-import { syncMockProductsToFirestore } from '../../src/services/syncProducts';
 import currencyService from '../../src/services/currencyService';
+import { syncMockProductsToFirestore } from '../../src/services/syncProducts';
 import {
-    getAllAdmins,
     addOrUpdateAdmin,
-    removeAdmin,
-    USER_ROLES
+    getAllAdmins,
+    removeAdmin
 } from '../../src/services/userService';
 
 const TABS = [
@@ -104,7 +107,6 @@ export default function AdminSettings() {
         loadCoupons();
         loadCountries();
         loadAdmins();
-        initializeCoupons(); // Populate if empty (first time)
     }, []);
 
     const loadCountries = async () => {
@@ -428,26 +430,6 @@ export default function AdminSettings() {
                         </View>
                     </TouchableOpacity>
 
-                    {/* Currency - Editable */}
-                    <TouchableOpacity
-                        style={styles.settingRow}
-                        onPress={() => setShowCurrencyModal(true)}
-                        disabled={savingSettings}
-                    >
-                        <View style={[styles.settingIcon, { backgroundColor: '#F59E0B20' }]}>
-                            <Ionicons name="cash" size={18} color="#F59E0B" />
-                        </View>
-                        <View style={styles.settingInfo}>
-                            <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>عملة التطبيق</Text>
-                            <Text style={[styles.settingValue, { color: theme.text }]}>
-                                {currentCurrency?.name || storeSettings.currency} ({currentCurrency?.symbol})
-                            </Text>
-                        </View>
-                        <View style={styles.editIndicator}>
-                            <Ionicons name="create-outline" size={16} color={theme.primary} />
-                            <Ionicons name="chevron-back" size={18} color={theme.textMuted} />
-                        </View>
-                    </TouchableOpacity>
 
                     {/* Email - Editable */}
                     <TouchableOpacity
@@ -725,7 +707,6 @@ export default function AdminSettings() {
                             onPress={async () => {
                                 try {
                                     setSettingsLoading(true);
-                                    await initializeCoupons();
                                     await loadCoupons();
                                     Alert.alert('تم بنجاح', 'تمت مزامنة الكوبونات مع الكلاود');
                                 } catch (e) {
@@ -1105,7 +1086,7 @@ export default function AdminSettings() {
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             {/* 1. Header Area with Tabs included in the same vertical flow to prevent large gaps */}
             <View style={{ zIndex: 10 }}>
-                <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
+                <LinearGradient colors={ADMIN_GRADIENTS.primary} style={styles.header}>
                     <SafeAreaView edges={['top']}>
                         <View style={styles.headerRow}>
                             <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
@@ -1131,10 +1112,11 @@ export default function AdminSettings() {
                                     style={[
                                         styles.tab,
                                         {
-                                            backgroundColor: activeTab === tab.id ? theme.primary : theme.backgroundCard,
-                                            borderColor: activeTab === tab.id ? theme.primary : theme.border,
+                                            backgroundColor: activeTab === tab.id ? ADMIN_COLORS.primary.main : (isDark ? ADMIN_COLORS.neutral[800] : '#FFFFFF'),
+                                            borderColor: activeTab === tab.id ? ADMIN_COLORS.primary.main : 'transparent',
                                             borderWidth: 1,
                                             marginHorizontal: 4,
+                                            ...ADMIN_SHADOWS.sm,
                                         }
                                     ]}
                                     onPress={() => setActiveTab(tab.id)}
@@ -1142,11 +1124,11 @@ export default function AdminSettings() {
                                     <Ionicons
                                         name={tab.icon}
                                         size={18}
-                                        color={activeTab === tab.id ? '#fff' : theme.text}
+                                        color={activeTab === tab.id ? '#fff' : (isDark ? ADMIN_COLORS.neutral[400] : ADMIN_COLORS.neutral[600])}
                                     />
                                     <Text style={[
                                         styles.tabLabel,
-                                        { color: activeTab === tab.id ? '#fff' : theme.text }
+                                        { color: activeTab === tab.id ? '#fff' : (isDark ? ADMIN_COLORS.neutral[400] : ADMIN_COLORS.neutral[600]) }
                                     ]}>
                                         {tab.label}
                                     </Text>
@@ -1525,9 +1507,10 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     section: {
         marginHorizontal: 16,
         marginBottom: 16,
-        marginTop: 0, // Explicitly 0
+        marginTop: 0,
         padding: 16,
-        borderRadius: 16,
+        borderRadius: BORDER_RADIUS.xl,
+        ...ADMIN_SHADOWS.sm,
     },
     sectionHeader: {
         flexDirection: 'row-reverse', // RTL
@@ -1544,10 +1527,10 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     addBtn: {
         flexDirection: 'row-reverse',
         alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 8,
-        gap: 4,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: BORDER_RADIUS.lg,
+        gap: 6,
     },
     addBtnText: {
         color: '#fff',
@@ -1563,9 +1546,9 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         gap: 12,
     },
     settingIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
+        width: 40,
+        height: 40,
+        borderRadius: BORDER_RADIUS.md,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1632,7 +1615,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 10,
         paddingVertical: 6,
-        borderRadius: 8,
+        borderRadius: BORDER_RADIUS.sm,
         gap: 4,
     },
     roleText: {
@@ -1643,8 +1626,8 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flexDirection: 'row-reverse', // RTL
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 14,
-        borderRadius: 12,
+        padding: 16,
+        borderRadius: BORDER_RADIUS.lg,
         gap: 8,
     },
     logoutText: {
@@ -1663,7 +1646,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     adminAvatar: {
         width: 44,
         height: 44,
-        borderRadius: 22,
+        borderRadius: BORDER_RADIUS.full,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1726,7 +1709,7 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     couponIcon: {
         width: 44,
         height: 44,
-        borderRadius: 12,
+        borderRadius: BORDER_RADIUS.md,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1858,8 +1841,8 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flexDirection: 'row-reverse',
         alignItems: 'center',
         paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 10,
+        paddingVertical: 10,
+        borderRadius: BORDER_RADIUS.lg,
         borderWidth: 1,
         marginBottom: 16,
         gap: 8,
@@ -1884,7 +1867,9 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flexDirection: 'row-reverse', // RTL
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        paddingTop: 80, // Substantially increased top padding for extra clearance
         borderBottomWidth: 1,
     },
     modalCancel: {
@@ -1959,8 +1944,8 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         justifyContent: 'flex-end',
     },
     editModalContainer: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+        borderTopLeftRadius: BORDER_RADIUS.xl,
+        borderTopRightRadius: BORDER_RADIUS.xl,
         paddingBottom: 40,
     },
     editModalContent: {

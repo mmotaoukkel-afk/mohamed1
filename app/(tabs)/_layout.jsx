@@ -9,10 +9,12 @@ import CustomTabBar from '../../src/components/CustomTabBar';
 export default function TabsLayout() {
   return (
     <Tabs
-      sceneContainerStyle={{ backgroundColor: 'transparent' }}
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        lazy: false,
+        freezeOnBlur: true,
+        animation: 'none',
       }}
     >
       <Tabs.Screen name="index" />

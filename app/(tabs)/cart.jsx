@@ -9,9 +9,10 @@ import { useRouter } from 'expo-router';
 import {
   Dimensions,
   FlatList,
+  I18nManager,
   StyleSheet,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,7 +60,7 @@ export default function CartScreen() {
 
           <View style={styles.itemInfo}>
             <View style={styles.itemHeader}>
-              <Text variant="body" weight="bold" numberOfLines={2} style={{ flex: 1, marginRight: 8 }}>
+              <Text variant="body" weight="bold" numberOfLines={2} style={{ flex: 1, marginRight: 8, textAlign: I18nManager.isRTL ? 'right' : 'left' }}>
                 {item.name}
               </Text>
               <TouchableOpacity onPress={() => removeFromCart(item.id)}>
@@ -105,7 +106,7 @@ export default function CartScreen() {
       <View style={{ flex: 1, paddingTop: insets.top }}>
         <View style={styles.header}>
           <IconButton
-            icon="arrow-back"
+            icon={I18nManager.isRTL ? "arrow-forward" : "arrow-back"}
             variant="ghost"
             onPress={() => router.back()}
           />
@@ -140,13 +141,15 @@ export default function CartScreen() {
           </View>
         ) : (
           <>
-            <FlatList
-              data={cartItems}
-              renderItem={renderItem}
-              keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-            />
+            <View style={{ flex: 1 }}>
+              <FlatList
+                data={cartItems}
+                renderItem={renderItem}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
 
             <Surface variant="glass" style={styles.summaryFooter} padding="md" intensity={isDark ? 60 : 80}>
               <View style={styles.summaryRow}>

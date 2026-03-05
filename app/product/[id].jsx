@@ -7,15 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Dimensions,
-  Linking,
-  Platform,
-  StyleSheet,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { ActivityIndicator, Dimensions, I18nManager, Linking, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, {
   FadeInDown,
   useAnimatedScrollHandler,
@@ -38,10 +30,13 @@ import { useTranslation } from '../../src/hooks/useTranslation';
 import api from '../../src/services/api';
 import currencyService from '../../src/services/currencyService';
 import socialService from '../../src/services/socialService';
+import { formatForState, normalizeProduct } from '../../src/utils/productUtils';
 
-const { width } = Dimensions.get('window');
+// Top-level width removed to avoid ReferenceError
+
 
 export default function ProductDetailsScreen() {
+  const { width } = Dimensions.get('window');
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { triggerAddToCart } = useCart();
@@ -86,37 +81,10 @@ export default function ProductDetailsScreen() {
     return () => unsubscribeLikes();
   }, [id]);
 
-  // Normalize Firestore data to WooCommerce format
-  const normalizeProductData = (firestoreProduct) => {
-    if (!firestoreProduct) return null;
-
-    // Normalize images: Firestore uses array of strings, WooCommerce uses array of objects
-    const normalizedImages = (firestoreProduct.images || []).map(img => {
-      if (typeof img === 'string') {
-        return { src: img };
-      }
-      return img; // Already in correct format
-    });
-
-    return {
-      ...firestoreProduct,
-      images: normalizedImages,
-      // Map Firestore fields to WooCommerce compatible fields
-      price: firestoreProduct.price || 0,
-      sale_price: firestoreProduct.price || 0,
-      regular_price: firestoreProduct.compareAtPrice || firestoreProduct.price || 0,
-      on_sale: firestoreProduct.compareAtPrice && firestoreProduct.compareAtPrice > firestoreProduct.price,
-      stock_status: firestoreProduct.stock > 0 ? 'instock' : 'outofstock',
-      in_stock: firestoreProduct.stock > 0,
-      short_description: firestoreProduct.description || '',
-      categories: firestoreProduct.category ? [{ name: firestoreProduct.category }] : [],
-    };
-  };
-
   const fetchProduct = async () => {
     try {
       const data = await api.getProduct(id);
-      const normalized = normalizeProductData(data);
+      const normalized = normalizeProduct(data);
       setProduct(normalized);
     } catch (error) {
       console.error('Error:', error);
@@ -132,19 +100,15 @@ export default function ProductDetailsScreen() {
   const handleAddToCart = () => {
     if (!product) return;
 
+    const cartItem = formatForState(product, quantity);
+
     // Measure image position for animation
     if (imageRef.current) {
       imageRef.current.measureInWindow((x, y, width, height) => {
-        triggerAddToCart({
-          ...product,
-          quantity,
-        }, { x: x + width / 2, y: y + height / 2 });
+        triggerAddToCart(cartItem, { x: x + width / 2, y: y + height / 2 });
       });
     } else {
-      triggerAddToCart({
-        ...product,
-        quantity,
-      });
+      triggerAddToCart(cartItem);
     }
   };
 
@@ -156,6 +120,34 @@ export default function ProductDetailsScreen() {
     }, 850); // Wait for animation to finish
   };
 
+  const handleNotifyMe = async () => {
+    if (!user) {
+      alert(t('loginToNotify'));
+      router.push('/auth');
+      return;
+    }
+
+    try {
+      // Create a notification request in Firestore
+      const db = require('../../src/services/firebaseConfig').db;
+      const { collection, addDoc, serverTimestamp } = require('firebase/firestore');
+
+      await addDoc(collection(db, 'backInStockRequests'), {
+        productId: product.id,
+        productName: product.name,
+        userId: user.uid,
+        userEmail: user.email,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+
+      alert(t('notifySuccess'));
+    } catch (error) {
+      console.error('Error requesting notification:', error);
+      alert(t('notifyError'));
+    }
+  };
+
   const handleHeartPress = async () => {
     heartScale.value = withSequence(
       withSpring(1.4, { damping: 6 }),
@@ -164,12 +156,7 @@ export default function ProductDetailsScreen() {
 
     const wasFavorite = isFavorite(product.id);
 
-    toggleFavorite({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.images?.[0]?.src,
-    });
+    toggleFavorite(formatForState(product));
 
     if (user) {
       try {
@@ -194,7 +181,7 @@ export default function ProductDetailsScreen() {
     transform: [{ scale: heartScale.value }],
   }));
 
-  const styles = getStyles(tokens, isDark);
+  const styles = getStyles(tokens, isDark, width);
 
   if (loading) {
     return (
@@ -229,8 +216,7 @@ export default function ProductDetailsScreen() {
   return (
     <View style={styles.container}>
       {/* Cosmic Background Orbs */}
-      <View style={styles.bgOrb1} />
-      <View style={styles.bgOrb2} />
+
 
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
@@ -242,7 +228,7 @@ export default function ProductDetailsScreen() {
         <Animated.View style={[styles.animatedHeader, headerStyle]}>
           <SafeAreaView style={styles.headerRow}>
             <IconButton
-              icon="arrow-back"
+              icon={I18nManager.isRTL ? "arrow-forward" : "arrow-back"}
               size="md"
               variant="glass"
               onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
@@ -269,7 +255,7 @@ export default function ProductDetailsScreen() {
         {/* Static Header (Always visible at top) */}
         <SafeAreaView style={[styles.headerRow, { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100 }]}>
           <IconButton
-            icon="arrow-back"
+            icon={I18nManager.isRTL ? "arrow-forward" : "arrow-back"}
             size="md"
             variant="glass"
             onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
@@ -312,6 +298,16 @@ export default function ProductDetailsScreen() {
               </Text>
             </View>
             <Text variant="display" weight="light" style={{ lineHeight: 38 }}>{product.name}</Text>
+            {!isInStock && (
+              <Surface variant="glass" radius="lg" style={{ marginTop: 12, backgroundColor: '#D4A5A520' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Ionicons name="notifications-outline" size={20} color="#D4A5A5" />
+                  <Text variant="body" style={{ color: '#D4A5A5', flex: 1 }}>
+                    {t('outOfStockMessage')}
+                  </Text>
+                </View>
+              </Surface>
+            )}
           </Animated.View>
 
           {/* Price Panel */}
@@ -346,8 +342,8 @@ export default function ProductDetailsScreen() {
             <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.descPanel}>
               <Text variant="label" style={{ color: tokens.colors.textMuted }}>{t('description')}</Text>
               <Surface variant="glass" radius="lg">
-                <Text variant="body" style={{ color: tokens.colors.textSecondary, lineHeight: 24 }}>
-                  {product.short_description.replace(/<[^>]*>/g, '')}
+                <Text variant="body" style={{ color: tokens.colors.textSecondary, lineHeight: 24, textAlign: I18nManager.isRTL ? 'right' : 'left' }}>
+                  {product.description}
                 </Text>
               </Surface>
             </Animated.View>
@@ -377,22 +373,32 @@ export default function ProductDetailsScreen() {
       <View style={styles.floatingBottomBar}>
         <Surface variant="glass" radius="xxl" style={styles.bottomBarBlur} intensity={isDark ? 50 : 80}>
           <View style={styles.actionsRow}>
-            <Button
-              title={t('addToCart')}
-              variant="secondary"
-              icon={<Ionicons name="cart-outline" size={20} color={tokens.colors.primary} />}
-              onPress={handleAddToCart}
-              disabled={!isInStock}
-              style={{ flex: 1 }}
-            />
-            <Button
-              title={t('buyNow')}
-              variant="primary"
-              icon={<Ionicons name="flash" size={20} color="#FFF" />}
-              onPress={handleBuyNow}
-              disabled={!isInStock}
-              style={{ flex: 1.2 }}
-            />
+            {isInStock ? (
+              <>
+                <Button
+                  title={t('addToCart')}
+                  variant="secondary"
+                  icon={<Ionicons name="cart-outline" size={20} color={tokens.colors.primary} />}
+                  onPress={handleAddToCart}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title={t('buyNow')}
+                  variant="primary"
+                  icon={<Ionicons name="flash" size={20} color="#FFF" />}
+                  onPress={handleBuyNow}
+                  style={{ flex: 1.2 }}
+                />
+              </>
+            ) : (
+              <Button
+                title={t('notifyMe')}
+                variant="primary"
+                icon={<Ionicons name="notifications-outline" size={20} color="#FFF" />}
+                onPress={handleNotifyMe}
+                style={{ flex: 1 }}
+              />
+            )}
           </View>
 
           <TouchableOpacity style={styles.whatsappFloat} onPress={handleWhatsAppOrder}>
@@ -413,7 +419,7 @@ export default function ProductDetailsScreen() {
   );
 }
 
-const getStyles = (tokens, isDark) => StyleSheet.create({
+const getStyles = (tokens, isDark, width) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: tokens.colors.background,

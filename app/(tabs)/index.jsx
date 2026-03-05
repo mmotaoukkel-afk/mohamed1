@@ -8,17 +8,17 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
-  ImageBackground,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import Animated, {
   Easing,
@@ -43,6 +43,8 @@ import ProductCardSoko from '../../src/components/ProductCardSoko'; // Use Stand
 import SearchHeader from '../../src/components/SearchHeader';
 import { BannerSkeleton, CategorySkeleton, ProductSkeleton } from '../../src/components/SkeletonLoader';
 import { Text } from '../../src/components/ui'; // UI Kit
+import { formatForState } from '../../src/utils/productUtils';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -52,6 +54,13 @@ const { width, height } = Dimensions.get('window');
 const CosmicHero = ({ onShopNow, tokens, styles, t, isDark }) => {
   const fadeAnim = useSharedValue(0);
   const slideAnim = useSharedValue(40);
+
+  // Hero background video - Kataraa brand video from website
+  const player = useVideoPlayer('https://kataraa.com/wp-content/uploads/2025/07/a-little-magic-for-your-skin-1-1.mp4', (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
   useEffect(() => {
     fadeAnim.value = withTiming(1, { duration: 1200 });
@@ -65,12 +74,15 @@ const CosmicHero = ({ onShopNow, tokens, styles, t, isDark }) => {
 
   return (
     <View style={styles.heroContainer}>
-      <ImageBackground
-        source={require('../../assets/images/hero_premium.png')}
+      <VideoView
+        player={player}
         style={styles.heroImage}
-        resizeMode="cover"
-      >
-        {/* Cosmic Overlay */}
+        contentFit="cover"
+        nativeControls={false}
+      />
+
+      {/* Cosmic Overlay */}
+      <View style={[StyleSheet.absoluteFillObject, styles.heroOverlayContainer]}>
         <LinearGradient
           colors={[
             'rgba(212,184,224,0.1)',
@@ -111,7 +123,7 @@ const CosmicHero = ({ onShopNow, tokens, styles, t, isDark }) => {
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
-      </ImageBackground>
+      </View>
     </View>
   );
 };
@@ -406,16 +418,12 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!loading && products.length > 0) {
-      const lastArrivalCheck = notifications.find(n => n.type === 'arrival');
-      if (!lastArrivalCheck) {
-        addNotification(
-          'notifArrivalTitle',
-          'notifArrivalMsg',
-          'arrival'
-        );
+      const hasArrivalNotif = notifications.some(n => n.type === 'arrival');
+      if (!hasArrivalNotif) {
+        addNotification('notifArrivalTitle', 'notifArrivalMsg', 'arrival');
       }
     }
-  }, [loading, products]);
+  }, [loading, products.length, notifications.length]);
 
   const handleRefresh = React.useCallback(async () => {
     setRefreshing(true);
@@ -436,35 +444,19 @@ export default function HomeScreen() {
   }, [router]);
 
   const handleAddToCart = React.useCallback((item, ref) => {
+    const productData = formatForState(item);
+
     if (ref?.current) {
       ref.current.measureInWindow((x, y, btnWidth, btnHeight) => {
-        triggerAddToCart({
-          id: item.id,
-          name: item.name,
-          price: item.sale_price || item.price,
-          image: item.image || (item.images?.length > 0 ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].src) : null),
-          quantity: 1,
-        }, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
+        triggerAddToCart(productData, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
       });
     } else {
-      triggerAddToCart({
-        id: item.id,
-        name: item.name,
-        price: item.sale_price || item.price,
-        image: item.image || (item.images?.length > 0 ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].src) : null),
-        quantity: 1,
-      });
+      triggerAddToCart(productData);
     }
   }, [triggerAddToCart]);
 
   const handleFavorite = React.useCallback((item) => {
-    toggleFavorite({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      image: item.images?.[0]?.src,
-      quantity: 1,
-    });
+    toggleFavorite(formatForState(item));
   }, [toggleFavorite]);
 
   // Memoized Filter functions
@@ -476,16 +468,14 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar style={isDark ? "light" : "dark"} />
 
-      {/* Cosmic Background Orbs */}
-      <View style={[styles.bgOrb1, { backgroundColor: tokens.colors.primary + '10' }]} />
-      <View style={[styles.bgOrb2, { backgroundColor: tokens.colors.secondarySoft + '08' }]} />
+      {/* ✨ Cosmic Background Elements - hidden */}
+      {/* bgOrb1, bgOrb2, bgOrb3 removed */}
 
       {/* Drawer Menu */}
       <DrawerMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
 
       {/* Header */}
       <SearchHeader
-        title="KATARAA"
         onSearch={handleSearch}
         onCartPress={() => router.push('/cart')}
         onNotificationPress={() => router.push('/notifications')}
@@ -663,32 +653,50 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
     flex: 1,
     backgroundColor: tokens.colors.background,
   },
+
+  // ✨ Premium Background Pattern - HIGHLY VISIBLE
   bgOrb1: {
     position: 'absolute',
     top: -100,
-    right: -100,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    zIndex: -1,
+    right: -80,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: isDark ? 'rgba(102, 126, 234, 0.35)' : 'rgba(102, 126, 234, 0.45)', // Purple - VERY VISIBLE
+    zIndex: 0, // Above background
   },
   bgOrb2: {
     position: 'absolute',
-    bottom: 200,
-    left: -100,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    zIndex: -1,
+    bottom: 50,
+    left: -80,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: isDark ? 'rgba(212, 175, 118, 0.30)' : 'rgba(212, 175, 118, 0.40)', // Gold - VERY VISIBLE
+    zIndex: 0, // Above background
+  },
+  bgOrb3: {
+    position: 'absolute',
+    top: height * 0.4,
+    right: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: isDark ? 'rgba(138, 104, 148, 0.25)' : 'rgba(184, 146, 79, 0.35)', // Accent - VERY VISIBLE
+    zIndex: 0, // Above background
   },
 
   // Hero
   heroContainer: {
     height: height * 0.48,
     position: 'relative',
+    backgroundColor: '#000',
   },
   heroImage: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroOverlayContainer: {
+    justifyContent: 'flex-end',
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,

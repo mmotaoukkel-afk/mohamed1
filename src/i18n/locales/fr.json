@@ -1,0 +1,42 @@
+{
+    "common": {
+        "loading": "Chargement...",
+        "error": "Une erreur est survenue",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "back": "Retour"
+    },
+    "splash": {
+        "tagline": "Soins Coréens Premium",
+        "subtext": "Découvrez le Secret de la Beauté",
+        "copyright": "© 2025 KATARAA"
+    },
+    "tabs": {
+        "home": "Accueil",
+        "search": "Rechercher",
+        "cart": "Panier",
+        "orders": "Commandes",
+        "profile": "Profil"
+    },
+    "home": {
+        "welcome": "Bienvenue",
+        "search_placeholder": "Rechercher des produits de luxe..."
+    },
+    "settings": {
+        "title": "Paramètres",
+        "language": "Langue",
+        "notifications": "Notifications",
+        "theme": "Thème",
+        "about": "À propos",
+        "logout": "Déconnexion"
+    },
+    "notifyMe": "M'avertir quand disponible",
+    "loginToNotify": "Veuillez vous connecter pour recevoir une notification",
+    "notifySuccess": "Demande enregistrée ! Nous vous avertirons dès que le produit sera disponible ✨",
+    "notifyError": "Une erreur s'est produite, veuillez réessayer",
+    "backInStockNotif": "Le produit {{name}} est maintenant disponible ! Commandez-le avant qu'il ne soit épuisé 🎉",
+    "productAvailableTitle": "Produit disponible ! ✨",
+    "outOfStockMessage": "Ce produit est actuellement indisponible. Inscrivez-vous pour être averti(e) de sa disponibilité.",
+    "outOfStock": "Rupture de stock",
+    "inStock": "En stock"
+}

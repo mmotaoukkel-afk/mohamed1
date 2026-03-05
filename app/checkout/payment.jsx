@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
 import { useCart } from '../../src/context/CartContext';
 import { useCheckout } from '../../src/context/CheckoutContext';
+import { notifyAdmins } from '../../src/services/adminNotificationService';
 import api from '../../src/services/api';
 import PaymentService from '../../src/services/PaymentService';
 
@@ -69,6 +70,17 @@ export default function PaymentScreen() {
         total: finalTotal,
         payment_status: 'pending'
       });
+
+      // 🔔 Notify Admins
+      try {
+        notifyAdmins(
+          'طلب جديد! 🛍️',
+          `تم استلام طلب جديد بقيمة ${finalTotal.toFixed(3)} د.ك من ${shippingInfo.fullName}`,
+          { type: 'order', orderId: order.id.toString() }
+        );
+      } catch (e) {
+        console.log('Error notifying admins:', e);
+      }
 
       // 💳 Initiate Real Payment via MyFatoorah
       const paymentData = {

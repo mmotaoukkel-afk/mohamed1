@@ -140,8 +140,7 @@ export default function FavoritesScreen() {
   return (
     <View style={styles.container}>
       {/* Cosmic Background Orbs */}
-      <View style={styles.bgOrb1} />
-      <View style={styles.bgOrb2} />
+
 
       <View style={styles.headerContainer}>
         <LinearGradient

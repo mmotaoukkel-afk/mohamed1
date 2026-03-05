@@ -5,20 +5,16 @@
  */
 
 import {
-    addDoc,
     collection,
-    deleteDoc,
-    doc,
-    getDoc,
     getDocs,
-    limit,
     orderBy,
     query,
-    serverTimestamp,
-    updateDoc,
     where
 } from 'firebase/firestore';
+import { notifyBackInStock } from './adminNotificationService';
+import api from './api';
 import { db } from './firebaseConfig';
+import wooCommerceApi from './wooCommerceApi';
 
 const PRODUCTS_COLLECTION = 'products';
 
@@ -68,210 +64,134 @@ export const DEFAULT_PRODUCT = {
     isPublished: false,
 };
 
+
 /**
  * Get all products
- * @param {Object} options - Query options
- * @returns {Promise<Array>}
+ * Now fetches from WooCommerce to match the app.
  */
 export const getAllProducts = async (options = {}) => {
     try {
-        const { category, status, limitCount = 50 } = options;
+        console.log('📊 Admin: Fetching products from WooCommerce...');
+        const page = options.page || 1;
+        const perPage = options.limitCount || 20;
+        const category = options.category !== 'all' ? options.category : null;
 
-        let q = collection(db, PRODUCTS_COLLECTION);
-        const constraints = [];
-
-        // IMPORTANT: Categories is an array of OBJECTS, not strings!
-        // Structure: [{ id: 112, name: "حيونة جروه", slug: "..." }, ...]
-        // Firestore doesn't support querying nested object properties in arrays
-        // So we fetch products and filter client-side
-
-        // Only filter by status in Firestore query
-        if (status) {
-            constraints.push(where('status', '==', status));
-        }
-
-        constraints.push(limit(limitCount));
-
-        q = query(q, ...constraints);
-        const snapshot = await getDocs(q);
-
-        // Map documents
-        let products = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
-
-        // CLIENT-SIDE category filtering
-        if (category) {
-            const categoryDef = PRODUCT_CATEGORIES.find(c => c.id === category || c.slug === category);
-
-            products = products.filter(product => {
-                if (!product.categories || !Array.isArray(product.categories)) {
-                    return false;
-                }
-
-                // Check if any category object in the array matches
-                return product.categories.some(cat => {
-                    if (typeof cat === 'string') {
-                        // Fallback: if it's somehow a string, match directly
-                        return cat === category || cat === categoryDef?.slug || cat === categoryDef?.name;
-                    } else if (cat && typeof cat === 'object') {
-                        // Match by slug (Arabic name) or name
-                        return cat.slug === categoryDef?.slug ||
-                            cat.name === categoryDef?.name ||
-                            cat.name === categoryDef?.slug ||
-                            cat.slug === category ||
-                            cat.name === category;
-                    }
-                    return false;
-                });
-            });
-        }
-
-        // Sort by createdAt descending (client-side)
-        products.sort((a, b) => {
-            const dateA = a.createdAt?.toDate?.() || new Date(0);
-            const dateB = b.createdAt?.toDate?.() || new Date(0);
-            const timeDiff = dateB - dateA;
-
-            if (timeDiff !== 0) return timeDiff;
-
-            // Secondary sort by ID if timestamps are equal
-            return a.id.localeCompare(b.id);
+        // Use our central API which is already optimized for WooCommerce
+        const products = await api.getProducts(page, perPage, category, {
+            sortBy: 'newest'
         });
 
         return products;
     } catch (error) {
-        console.error('Error fetching products:', error);
+        console.error('Error fetching products for admin:', error);
         throw error;
     }
 };
 
 /**
  * Get single product by ID
- * @param {string} productId
- * @returns {Promise<Object|null>}
+ * Now fetches from WooCommerce for live data.
  */
 export const getProductById = async (productId) => {
-    if (!productId) {
-        console.warn('⚠️ getProductById called with null/undefined ID');
-        return null;
-    }
-
-    // Coerce to string if it's a number (common for WooCommerce IDs)
-    const id = String(productId);
-
+    if (!productId) return null;
     try {
-        const docRef = doc(db, PRODUCTS_COLLECTION, id);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            return { id: docSnap.id, ...docSnap.data() };
-        }
-        return null;
+        const id = String(productId);
+        console.log(`📊 Admin: Fetching product ${id} from WooCommerce...`);
+        const product = await wooCommerceApi.getProduct(id);
+        return product;
     } catch (error) {
-        console.error('Error fetching product by ID:', id, error);
+        console.error('Error fetching product by ID from WooCommerce:', error);
         throw error;
     }
 };
 
 /**
  * Create new product
- * @param {Object} productData
- * @returns {Promise<Object>}
+ * Syncs directly to WooCommerce.
  */
 export const createProduct = async (productData) => {
     try {
-        const product = {
-            ...DEFAULT_PRODUCT,
-            ...productData,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+        console.log('📊 Admin: Creating product in WooCommerce...');
+
+        const wcData = {
+            name: productData.name,
+            type: 'simple',
+            regular_price: productData.price?.toString(),
+            description: productData.description,
+            short_description: productData.shortDescription || '',
+            manage_stock: true,
+            stock_quantity: productData.stock || 0,
+            status: productData.isPublished ? 'publish' : 'draft',
+            categories: productData.categories?.map(c => ({ id: c.id })) || [],
+            images: productData.images?.map(img => ({ src: img })) || []
         };
 
-        // Auto-set status based on stock
-        if (product.stock === 0) {
-            product.status = PRODUCT_STATUS.OUT_OF_STOCK;
-        } else if (product.stock <= product.lowStockThreshold) {
-            product.status = PRODUCT_STATUS.LOW_STOCK;
-        } else if (product.isPublished) {
-            product.status = PRODUCT_STATUS.ACTIVE;
-        }
-
-        const docRef = await addDoc(collection(db, PRODUCTS_COLLECTION), product);
-
-        return { id: docRef.id, ...product };
+        const result = await wooCommerceApi.createProduct(wcData);
+        return result;
     } catch (error) {
-        console.error('Error creating product:', error);
+        console.error('Error creating product on WooCommerce:', error);
         throw error;
     }
 };
 
+
 /**
  * Update existing product
- * @param {string} productId
- * @param {Object} updates
- * @returns {Promise<Object>}
+ * Bridges to WooCommerce so changes reflect on the website.
  */
-export const updateProduct = async (productId, updates) => {
-    if (!productId || typeof productId !== 'string') {
-        throw new Error('Invalid product ID for update');
-    }
+export const updateProduct = async (productId, updates, options = {}) => {
     try {
-        const docRef = doc(db, PRODUCTS_COLLECTION, productId);
+        console.log(`📊 Admin: Updating product ${productId} in WooCommerce...`);
 
-        const updateData = {
-            ...updates,
-            updatedAt: serverTimestamp(),
+        // Map updates to WooCommerce format if needed
+        const wcData = {
+            name: updates.name,
+            regular_price: updates.price?.toString(),
+            description: updates.description,
+            stock_quantity: updates.stock,
+            manage_stock: updates.stock !== undefined,
         };
 
-        // Auto-update status based on stock changes
-        if ('stock' in updates) {
-            const product = await getProductById(productId);
-            const threshold = updates.lowStockThreshold || product?.lowStockThreshold || 5;
+        // Remove undefined fields
+        Object.keys(wcData).forEach(key => wcData[key] === undefined && delete wcData[key]);
 
-            if (updates.stock === 0) {
-                updateData.status = PRODUCT_STATUS.OUT_OF_STOCK;
-            } else if (updates.stock <= threshold) {
-                updateData.status = PRODUCT_STATUS.LOW_STOCK;
-            } else if (product?.isPublished) {
-                updateData.status = PRODUCT_STATUS.ACTIVE;
-            }
+        const result = await wooCommerceApi.updateProduct(productId, wcData);
+
+        // Check if product was restocked (stock went from 0 to positive)
+        if (updates.stock !== undefined && updates.stock > 0 && options.previousStock === 0) {
+            const productName = updates.name || result?.name || `#${productId}`;
+            console.log(`📦 Product ${productName} is back in stock! Notifying users...`);
+            notifyBackInStock(productId, productName).catch(err =>
+                console.warn('Back-in-stock notification failed:', err)
+            );
         }
 
-        await updateDoc(docRef, updateData);
-
-        return { id: productId, ...updateData };
+        return { id: productId, ...result };
     } catch (error) {
-        console.error('Error updating product:', error);
+        console.error('Error updating product on WooCommerce:', error);
         throw error;
     }
 };
 
 /**
  * Delete product
- * @param {string} productId
- * @returns {Promise<boolean>}
  */
 export const deleteProduct = async (productId) => {
     try {
-        const docRef = doc(db, PRODUCTS_COLLECTION, productId);
-        await deleteDoc(docRef);
+        console.log(`📊 Admin: Deleting product ${productId} from WooCommerce...`);
+        await wooCommerceApi.deleteProduct(productId);
         return true;
     } catch (error) {
-        console.error('Error deleting product:', error);
+        console.error('Error deleting product from WooCommerce:', error);
         throw error;
     }
 };
 
 /**
  * Update stock for a product
- * @param {string} productId
- * @param {number} newStock
- * @returns {Promise<Object>}
  */
-export const updateStock = async (productId, newStock) => {
-    return updateProduct(productId, { stock: newStock });
+export const updateStock = async (productId, newStock, previousStock = null) => {
+    return updateProduct(productId, { stock: newStock }, { previousStock });
 };
 
 /**

@@ -11,13 +11,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
     Dimensions,
+    I18nManager,
     StyleSheet,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
 import currencyService from '../services/currencyService';
+import { getProductImage } from '../utils/productUtils';
 import { Surface, Text } from './ui'; // Import from UI Kit
 
 const { width } = Dimensions.get('window');
@@ -38,14 +40,7 @@ const ProductCardSoko = React.memo(({
     const addToCartRef = React.useRef(null);
 
 
-    const getImageSource = () => {
-        const firstImage = item?.images?.[0];
-        if (!firstImage) return require('../../assets/images/placeholder.png');
-        if (typeof firstImage === 'string') return { uri: firstImage };
-        if (firstImage.src) return { uri: firstImage.src };
-        return require('../../assets/images/placeholder.png');
-    };
-    const imageSource = getImageSource();
+    const imageSource = getProductImage(item);
 
     const isOnSale = item?.on_sale && item?.regular_price && item?.sale_price;
     const isOutOfStock = item?.stock_status === 'outofstock';
@@ -75,10 +70,14 @@ const ProductCardSoko = React.memo(({
                 {/* Image Container */}
                 <View style={styles.imageContainer}>
                     <Image
-                        source={imageSource}
+                        source={imageSource
+                            ? (typeof imageSource === 'string' ? { uri: imageSource } : imageSource)
+                            : require('../../assets/images/placeholder.png')
+                        }
                         style={styles.image}
                         contentFit="cover"
                         transition={200}
+                        placeholder={require('../../assets/images/placeholder.png')}
                     />
 
                     {/* Favorite Button */}
@@ -252,7 +251,7 @@ const getStyles = (tokens, isDark, t) => StyleSheet.create({
     },
     productName: {
         height: 36, // Fixed height for 2 lines
-        textAlign: t('locale') === 'ar' ? 'right' : 'left',
+        textAlign: I18nManager.isRTL ? 'right' : 'left',
     },
     priceRow: {
         flexDirection: 'row',

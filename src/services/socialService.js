@@ -125,6 +125,9 @@ const socialService = {
             } else {
                 callback(0);
             }
+        }, (error) => {
+            console.warn('Error subscribing to product stats:', error.message);
+            callback(0);
         });
     }
 };

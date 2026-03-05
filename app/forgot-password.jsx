@@ -1,25 +1,26 @@
 
-import React, { useState, useRef } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    TextInput,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    I18nManager,
     KeyboardAvoidingView,
     Platform,
-    ActivityIndicator,
-    Dimensions,
-    Alert
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
+import Animated, { FadeInDown, FadeInUp, SlideInRight } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { BlurView } from 'expo-blur';
-import Animated, { FadeInDown, FadeInUp, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
-import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
+import { useTheme } from '../src/context/ThemeContext';
 import { useTranslation } from '../src/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
@@ -109,7 +110,7 @@ export default function ForgotPasswordScreen() {
                                     onFocus={() => setFocusedField("email")}
                                     onBlur={() => setFocusedField(null)}
                                     style={[styles.input, { color: theme.text }]}
-                                    placeholder="style@kataraa.com"
+                                    placeholder={t('placeholderEmail')}
                                     placeholderTextColor={theme.textMuted + "80"}
                                     value={email}
                                     onChangeText={setEmail}
@@ -227,7 +228,7 @@ export default function ForgotPasswordScreen() {
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={styles.backBtnBlur}>
-                            <Ionicons name="arrow-back" size={24} color={theme.text} />
+                            <Ionicons name={I18nManager.isRTL ? "arrow-forward" : "arrow-back"} size={24} color={theme.text} />
                         </BlurView>
                     </TouchableOpacity>
                 </View>
@@ -279,7 +280,7 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 32, opacity: 0.8 },
     inputBox: { marginBottom: 24 },
     inputWrapper: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, height: 56, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.08)", gap: 12 },
-    input: { flex: 1, fontSize: 16, fontWeight: "600" },
+    input: { flex: 1, fontSize: 16, fontWeight: "600", textAlign: I18nManager.isRTL ? 'right' : 'left' },
     submitBtn: { height: 56, borderRadius: 18, overflow: "hidden", elevation: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 15 },
     submitGradient: { flex: 1, justifyContent: "center", alignItems: "center" },
     submitText: { color: "#FFF", fontSize: 16, fontWeight: "800" },

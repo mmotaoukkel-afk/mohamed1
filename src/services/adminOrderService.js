@@ -80,59 +80,38 @@ export const ORDER_STATUS = {
 export const ORDER_STATUS_CONFIG = {
     pending: {
         label: 'في الانتظار',
-        color: '#F59E0B',
-        icon: 'time-outline',
-        nextStatus: 'confirmed',
-        canCancel: true,
+        color: '#F59E0B', // ADMIN_COLORS.warning.main
+        icon: 'time',
     },
     confirmed: {
         label: 'مؤكد',
-        color: '#3B82F6',
-        icon: 'checkmark-circle-outline',
-        nextStatus: 'processing',
-        canCancel: true,
+        color: '#3B82F6', // ADMIN_COLORS.info.main
+        icon: 'checkmark-circle',
     },
     processing: {
         label: 'قيد التجهيز',
-        color: '#8B5CF6',
-        icon: 'cube-outline',
-        nextStatus: 'shipped',
-        canCancel: true,
+        color: '#3B82F6', // ADMIN_COLORS.info.main
+        icon: 'construct',
     },
     shipped: {
         label: 'تم الشحن',
-        color: '#0EA5E9',
-        icon: 'airplane-outline',
-        nextStatus: 'out_for_delivery',
-        canCancel: false,
+        color: '#8B5CF6', // ADMIN_COLORS.accent.main
+        icon: 'airplane',
     },
     out_for_delivery: {
         label: 'جارٍ التوصيل',
-        color: '#14B8A6',
-        icon: 'car-outline',
-        nextStatus: 'delivered',
-        canCancel: false,
+        color: '#8B5CF6', // ADMIN_COLORS.accent.main
+        icon: 'car',
     },
     delivered: {
         label: 'تم التوصيل',
-        color: '#10B981',
+        color: '#10B981', // ADMIN_COLORS.success.main
         icon: 'checkmark-done-circle',
-        nextStatus: null,
-        canCancel: false,
     },
     cancelled: {
         label: 'ملغي',
-        color: '#EF4444',
-        icon: 'close-circle-outline',
-        nextStatus: null,
-        canCancel: false,
-    },
-    refunded: {
-        label: 'مسترجع',
-        color: '#6B7280',
-        icon: 'refresh-circle-outline',
-        nextStatus: null,
-        canCancel: false,
+        color: '#EF4444', // ADMIN_COLORS.error.main
+        icon: 'close-circle',
     },
 };
 

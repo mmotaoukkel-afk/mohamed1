@@ -10,13 +10,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-    Alert,
     Dimensions,
     FlatList,
     Image,
     Linking,
     RefreshControl,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -24,7 +22,15 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+    ADMIN_COLORS,
+    ADMIN_SHADOWS,
+    BORDER_RADIUS,
+    TYPOGRAPHY
+} from '../../src/constants/adminDesignTokens';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useTranslation } from '../../src/hooks/useTranslation';
 import {
     ORDER_STATUS_CONFIG,
     formatOrderId,
@@ -39,21 +45,24 @@ import currencyService from '../../src/services/currencyService';
 
 const { width } = Dimensions.get('window');
 
-const STATUS_FILTERS = [
-    { id: 'all', label: 'الكل' },
-    { id: 'pending', label: 'في الانتظار' },
-    { id: 'confirmed', label: 'مؤكد' },
-    { id: 'processing', label: 'قيد التجهيز' },
-    { id: 'shipped', label: 'تم الشحن' },
-    { id: 'out_for_delivery', label: 'جارٍ التوصيل' },
-    { id: 'delivered', label: 'تم التوصيل' },
-    { id: 'cancelled', label: 'ملغي' },
-];
+// STATUS_FILTERS moved inside component for localization
 
 export default function AdminOrders() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const styles = getStyles(theme, isDark);
+
+    const STATUS_FILTERS = [
+        { id: 'all', label: t('all') },
+        { id: 'pending', label: t('pending') },
+        { id: 'confirmed', label: t('confirmed') },
+        { id: 'processing', label: t('processing') },
+        { id: 'shipped', label: t('shipped') },
+        { id: 'out_for_delivery', label: t('out_for_delivery') },
+        { id: 'delivered', label: t('delivered') },
+        { id: 'cancelled', label: t('cancelled') },
+    ];
 
     const [orders, setOrders] = useState([]);
     const [dashboardData, setDashboardData] = useState({
@@ -83,7 +92,7 @@ export default function AdminOrders() {
                 getAllOrders({ limitCount: 200 }),
                 getOrdersByCity(),
                 getDailyPerformance(),
-                getAllProducts({ limitCount: 500 }),
+                getAllProducts({ limitCount: 100 }),
             ]);
 
             // Build products map for fast lookup
@@ -111,7 +120,7 @@ export default function AdminOrders() {
             });
         } catch (error) {
             console.error('Error fetching orders data:', error);
-            Alert.alert('خطأ', 'فشل تحميل بيانات الطلبات');
+            Alert.alert(t('error'), t('failedToLoadOrders'));
         } finally {
             setRefreshing(false);
             setDashboardData(prev => ({ ...prev, loading: false }));
@@ -128,27 +137,25 @@ export default function AdminOrders() {
         try {
             await updateOrderStatus(orderId, newStatus);
             fetchData();
-            Alert.alert('نجاح', 'تم تحديث حالة الطلب');
+            Alert.alert(t('success'), t('orderStatusUpdated'));
         } catch (error) {
-            Alert.alert('خطأ', 'فشل تحديث الحالة');
+            Alert.alert(t('error'), t('failedToUpdateStatus'));
         }
     };
 
     const handleWhatsApp = (phone, orderId) => {
-        const message = `مرحباً، بخصوص طلبك رقم ${formatOrderId(orderId)} من Kataraa...`;
+        const message = t('whatsappOrderMsg', { id: formatOrderId(orderId) });
         const url = getWhatsAppLink(phone, message);
         Linking.openURL(url);
     };
 
-    const handleExportCSV = () => {
-        console.log('Exporting orders to CSV...');
-        Alert.alert('تصدير البيانات', 'سيتم تنزيل ملف CSV يحتوي على جميع الطلبات قريباً.');
-    };
+
 
     const filteredOrders = orders.filter(order => {
         const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
         const searchLower = searchQuery.toLowerCase();
         const matchesSearch =
+            (order.orderNumber?.toLowerCase() || '').includes(searchLower) ||
             order.id.toLowerCase().includes(searchLower) ||
             order.customerName?.toLowerCase().includes(searchLower) ||
             order.customerPhone?.includes(searchLower);
@@ -165,9 +172,11 @@ export default function AdminOrders() {
             >
                 <View style={styles.orderHeader}>
                     <View>
-                        <Text style={[styles.orderId, { color: theme.text }]}>{formatOrderId(item.id)}</Text>
+                        <Text style={[styles.orderId, { color: theme.text }]}>
+                            {item.orderNumber || formatOrderId(item.id)}
+                        </Text>
                         <Text style={[styles.orderDate, { color: theme.textMuted }]}>
-                            {getTimeAgo(item.createdAt)}
+                            {getTimeAgo(item.createdAt, t)}
                         </Text>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
@@ -188,7 +197,7 @@ export default function AdminOrders() {
                     )}
                     <View style={{ flex: 1, marginLeft: 12 }}>
                         <Text style={[styles.customerName, { color: theme.text }]}>
-                            {item.customerName || 'زبون مجهول'}
+                            {item.customerName || t('anonymousCustomer')}
                         </Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                             <Ionicons name="call-outline" size={12} color={theme.textSecondary} style={{ marginLeft: 4 }} />
@@ -197,7 +206,6 @@ export default function AdminOrders() {
                             </Text>
                             {item.shippingCity ? (
                                 <>
-                                    <View style={{ width: 1, height: 12, backgroundColor: theme.border, marginHorizontal: 8 }} />
                                     <Ionicons name="location-outline" size={12} color={theme.textSecondary} style={{ marginLeft: 4 }} />
                                     <Text style={[styles.customerSub, { color: theme.textSecondary }]}>
                                         {item.shippingCity}
@@ -208,39 +216,27 @@ export default function AdminOrders() {
                     </View>
                 </View>
 
-                <View style={styles.productsSummary}>
-                    {item.items?.slice(0, 2).map((product, idx) => {
-                        const productDetails = productsMap[product.id];
-                        return (
-                            <View key={idx} style={styles.productItemRow}>
-                                <View style={[styles.productImageContainer, { backgroundColor: theme.border }]}>
-                                    {productDetails?.images?.[0] ? (
-                                        <Image source={{ uri: productDetails.images[0] }} style={styles.productThumb} />
-                                    ) : (
-                                        <Ionicons name="image-outline" size={20} color={theme.textMuted} />
-                                    )}
-                                </View>
-                                <View style={{ flex: 1, marginLeft: 10 }}>
-                                    <Text style={[styles.productName, { color: theme.text }]} numberOfLines={1}>
-                                        {productDetails?.name || product.name || 'منتج'}
-                                    </Text>
-                                    <Text style={[styles.productPrice, { color: theme.textSecondary }]}>
-                                        {product.quantity} × {currencyService.formatAdminPrice(product.price)}
-                                    </Text>
-                                </View>
-                            </View>
-                        );
-                    })}
+                <View style={styles.productPreview}>
+                    {item.items?.slice(0, 2).map((prod, idx) => (
+                        <View key={idx} style={styles.productThumbRow}>
+                            <Text style={[styles.productName, { color: theme.text }]} numberOfLines={1}>
+                                {prod.name || t('item')}
+                            </Text>
+                            <Text style={[styles.productPrice, { color: theme.textSecondary }]}>
+                                x{prod.quantity}
+                            </Text>
+                        </View>
+                    ))}
                     {item.items?.length > 2 && (
                         <Text style={[styles.moreItemsText, { color: theme.primary }]}>
-                            + {item.items.length - 2} منتجات أخرى
+                            {t('moreProducts', { count: item.items.length - 2 })}
                         </Text>
                     )}
                 </View>
 
                 <View style={styles.orderFooter}>
                     <View style={styles.orderMeta}>
-                        <Text style={[styles.metaText, { color: theme.textMuted }]}>الإجمالي:</Text>
+                        <Text style={[styles.metaText, { color: theme.textMuted }]}>{t('total')}:</Text>
                         <Text style={[styles.orderTotal, { color: theme.primary }]}>
                             {currencyService.formatAdminPrice(item.total)}
                         </Text>
@@ -269,33 +265,39 @@ export default function AdminOrders() {
             <View collapsable={false} style={styles.statsSection}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={styles.quickStats}>
-                        <View style={[styles.quickStatCard, { backgroundColor: theme.backgroundCard }]}>
-                            <Text style={[styles.quickStatValue, { color: theme.text }]}>{stats.total}</Text>
-                            <Text style={[styles.quickStatLabel, { color: theme.textSecondary }]}>إجمالي</Text>
+                        <View style={[styles.quickStatCard, { backgroundColor: isDark ? ADMIN_COLORS.neutral[800] : '#FFFFFF' }]}>
+                            <Text style={[styles.quickStatValue, { color: isDark ? '#FFF' : ADMIN_COLORS.neutral[900] }]}>{stats.total}</Text>
+                            <Text style={[styles.quickStatLabel, { color: isDark ? ADMIN_COLORS.neutral[400] : ADMIN_COLORS.neutral[600] }]}>{t('total')}</Text>
                         </View>
-                        <View style={[styles.quickStatCard, { backgroundColor: '#F59E0B20' }]}>
-                            <Text style={[styles.quickStatValue, { color: '#F59E0B' }]}>{stats.pending}</Text>
-                            <Text style={[styles.quickStatLabel, { color: '#F59E0B' }]}>في الانتظار</Text>
+                        <View style={[styles.quickStatCard, { backgroundColor: ADMIN_COLORS.warning.light + '20' }]}>
+                            <Ionicons name="time" size={20} color={ADMIN_COLORS.warning.main} style={{ marginBottom: 6 }} />
+                            <Text style={[styles.quickStatValue, { color: ADMIN_COLORS.warning.main }]}>{stats.pending}</Text>
+                            <Text style={[styles.quickStatLabel, { color: ADMIN_COLORS.warning.dark }]}>{t('pending')}</Text>
                         </View>
-                        <View style={[styles.quickStatCard, { backgroundColor: '#8B5CF620' }]}>
-                            <Text style={[styles.quickStatValue, { color: '#8B5CF6' }]}>{stats.processing}</Text>
-                            <Text style={[styles.quickStatLabel, { color: '#8B5CF6' }]}>قيد التجهيز</Text>
+                        <View style={[styles.quickStatCard, { backgroundColor: ADMIN_COLORS.info.light + '20' }]}>
+                            <Ionicons name="construct" size={20} color={ADMIN_COLORS.info.main} style={{ marginBottom: 6 }} />
+                            <Text style={[styles.quickStatValue, { color: ADMIN_COLORS.info.main }]}>{stats.processing}</Text>
+                            <Text style={[styles.quickStatLabel, { color: ADMIN_COLORS.info.dark }]}>{t('processing')}</Text>
                         </View>
-                        <View style={[styles.quickStatCard, { backgroundColor: '#0EA5E920' }]}>
-                            <Text style={[styles.quickStatValue, { color: '#0EA5E9' }]}>{stats.shipping}</Text>
-                            <Text style={[styles.quickStatLabel, { color: '#0EA5E9' }]}>في الشحن</Text>
+                        <View style={[styles.quickStatCard, { backgroundColor: ADMIN_COLORS.accent.light + '20' }]}>
+                            <Ionicons name="airplane" size={20} color={ADMIN_COLORS.accent.main} style={{ marginBottom: 6 }} />
+                            <Text style={[styles.quickStatValue, { color: ADMIN_COLORS.accent.main }]}>{stats.shipping}</Text>
+                            <Text style={[styles.quickStatLabel, { color: ADMIN_COLORS.accent.dark }]}>{t('shipped')}</Text>
                         </View>
-                        <View style={[styles.quickStatCard, { backgroundColor: '#10B98120' }]}>
-                            <Text style={[styles.quickStatValue, { color: '#10B981' }]}>{stats.completed}</Text>
-                            <Text style={[styles.quickStatLabel, { color: '#10B981' }]}>مكتمل</Text>
+                        <View style={[styles.quickStatCard, { backgroundColor: ADMIN_COLORS.success.light + '20' }]}>
+                            <Ionicons name="checkmark-done-circle" size={20} color={ADMIN_COLORS.success.main} style={{ marginBottom: 6 }} />
+                            <Text style={[styles.quickStatValue, { color: ADMIN_COLORS.success.main }]}>{stats.completed}</Text>
+                            <Text style={[styles.quickStatLabel, { color: ADMIN_COLORS.success.dark }]}>{t('delivered')}</Text>
                         </View>
                     </View>
                 </ScrollView>
 
-                <View collapsable={false} style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
+                <View collapsable={false} style={[styles.chartCard, { backgroundColor: isDark ? ADMIN_COLORS.neutral[800] : '#FFFFFF' }]}>
                     <View style={styles.chartHeader}>
-                        <Ionicons name="location" size={18} color={theme.primary} />
-                        <Text style={[styles.chartTitle, { color: theme.text }]}>توزيع المدن</Text>
+                        <View style={[styles.iconBadge, { backgroundColor: ADMIN_COLORS.secondary.light + '20' }]}>
+                            <Ionicons name="location" size={18} color={ADMIN_COLORS.secondary.main} />
+                        </View>
+                        <Text style={[styles.chartTitle, { color: isDark ? '#FFF' : ADMIN_COLORS.neutral[900], marginLeft: 8 }]}>{t('cityDistribution')}</Text>
                     </View>
                     {cityDistribution.length > 0 ? cityDistribution.map((city, index) => (
                         <View key={city.id || index} style={styles.cityRow}>
@@ -314,14 +316,16 @@ export default function AdminOrders() {
                             <Text style={[styles.cityCount, { color: theme.textSecondary }]}>{city.count}</Text>
                         </View>
                     )) : (
-                        <Text style={[styles.noDataText, { color: theme.textMuted }]}>لا توجد طلبات بعد</Text>
+                        <Text style={[styles.noDataText, { color: theme.textMuted }]}>{t('noOrdersYet')}</Text>
                     )}
                 </View>
 
-                <View collapsable={false} style={[styles.chartCard, { backgroundColor: theme.backgroundCard }]}>
+                <View collapsable={false} style={[styles.chartCard, { backgroundColor: isDark ? ADMIN_COLORS.neutral[800] : '#FFFFFF' }]}>
                     <View style={styles.chartHeader}>
-                        <Ionicons name="trending-up" size={18} color={theme.primary} />
-                        <Text style={[styles.chartTitle, { color: theme.text }]}>الأداء اليومي</Text>
+                        <View style={[styles.iconBadge, { backgroundColor: ADMIN_COLORS.primary.light + '20' }]}>
+                            <Ionicons name="trending-up" size={18} color={ADMIN_COLORS.primary.main} />
+                        </View>
+                        <Text style={[styles.chartTitle, { color: isDark ? '#FFF' : ADMIN_COLORS.neutral[900], marginLeft: 8 }]}>{t('dailyPerformance')}</Text>
                     </View>
                     <View style={styles.performanceChart}>
                         {dailyPerformance.length > 0 ? dailyPerformance.map((day, index) => (
@@ -338,7 +342,7 @@ export default function AdminOrders() {
                                 <Text style={[styles.barLabel, { color: theme.textSecondary }]}>{day.day}</Text>
                             </View>
                         )) : (
-                            <Text style={[styles.noDataText, { color: theme.textMuted }]}>لا توجد بيانات</Text>
+                            <Text style={[styles.noDataText, { color: theme.textMuted }]}>{t('noData')}</Text>
                         )}
                     </View>
                     <View style={styles.performanceSummary}>
@@ -346,13 +350,13 @@ export default function AdminOrders() {
                             <Text style={[styles.summaryValue, { color: theme.text }]}>
                                 {weeklyTotalOrders}
                             </Text>
-                            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>طلب هذا الأسبوع</Text>
+                            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>{t('ordersThisWeek')}</Text>
                         </View>
                         <View style={styles.summaryItem}>
                             <Text style={[styles.summaryValue, { color: theme.primary }]}>
                                 {currencyService.formatAdminPrice(weeklyTotalRevenue)}
                             </Text>
-                            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>إيرادات الأسبوع</Text>
+                            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>{t('weeklyRevenue')}</Text>
                         </View>
                     </View>
                 </View>
@@ -376,13 +380,8 @@ export default function AdminOrders() {
                         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
                             <Ionicons name="arrow-back" size={24} color="#fff" />
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>مركز الطلبات</Text>
-                        <TouchableOpacity
-                            style={styles.statsToggleBtn}
-                            onPress={handleExportCSV}
-                        >
-                            <Ionicons name="download-outline" size={22} color="#fff" />
-                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>{t('orderCenter')}</Text>
+
                         <TouchableOpacity
                             style={styles.statsToggleBtn}
                             onPress={() => setShowStats(!showStats)}
@@ -398,7 +397,7 @@ export default function AdminOrders() {
                     <Ionicons name="search" size={20} color={theme.textMuted} />
                     <TextInput
                         style={[styles.searchInput, { color: theme.text }]}
-                        placeholder="البحث برقم الطلب أو اسم الزبون..."
+                        placeholder={t('searchOrdersPlaceholder')}
                         placeholderTextColor={theme.textMuted}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -475,7 +474,7 @@ export default function AdminOrders() {
                     <View style={styles.emptyState}>
                         <Ionicons name="receipt-outline" size={64} color={theme.textMuted} />
                         <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                            لا توجد طلبات
+                            {t('noResults')}
                         </Text>
                     </View>
                 }
@@ -484,8 +483,8 @@ export default function AdminOrders() {
     );
 }
 
-const getTimeAgo = (dateString) => {
-    if (!dateString) return 'منذ وقت طويل';
+const getTimeAgo = (dateString, t) => {
+    if (!dateString) return t('longTimeAgo');
     const date = dateString.toDate ? dateString.toDate() : new Date(dateString);
     const now = new Date();
     const diffMs = now - date;
@@ -493,10 +492,10 @@ const getTimeAgo = (dateString) => {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'الآن';
-    if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
-    if (diffHours < 24) return `منذ ${diffHours} ساعة`;
-    return `منذ ${diffDays} يوم`;
+    if (diffMins < 1) return t('now');
+    if (diffMins < 60) return t('minsAgo', { count: diffMins });
+    if (diffHours < 24) return t('hoursAgo', { count: diffHours });
+    return t('daysAgo', { count: diffDays });
 };
 
 const getStyles = (theme, isDark) => StyleSheet.create({
@@ -558,11 +557,12 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingVertical: 10,
         borderRadius: 20,
         marginRight: 8,
         borderWidth: 1,
         borderColor: 'transparent',
+        ...ADMIN_SHADOWS.sm,
     },
     filterText: {
         fontSize: 13,
@@ -599,6 +599,14 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     quickStatLabel: {
         fontSize: 10,
         marginTop: 4,
+        fontWeight: '600',
+    },
+    iconBadge: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     chartCard: {
         padding: 16,
@@ -694,13 +702,9 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
     orderCard: {
         padding: 16,
-        borderRadius: 20,
+        borderRadius: BORDER_RADIUS.lg,
         marginBottom: 12,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        ...ADMIN_SHADOWS.md,
     },
     orderHeader: {
         flexDirection: 'row',
@@ -720,13 +724,14 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 12,
+        paddingVertical: 6,
+        borderRadius: BORDER_RADIUS.md,
     },
     statusText: {
         fontSize: 11,
         fontWeight: 'bold',
         marginLeft: 4,
+        fontFamily: TYPOGRAPHY.fontFamily,
     },
     customerInfo: {
         flexDirection: 'row',

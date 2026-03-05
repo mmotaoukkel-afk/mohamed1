@@ -2,24 +2,25 @@
  * Order Success Screen - Kataraa Cosmic Luxury
  * Premium animated success page after order placement
  */
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import {
-    View,
-    StyleSheet,
+    ActivityIndicator,
     Animated,
     Dimensions,
+    I18nManager,
+    StyleSheet,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useNotifications } from '../../src/context/NotificationContext';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import PaymentService from '../../src/services/PaymentService';
-import { ActivityIndicator } from 'react-native';
 
+import { Button, Surface, Text } from '../../src/components/ui';
 import { useTheme } from '../../src/context/ThemeContext';
-import { Text, Button, Surface } from '../../src/components/ui';
 
 const { width, height } = Dimensions.get('window');
 
@@ -270,8 +271,8 @@ export default function OrderSuccessScreen() {
                                 <Ionicons name="call" size={24} color={tokens.colors.primary} />
                             </View>
                             <View style={styles.infoContent}>
-                                <Text variant="body" weight="bold">{t('weWillContact')}</Text>
-                                <Text variant="caption" style={{ color: tokens.colors.textSecondary }}>
+                                <Text variant="body" weight="bold" style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}>{t('weWillContact')}</Text>
+                                <Text variant="caption" style={{ color: tokens.colors.textSecondary, textAlign: I18nManager.isRTL ? 'right' : 'left' }}>
                                     {t('weWillContactDesc')}
                                 </Text>
                             </View>
@@ -284,8 +285,8 @@ export default function OrderSuccessScreen() {
                                 <Ionicons name="time" size={24} color={tokens.colors.accent} />
                             </View>
                             <View style={styles.infoContent}>
-                                <Text variant="body" weight="bold">{t('deliveryTime')}</Text>
-                                <Text variant="caption" style={{ color: tokens.colors.textSecondary }}>1-3 {t('days')}</Text>
+                                <Text variant="body" weight="bold" style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}>{t('deliveryTime')}</Text>
+                                <Text variant="caption" style={{ color: tokens.colors.textSecondary, textAlign: I18nManager.isRTL ? 'right' : 'left' }}>1-3 {t('days')}</Text>
                             </View>
                         </View>
                     </Surface>

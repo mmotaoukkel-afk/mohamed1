@@ -19,12 +19,19 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+    ADMIN_COLORS,
+    ADMIN_SHADOWS,
+    BORDER_RADIUS
+} from '../../src/constants/adminDesignTokens';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useTranslation } from '../../src/hooks/useTranslation';
 import { db } from '../../src/services/firebaseConfig';
 
 export default function AdminReviews() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const styles = getStyles(theme, isDark);
 
     const [reviews, setReviews] = useState([]);
@@ -49,13 +56,13 @@ export default function AdminReviews() {
     }, [loadReviews]);
 
     const handleAction = (reviewId, action) => {
-        const title = action === 'delete' ? 'حذف التعليق' : 'تعديل حالة التعليق';
-        const msg = action === 'delete' ? 'هل أنت متأكد من حذف هذا التعليق نهائياً؟' : 'تغيير حالة التعليق؟';
+        const title = action === 'delete' ? t('deleteComment') : t('updateCommentStatus');
+        const msg = action === 'delete' ? t('deleteCommentConfirm') : t('changeCommentStatus');
 
         Alert.alert(title, msg, [
-            { text: 'إلغاء', style: 'cancel' },
+            { text: t('cancel'), style: 'cancel' },
             {
-                text: action === 'delete' ? 'حذف' : 'تأكيد',
+                text: action === 'delete' ? t('delete') : t('confirm'),
                 style: action === 'delete' ? 'destructive' : 'default',
                 onPress: async () => {
                     try {
@@ -69,7 +76,7 @@ export default function AdminReviews() {
                             setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, status: action } : r));
                         }
                     } catch (error) {
-                        Alert.alert('خطأ', 'فشل الإجراء');
+                        Alert.alert(t('error'), t('actionFailed'));
                     }
                 }
             }
@@ -80,9 +87,9 @@ export default function AdminReviews() {
         <View style={[styles.card, { backgroundColor: theme.backgroundCard }]}>
             <View style={styles.cardHeader}>
                 <View>
-                    <Text style={[styles.userName, { color: theme.text }]}>{item.userName || 'مستخدم مجهول'}</Text>
+                    <Text style={[styles.userName, { color: theme.text }]}>{item.userName || t('anonymousUser')}</Text>
                     <Text style={[styles.date, { color: theme.textMuted }]}>
-                        {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleDateString('ar') : 'تاريخ غير معروف'}
+                        {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleDateString(t('locale') === 'ar' ? 'ar' : 'en-US') : t('unknownDate')}
                     </Text>
                 </View>
                 <View style={styles.ratingBox}>
@@ -97,14 +104,14 @@ export default function AdminReviews() {
                     onPress={() => handleAction(item.id, 'delete')}
                 >
                     <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                    <Text style={[styles.actionText, { color: '#EF4444' }]}>حذف</Text>
+                    <Text style={[styles.actionText, { color: '#EF4444' }]}>{t('delete')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.actionBtn, { backgroundColor: theme.primary + '20' }]}
                     onPress={() => router.push(`/product/${item.productId}`)}
                 >
                     <Ionicons name="eye-outline" size={18} color={theme.primary} />
-                    <Text style={[styles.actionText, { color: theme.primary }]}>عرض المنتج</Text>
+                    <Text style={[styles.actionText, { color: theme.primary }]}>{t('viewProduct')}</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -118,7 +125,7 @@ export default function AdminReviews() {
                         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
                             <Ionicons name="arrow-back" size={24} color="#fff" />
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>إدارة التقييمات</Text>
+                        <Text style={styles.headerTitle}>{t('manageReviews')}</Text>
                         <View style={{ width: 40 }} />
                     </View>
                 </SafeAreaView>
@@ -134,7 +141,7 @@ export default function AdminReviews() {
                 }
                 ListEmptyComponent={
                     <View style={styles.empty}>
-                        <Text style={{ color: theme.textMuted }}>لا توجد تقييمات حالياً</Text>
+                        <Text style={{ color: theme.textMuted }}>{t('noReviewsYet')}</Text>
                     </View>
                 }
             />
@@ -143,21 +150,108 @@ export default function AdminReviews() {
 }
 
 const getStyles = (theme, isDark) => StyleSheet.create({
-    container: { flex: 1 },
-    header: { paddingBottom: 16 },
-    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
-    backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
-    list: { padding: 16 },
-    card: { padding: 16, borderRadius: 16, marginBottom: 16 },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-    userName: { fontWeight: 'bold', fontSize: 15 },
-    date: { fontSize: 11, marginTop: 2 },
-    ratingBox: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    ratingText: { fontWeight: 'bold' },
-    comment: { fontSize: 14, lineHeight: 20, textAlign: 'right' },
-    cardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 15, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 10 },
-    actionBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 10, gap: 6 },
-    actionText: { fontWeight: '600', fontSize: 13 },
-    empty: { alignItems: 'center', marginTop: 100 },
+    container: {
+        flex: 1,
+        backgroundColor: isDark ? ADMIN_COLORS.neutral[900] : ADMIN_COLORS.neutral[50],
+    },
+    header: {
+        paddingBottom: 24,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
+        ...ADMIN_SHADOWS.md,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        marginBottom: 16,
+        paddingTop: 10,
+    },
+    backBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: BORDER_RADIUS.full,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    list: {
+        padding: 16,
+        paddingBottom: 100,
+    },
+    card: {
+        padding: 20,
+        borderRadius: BORDER_RADIUS.xl,
+        marginBottom: 16,
+        backgroundColor: isDark ? ADMIN_COLORS.neutral[800] : '#fff',
+        ...ADMIN_SHADOWS.md,
+    },
+    cardHeader: {
+        flexDirection: 'row-reverse', // RTL
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    userName: {
+        fontWeight: 'bold',
+        fontSize: 15,
+        textAlign: 'right',
+        color: isDark ? '#fff' : ADMIN_COLORS.neutral[900],
+    },
+    date: {
+        fontSize: 11,
+        marginTop: 2,
+        textAlign: 'right',
+        color: isDark ? ADMIN_COLORS.neutral[400] : ADMIN_COLORS.neutral[500],
+    },
+    ratingBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: BORDER_RADIUS.md,
+        backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7',
+    },
+    ratingText: {
+        fontWeight: 'bold',
+        color: ADMIN_COLORS.warning.dark,
+        fontSize: 13,
+    },
+    comment: {
+        fontSize: 14,
+        lineHeight: 22,
+        textAlign: 'right',
+        color: isDark ? ADMIN_COLORS.neutral[300] : ADMIN_COLORS.neutral[700],
+        marginBottom: 16,
+    },
+    cardActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-start', // RTL left alignment for buttons
+        gap: 12,
+        borderTopWidth: 1,
+        borderTopColor: isDark ? ADMIN_COLORS.neutral[700] : ADMIN_COLORS.neutral[200],
+        paddingTop: 16,
+    },
+    actionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: BORDER_RADIUS.lg,
+        gap: 8,
+    },
+    actionText: {
+        fontWeight: '600',
+        fontSize: 13,
+    },
+    empty: {
+        alignItems: 'center',
+        marginTop: 100,
+    },
 });

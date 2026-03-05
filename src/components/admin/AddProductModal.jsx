@@ -4,27 +4,28 @@
  * 🔐 Admin only
  */
 
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    Modal,
-    TouchableOpacity,
-    TextInput,
-    ScrollView,
-    KeyboardAvoidingView,
-    Platform,
     Alert,
     Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
+import { useTranslation } from '../../hooks/useTranslation';
 import {
-    PRODUCT_CATEGORIES,
+    createProduct,
     DEFAULT_PRODUCT,
     generateSKU,
-    createProduct,
+    PRODUCT_CATEGORIES,
     updateProduct,
 } from '../../services/adminProductService';
 
@@ -37,6 +38,7 @@ const SAMPLE_IMAGES = [
 
 export default function AddProductModal({ visible, onClose, onSuccess, editProduct = null }) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const styles = getStyles(theme, isDark);
 
     const isEditing = !!editProduct;
@@ -96,15 +98,15 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
 
     const validateForm = () => {
         if (!formData.name.trim()) {
-            Alert.alert('خطأ', 'يرجى إدخال اسم المنتج');
+            Alert.alert(t('error'), t('enterProductName'));
             return false;
         }
         if (!formData.price || formData.price <= 0) {
-            Alert.alert('خطأ', 'يرجى إدخال سعر صحيح');
+            Alert.alert(t('error'), t('enterValidPrice'));
             return false;
         }
         if (!selectedCategory) {
-            Alert.alert('خطأ', 'يرجى اختيار فئة المنتج');
+            Alert.alert(t('error'), t('selectCategory'));
             return false;
         }
         return true;
@@ -125,18 +127,20 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
             };
 
             if (isEditing) {
-                await updateProduct(editProduct.id, productData);
-                Alert.alert('تم التحديث', 'تم تحديث المنتج بنجاح');
+                await updateProduct(editProduct.id, productData, {
+                    previousStock: editProduct.stock_quantity ?? editProduct.stock ?? null
+                });
+                Alert.alert(t('success'), t('productUpdated'));
             } else {
                 await createProduct(productData);
-                Alert.alert('تمت الإضافة', 'تم إضافة المنتج بنجاح');
+                Alert.alert(t('success'), t('productAdded'));
             }
 
             onSuccess?.();
             onClose();
         } catch (error) {
             console.error('Error saving product:', error);
-            Alert.alert('خطأ', 'فشل في حفظ المنتج');
+            Alert.alert(t('error'), t('failedToSaveProduct'));
         } finally {
             setLoading(false);
         }
@@ -145,7 +149,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
     const renderPreview = () => (
         <View style={styles.previewContainer}>
             <View style={styles.previewHeader}>
-                <Text style={[styles.previewTitle, { color: theme.text }]}>معاينة المنتج</Text>
+                <Text style={[styles.previewTitle, { color: theme.text }]}>{t('productPreview')}</Text>
                 <TouchableOpacity onPress={() => setShowPreview(false)}>
                     <Ionicons name="close" size={24} color={theme.text} />
                 </TouchableOpacity>
@@ -161,22 +165,22 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
                 )}
 
                 <Text style={[styles.previewProductName, { color: theme.text }]}>
-                    {formData.name || 'اسم المنتج'}
+                    {formData.name || t('productName')}
                 </Text>
 
                 <View style={styles.previewPriceRow}>
                     <Text style={[styles.previewPrice, { color: theme.primary }]}>
-                        {formData.price || 0} MAD
+                        {formData.price || 0} {t('currency')}
                     </Text>
                     {formData.compareAtPrice > 0 && (
                         <Text style={[styles.previewComparePrice, { color: theme.textMuted }]}>
-                            {formData.compareAtPrice} MAD
+                            {formData.compareAtPrice} {t('currency')}
                         </Text>
                     )}
                 </View>
 
                 <Text style={[styles.previewDescription, { color: theme.textSecondary }]}>
-                    {formData.description || 'لا يوجد وصف'}
+                    {formData.description || t('noDescription')}
                 </Text>
 
                 {formData.tags.length > 0 && (
@@ -196,7 +200,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
                 disabled={loading}
             >
                 <Text style={styles.previewPublishText}>
-                    {loading ? 'جارٍ الحفظ...' : (isEditing ? 'تحديث المنتج' : 'نشر المنتج')}
+                    {loading ? t('saving') : (isEditing ? t('editProduct') : t('publishProduct'))}
                 </Text>
             </TouchableOpacity>
         </View>
@@ -218,39 +222,39 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
                         {/* Header */}
                         <View style={[styles.header, { borderBottomColor: theme.border }]}>
                             <TouchableOpacity onPress={onClose}>
-                                <Text style={[styles.cancelBtn, { color: theme.textSecondary }]}>إلغاء</Text>
+                                <Text style={[styles.cancelBtn, { color: theme.textSecondary }]}>{t('cancel')}</Text>
                             </TouchableOpacity>
                             <Text style={[styles.title, { color: theme.text }]}>
-                                {isEditing ? 'تعديل المنتج' : 'منتج جديد'}
+                                {isEditing ? t('editProduct') : t('newProduct')}
                             </Text>
                             <TouchableOpacity onPress={() => setShowPreview(true)}>
-                                <Text style={[styles.previewBtn, { color: theme.primary }]}>معاينة</Text>
+                                <Text style={[styles.previewBtn, { color: theme.primary }]}>{t('preview')}</Text>
                             </TouchableOpacity>
                         </View>
 
                         <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
                             {/* Basic Info */}
                             <View style={styles.section}>
-                                <Text style={[styles.sectionTitle, { color: theme.text }]}>المعلومات الأساسية</Text>
+                                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('basicInfo')}</Text>
 
                                 <View style={[styles.inputGroup, { backgroundColor: theme.backgroundCard }]}>
-                                    <Text style={[styles.label, { color: theme.textSecondary }]}>اسم المنتج *</Text>
+                                    <Text style={[styles.label, { color: theme.textSecondary }]}>{t('productName')} *</Text>
                                     <TextInput
                                         style={[styles.input, { color: theme.text }]}
                                         value={formData.name}
                                         onChangeText={(v) => handleChange('name', v)}
-                                        placeholder="مثال: سيروم فيتامين C"
+                                        placeholder={t('productNameExample')}
                                         placeholderTextColor={theme.textMuted}
                                     />
                                 </View>
 
                                 <View style={[styles.inputGroup, { backgroundColor: theme.backgroundCard }]}>
-                                    <Text style={[styles.label, { color: theme.textSecondary }]}>الوصف</Text>
+                                    <Text style={[styles.label, { color: theme.textSecondary }]}>{t('description')}</Text>
                                     <TextInput
                                         style={[styles.input, styles.textArea, { color: theme.text }]}
                                         value={formData.description}
                                         onChangeText={(v) => handleChange('description', v)}
-                                        placeholder="وصف المنتج..."
+                                        placeholder={t('productDescriptionPlaceholder')}
                                         placeholderTextColor={theme.textMuted}
                                         multiline
                                         numberOfLines={3}
@@ -260,7 +264,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
 
                             {/* Category */}
                             <View style={styles.section}>
-                                <Text style={[styles.sectionTitle, { color: theme.text }]}>الفئة *</Text>
+                                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('category')} *</Text>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                     <View style={styles.categoryRow}>
                                         {PRODUCT_CATEGORIES.map((cat) => (
@@ -291,11 +295,11 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
 
                             {/* Pricing */}
                             <View style={styles.section}>
-                                <Text style={[styles.sectionTitle, { color: theme.text }]}>التسعير</Text>
+                                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('pricing')}</Text>
 
                                 <View style={styles.row}>
                                     <View style={[styles.inputGroup, styles.halfWidth, { backgroundColor: theme.backgroundCard }]}>
-                                        <Text style={[styles.label, { color: theme.textSecondary }]}>السعر (MAD) *</Text>
+                                        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('price')} ({t('currency')}) *</Text>
                                         <TextInput
                                             style={[styles.input, { color: theme.text }]}
                                             value={(formData.price ?? 0).toString()}
@@ -307,7 +311,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
                                     </View>
 
                                     <View style={[styles.inputGroup, styles.halfWidth, { backgroundColor: theme.backgroundCard }]}>
-                                        <Text style={[styles.label, { color: theme.textSecondary }]}>السعر قبل الخصم</Text>
+                                        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('comparePrice')}</Text>
                                         <TextInput
                                             style={[styles.input, { color: theme.text }]}
                                             value={(formData.compareAtPrice ?? 0).toString()}
@@ -322,11 +326,11 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
 
                             {/* Stock */}
                             <View style={styles.section}>
-                                <Text style={[styles.sectionTitle, { color: theme.text }]}>المخزون</Text>
+                                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('inventory')}</Text>
 
                                 <View style={styles.row}>
                                     <View style={[styles.inputGroup, styles.halfWidth, { backgroundColor: theme.backgroundCard }]}>
-                                        <Text style={[styles.label, { color: theme.textSecondary }]}>الكمية</Text>
+                                        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('quantity')}</Text>
                                         <TextInput
                                             style={[styles.input, { color: theme.text }]}
                                             value={(formData.stock ?? 0).toString()}
@@ -338,7 +342,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
                                     </View>
 
                                     <View style={[styles.inputGroup, styles.halfWidth, { backgroundColor: theme.backgroundCard }]}>
-                                        <Text style={[styles.label, { color: theme.textSecondary }]}>تنبيه عند</Text>
+                                        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('lowStockAlert')}</Text>
                                         <TextInput
                                             style={[styles.input, { color: theme.text }]}
                                             value={(formData.lowStockThreshold ?? 5).toString()}
@@ -356,7 +360,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
                                         style={[styles.input, { color: theme.text }]}
                                         value={formData.sku}
                                         onChangeText={(v) => handleChange('sku', v)}
-                                        placeholder="تلقائي"
+                                        placeholder={t('automatic')}
                                         placeholderTextColor={theme.textMuted}
                                     />
                                 </View>
@@ -364,7 +368,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
 
                             {/* Images */}
                             <View style={styles.section}>
-                                <Text style={[styles.sectionTitle, { color: theme.text }]}>الصور</Text>
+                                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('images')}</Text>
                                 <View style={styles.imagesGrid}>
                                     {formData.images.map((img, i) => (
                                         <View key={i} style={styles.imageWrapper}>
@@ -388,13 +392,13 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
 
                             {/* Tags */}
                             <View style={styles.section}>
-                                <Text style={[styles.sectionTitle, { color: theme.text }]}>الوسوم</Text>
+                                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('tags')}</Text>
                                 <View style={[styles.tagInputRow, { backgroundColor: theme.backgroundCard }]}>
                                     <TextInput
                                         style={[styles.tagInput, { color: theme.text }]}
                                         value={tagInput}
                                         onChangeText={setTagInput}
-                                        placeholder="أضف وسم..."
+                                        placeholder={t('addTagPlaceholder')}
                                         placeholderTextColor={theme.textMuted}
                                         onSubmitEditing={handleAddTag}
                                     />
@@ -431,7 +435,7 @@ export default function AddProductModal({ visible, onClose, onSuccess, editProdu
                             >
                                 <Ionicons name={isEditing ? "checkmark" : "add"} size={20} color="#fff" />
                                 <Text style={styles.submitBtnText}>
-                                    {loading ? 'جارٍ الحفظ...' : (isEditing ? 'حفظ التغييرات' : 'إضافة المنتج')}
+                                    {loading ? t('saving') : (isEditing ? t('save') : t('add'))}
                                 </Text>
                             </TouchableOpacity>
                         </View>

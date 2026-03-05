@@ -34,8 +34,9 @@ export default function AdminLayout() {
                 <Stack.Screen name="analytics-dashboard" />
                 <Stack.Screen name="revenue" />
 
-                {/* Settings */}
+                {/* Settings & Shipping */}
                 <Stack.Screen name="settings" />
+                <Stack.Screen name="shipping" />
             </Stack>
         </RequireAdmin>
     );

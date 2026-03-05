@@ -1,29 +1,30 @@
-import React, { useState, useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useState } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    TextInput,
-    ScrollView,
-    KeyboardAvoidingView,
-    Platform,
-    Dimensions,
     ActivityIndicator,
     Alert,
-    ImageBackground
+    Dimensions,
+    I18nManager,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useTheme } from '../src/context/ThemeContext';
-import { useAuth } from '../src/context/AuthContext';
-import { BlurView } from "expo-blur";
 import Animated, {
     FadeInDown,
     FadeInUp,
 } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from '../src/context/AuthContext';
+import { useTheme } from '../src/context/ThemeContext';
 
 const { width } = Dimensions.get("window");
 
@@ -102,8 +103,7 @@ export default function AuthScreen() {
                 colors={isDark ? [theme.primary + '15', 'transparent'] : [theme.primary + '10', 'transparent']}
                 style={styles.topGradient}
             />
-            <View style={[styles.bgOrb1, { backgroundColor: theme.primary + "10" }]} />
-            <View style={[styles.bgOrb2, { backgroundColor: theme.accent + "08" }]} />
+
 
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.header}>
@@ -112,7 +112,7 @@ export default function AuthScreen() {
                         style={styles.backBtn}
                     >
                         <BlurView intensity={20} tint={isDark ? "dark" : "light"} style={styles.backBtnBlur}>
-                            <Ionicons name="arrow-back" size={24} color={theme.text} />
+                            <Ionicons name={I18nManager.isRTL ? "arrow-forward" : "arrow-back"} size={24} color={theme.text} />
                         </BlurView>
                     </TouchableOpacity>
                 </View>
@@ -247,7 +247,7 @@ export default function AuthScreen() {
                                             resizeMode="contain"
                                         />
                                         <Text style={[styles.googleText, { color: theme.text }]}>
-                                            {t('signIn')} with Google
+                                            {t('signIn')} Google
                                         </Text>
                                     </>
                                 )}
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         gap: 12
     },
-    input: { flex: 1, fontSize: 15, fontWeight: "500", height: '100%', textAlign: 'left' },
+    input: { flex: 1, fontSize: 15, fontWeight: "500", height: '100%', textAlign: I18nManager.isRTL ? 'right' : 'left' },
 
     forgotBtn: { alignSelf: "flex-end", marginBottom: 24 },
     forgotText: { fontSize: 13, fontWeight: "600" },

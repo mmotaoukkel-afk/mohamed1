@@ -5,35 +5,42 @@
  * Features: CRUD, Stock Management, Categories, Low Stock Alerts
  */
 
-import React, { useState, useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    TouchableOpacity,
-    Image,
-    TextInput,
     Alert,
+    FlatList,
+    Image,
     RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useTheme } from '../../src/context/ThemeContext';
 import AddProductModal from '../../src/components/admin/AddProductModal';
 import {
-    getAllProducts,
+    ADMIN_COLORS,
+    ADMIN_GRADIENTS,
+    ADMIN_SHADOWS,
+    BORDER_RADIUS
+} from '../../src/constants/adminDesignTokens';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useTranslation } from '../../src/hooks/useTranslation';
+import {
     deleteProduct,
+    getAllProducts,
     PRODUCT_CATEGORIES,
 } from '../../src/services/adminProductService';
-import { syncMockProductsToFirestore, getProductCount } from '../../src/services/syncProducts';
 import currencyService from '../../src/services/currencyService';
 
 export default function AdminProducts() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const styles = getStyles(theme, isDark);
 
     const [products, setProducts] = useState([]);
@@ -53,17 +60,11 @@ export default function AdminProducts() {
 
             let fetchedProducts = await getAllProducts(options);
 
-            // Auto-sync if no products exist (First Run)
-            if (fetchedProducts.length === 0 && selectedCategory === 'all') {
-                console.log('No products found, auto-syncing mock data...');
-                await syncMockProductsToFirestore();
-                fetchedProducts = await getAllProducts(options);
-            }
-
+            // Removed auto-sync mock logic as we are live on WooCommerce now.
             setProducts(fetchedProducts);
         } catch (error) {
             console.error('Error loading products:', error);
-            Alert.alert('خطأ', 'فشل في تحميل المنتجات');
+            Alert.alert(t('error'), t('failedToLoadData'));
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -81,12 +82,12 @@ export default function AdminProducts() {
         return matchesSearch;
     });
 
-    // Stats
+    // Stats based on WooCommerce normalization
     const stats = {
         total: products.length,
-        active: products.filter(p => p.status === 'active').length,
-        lowStock: products.filter(p => p.status === 'low_stock').length,
-        outOfStock: products.filter(p => p.status === 'out_of_stock').length,
+        active: products.filter(p => p.stock_status === 'instock').length,
+        lowStock: products.filter(p => p.stock_status === 'lowstock').length,
+        outOfStock: products.filter(p => p.stock_status === 'outofstock').length,
     };
 
     const onRefresh = useCallback(() => {
@@ -106,22 +107,22 @@ export default function AdminProducts() {
 
     const handleDeleteProduct = (productId, productName) => {
         Alert.alert(
-            'حذف المنتج',
-            `هل أنت متأكد من حذف "${productName}"؟`,
+            t('deleteProduct'),
+            t('confirmDeleteProduct', { name: productName }),
             [
-                { text: 'إلغاء', style: 'cancel' },
+                { text: t('cancel'), style: 'cancel' },
                 {
-                    text: 'حذف',
+                    text: t('delete'),
                     style: 'destructive',
                     onPress: async () => {
                         try {
                             await deleteProduct(productId);
                             // Refresh data from Firestore
                             loadData();
-                            Alert.alert('تم الحذف', 'تم حذف المنتج بنجاح');
+                            Alert.alert(t('success'), t('productDeleted'));
                         } catch (error) {
                             console.error('Error deleting product:', error);
-                            Alert.alert('خطأ', 'فشل في حذف المنتج');
+                            Alert.alert(t('error'), t('deleteFailed'));
                         }
                     }
                 }
@@ -141,15 +142,15 @@ export default function AdminProducts() {
     const getStatusBadge = (status, stock, lowStockThreshold = 5) => {
         // Auto-calculate status based on stock
         if (stock === 0) {
-            return { label: 'نفذ', color: '#EF4444', icon: 'alert-circle' };
+            return { label: t('outOfStock'), color: ADMIN_COLORS.error.main, icon: 'alert-circle' };
         } else if (stock <= lowStockThreshold) {
-            return { label: 'كمية قليلة', color: '#F59E0B', icon: 'warning' };
+            return { label: t('lowStock'), color: ADMIN_COLORS.warning.main, icon: 'warning' };
         } else if (status === 'active') {
-            return { label: 'متوفر', color: '#10B981', icon: 'checkmark-circle' };
+            return { label: t('available'), color: ADMIN_COLORS.success.main, icon: 'checkmark-circle' };
         } else if (status === 'draft') {
-            return { label: 'مسودة', color: '#6B7280', icon: 'document' };
+            return { label: t('draft'), color: ADMIN_COLORS.neutral[500], icon: 'document' };
         }
-        return { label: 'متوفر', color: '#10B981', icon: 'checkmark-circle' };
+        return { label: t('available'), color: ADMIN_COLORS.success.main, icon: 'checkmark-circle' };
     };
 
     const getCategoryName = (categoryId) => {
@@ -177,7 +178,7 @@ export default function AdminProducts() {
                     </Text>
                     {item.sku ? (
                         <Text style={{ color: theme.textMuted, fontSize: 10, marginBottom: 4 }}>
-                            SKU: {item.sku}
+                            {t('sku')}: {item.sku}
                         </Text>
                     ) : null}
 
@@ -240,14 +241,14 @@ export default function AdminProducts() {
 
         return (
             <TouchableOpacity
-                style={[styles.alertBanner, { backgroundColor: '#FEF3C720' }]}
+                style={[styles.alertBanner, { backgroundColor: ADMIN_COLORS.warning.light + '20' }]}
                 onPress={() => setSelectedCategory('all')}
             >
-                <Ionicons name="warning" size={20} color="#F59E0B" />
-                <Text style={[styles.alertText, { color: '#F59E0B' }]}>
-                    {stats.lowStock + stats.outOfStock} منتجات تحتاج انتباهك
+                <Ionicons name="warning" size={20} color={ADMIN_COLORS.warning.main} />
+                <Text style={[styles.alertText, { color: ADMIN_COLORS.warning.dark }]}>
+                    {t('needsAttention', { count: stats.lowStock + stats.outOfStock })}
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color="#F59E0B" />
+                <Ionicons name="chevron-forward" size={16} color={ADMIN_COLORS.warning.main} />
             </TouchableOpacity>
         );
     };
@@ -255,13 +256,13 @@ export default function AdminProducts() {
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             {/* Header */}
-            <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
+            <LinearGradient colors={ADMIN_GRADIENTS.primary} style={styles.header}>
                 <SafeAreaView edges={['top']}>
                     <View style={styles.headerRow}>
                         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
                             <Ionicons name="arrow-back" size={24} color="#fff" />
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>إدارة المنتجات</Text>
+                        <Text style={styles.headerTitle}>{t('productsManagement')}</Text>
                         <TouchableOpacity style={styles.addBtn} onPress={handleAddProduct}>
                             <Ionicons name="add" size={24} color="#fff" />
                         </TouchableOpacity>
@@ -275,7 +276,7 @@ export default function AdminProducts() {
                     <Ionicons name="search" size={20} color={theme.textMuted} />
                     <TextInput
                         style={[styles.searchInput, { color: theme.text }]}
-                        placeholder="البحث عن منتج..."
+                        placeholder={t('searchProduct')}
                         placeholderTextColor={theme.textMuted}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -293,7 +294,7 @@ export default function AdminProducts() {
                 {/* Trick to force RTL direction for horizontal list on Android/iOS consistently */}
                 <FlatList
                     horizontal
-                    data={[{ id: 'all', name: 'الكل', icon: '📦' }, ...PRODUCT_CATEGORIES]}
+                    data={[{ id: 'all', name: t('all'), icon: '📦' }, ...PRODUCT_CATEGORIES]}
                     keyExtractor={(item) => item.id}
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={[styles.categoriesContainer, { flexDirection: 'row-reverse' }]}
@@ -327,21 +328,21 @@ export default function AdminProducts() {
 
             {/* Stats Bar */}
             <View style={styles.statsBar}>
-                <View style={[styles.statItem, { backgroundColor: theme.backgroundCard }]}>
-                    <Text style={[styles.statValue, { color: theme.text }]}>{stats.total}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>إجمالي</Text>
+                <View style={[styles.statItem, { backgroundColor: isDark ? ADMIN_COLORS.neutral[800] : '#FFFFFF' }]}>
+                    <Text style={[styles.statValue, { color: isDark ? '#FFF' : ADMIN_COLORS.neutral[900] }]}>{stats.total}</Text>
+                    <Text style={[styles.statLabel, { color: isDark ? ADMIN_COLORS.neutral[400] : ADMIN_COLORS.neutral[600] }]}>{t('total')}</Text>
                 </View>
-                <View style={[styles.statItem, { backgroundColor: theme.backgroundCard }]}>
-                    <Text style={[styles.statValue, { color: '#10B981' }]}>{stats.active}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>متوفر</Text>
+                <View style={[styles.statItem, { backgroundColor: ADMIN_COLORS.success.light + '20' }]}>
+                    <Text style={[styles.statValue, { color: ADMIN_COLORS.success.main }]}>{stats.active}</Text>
+                    <Text style={[styles.statLabel, { color: ADMIN_COLORS.success.dark }]}>{t('available')}</Text>
                 </View>
-                <View style={[styles.statItem, { backgroundColor: theme.backgroundCard }]}>
-                    <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.lowStock}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>قليل</Text>
+                <View style={[styles.statItem, { backgroundColor: ADMIN_COLORS.warning.light + '20' }]}>
+                    <Text style={[styles.statValue, { color: ADMIN_COLORS.warning.main }]}>{stats.lowStock}</Text>
+                    <Text style={[styles.statLabel, { color: ADMIN_COLORS.warning.dark }]}>{t('lowStock')}</Text>
                 </View>
-                <View style={[styles.statItem, { backgroundColor: theme.backgroundCard }]}>
-                    <Text style={[styles.statValue, { color: '#EF4444' }]}>{stats.outOfStock}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>نفذ</Text>
+                <View style={[styles.statItem, { backgroundColor: ADMIN_COLORS.error.light + '20' }]}>
+                    <Text style={[styles.statValue, { color: ADMIN_COLORS.error.main }]}>{stats.outOfStock}</Text>
+                    <Text style={[styles.statLabel, { color: ADMIN_COLORS.error.dark }]}>{t('outOfStock')}</Text>
                 </View>
             </View>
 
@@ -366,7 +367,7 @@ export default function AdminProducts() {
                     <View style={styles.emptyState}>
                         <Ionicons name="cube-outline" size={64} color={theme.textMuted} />
                         <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                            جاري تحميل المنتجات...
+                            {t('loadingProducts')}
                         </Text>
                     </View>
                 }
@@ -443,12 +444,13 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 10,
-        borderRadius: 12,
+        borderRadius: BORDER_RADIUS.xl,
         marginRight: 10,
         minWidth: 80,
         height: 44,
         justifyContent: 'center',
         gap: 8,
+        ...ADMIN_SHADOWS.sm,
     },
     categoryIcon: {
         fontSize: 14,
@@ -467,8 +469,9 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     statItem: {
         flex: 1,
         padding: 10,
-        borderRadius: 12,
+        borderRadius: BORDER_RADIUS.lg,
         alignItems: 'center',
+        ...ADMIN_SHADOWS.sm,
     },
     statValue: {
         fontSize: 18,
@@ -499,14 +502,10 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     productCard: {
         flexDirection: 'row-reverse',
         padding: 16,
-        borderRadius: 20,
+        borderRadius: BORDER_RADIUS.xl,
         marginBottom: 16,
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
+        ...ADMIN_SHADOWS.md,
     },
     productImage: {
         width: 80,
@@ -552,8 +551,8 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 6,
+        paddingVertical: 4,
+        borderRadius: BORDER_RADIUS.md,
         gap: 4,
     },
     statusText: {

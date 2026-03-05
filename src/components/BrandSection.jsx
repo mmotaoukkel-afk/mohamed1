@@ -3,18 +3,18 @@
  * Horizontal scrollable product section with brand header and "View All"
  */
 
-import React from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    TouchableOpacity,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS } from '../theme/colors';
-import ProductCardSoko from './ProductCardSoko';
+import {
+    FlatList,
+    I18nManager,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { useTranslation } from '../hooks/useTranslation';
+import { COLORS, SPACING } from '../theme/colors';
+import ProductCardSoko from './ProductCardSoko';
 
 export default function BrandSection({
     title,
@@ -45,24 +45,26 @@ export default function BrandSection({
             </View>
 
             {/* Products Horizontal List */}
-            <FlatList
-                data={products}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.listContainer}
-                keyExtractor={(item) => item.id?.toString()}
-                renderItem={({ item }) => (
-                    <View style={styles.cardWrapper}>
-                        <ProductCardSoko
-                            item={item}
-                            onPress={() => onProductPress?.(item)}
-                            onAddToCart={onAddToCart}
-                            onFavorite={onFavorite}
-                            isFavorite={isFavorite?.(item.id)}
-                        />
-                    </View>
-                )}
-            />
+            <View style={{ transform: [{ scaleX: I18nManager.isRTL ? -1 : 1 }] }}>
+                <FlatList
+                    data={products}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.listContainer}
+                    keyExtractor={(item) => item.id?.toString()}
+                    renderItem={({ item }) => (
+                        <View style={[styles.cardWrapper, { transform: [{ scaleX: I18nManager.isRTL ? -1 : 1 }] }]}>
+                            <ProductCardSoko
+                                item={item}
+                                onPress={() => onProductPress?.(item)}
+                                onAddToCart={onAddToCart}
+                                onFavorite={onFavorite}
+                                isFavorite={isFavorite?.(item.id)}
+                            />
+                        </View>
+                    )}
+                />
+            </View>
         </View>
     );
 }

@@ -11,6 +11,7 @@ import React, { useEffect, useState } from 'react';
 import {
     Dimensions,
     FlatList,
+    I18nManager,
     StyleSheet,
     Text,
     TextInput,
@@ -26,6 +27,7 @@ import { useFavorites } from '../src/context/FavoritesContext';
 import { useTheme } from '../src/context/ThemeContext';
 import { useSearchProducts } from '../src/hooks/useProducts';
 import { useTranslation } from '../src/hooks/useTranslation';
+import { formatForState } from '../src/utils/productUtils';
 import { storage } from '../src/utils/storage';
 
 const { width } = Dimensions.get('window');
@@ -103,34 +105,18 @@ export default function SearchScreen() {
     }, [router]);
 
     const handleAddToCart = React.useCallback((item, ref) => {
+        const productData = formatForState(item);
         if (ref?.current) {
             ref.current.measureInWindow((x, y, btnWidth, btnHeight) => {
-                triggerAddToCart({
-                    id: item.id,
-                    name: item.name,
-                    price: item.sale_price || item.price,
-                    image: item.images?.[0]?.src,
-                    quantity: 1,
-                }, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
+                triggerAddToCart(productData, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
             });
         } else {
-            triggerAddToCart({
-                id: item.id,
-                name: item.name,
-                price: item.sale_price || item.price,
-                image: item.images?.[0]?.src,
-                quantity: 1,
-            });
+            triggerAddToCart(productData);
         }
     }, [triggerAddToCart]);
 
     const handleFavorite = React.useCallback((item) => {
-        toggleFavorite({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            image: item.images?.[0]?.src,
-        });
+        toggleFavorite(formatForState(item));
     }, [toggleFavorite]);
 
     const renderProduct = React.useCallback(({ item }) => (
@@ -148,8 +134,7 @@ export default function SearchScreen() {
     return (
         <View style={styles.container}>
             {/* Cosmic Background */}
-            <View style={styles.bgOrb1} />
-            <View style={styles.bgOrb2} />
+
 
             {/* Header */}
             <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
@@ -159,7 +144,7 @@ export default function SearchScreen() {
                             style={styles.backBtn}
                             onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
                         >
-                            <Ionicons name="arrow-back" size={22} color="#fff" />
+                            <Ionicons name={I18nManager.isRTL ? "arrow-forward" : "arrow-back"} size={22} color="#fff" />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>{t('searchProducts')}</Text>
                         <View style={{ width: 44 }} />
@@ -170,7 +155,7 @@ export default function SearchScreen() {
                         <View style={[styles.searchInputContainer, { backgroundColor: isDark ? 'rgba(26,21,32,0.7)' : 'rgba(255,255,255,0.8)' }]}>
                             <Ionicons name="search" size={20} color={theme.textMuted} />
                             <TextInput
-                                style={styles.searchInput}
+                                style={[styles.searchInput, { textAlign: I18nManager.isRTL ? 'right' : 'left' }]}
                                 placeholder={t('searchHere')}
                                 placeholderTextColor={theme.textMuted}
                                 value={query}

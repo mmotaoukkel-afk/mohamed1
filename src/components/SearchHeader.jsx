@@ -4,20 +4,20 @@
  * Dark Mode Supported 🌙
  */
 
-import React, { useState, useEffect } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-    View,
-    StyleSheet,
     Image,
+    StyleSheet,
     TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { storage } from '../utils/storage';
-import { useRouter } from 'expo-router';
 import { useNotifications } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
+import { storage } from '../utils/storage';
 import { IconButton, Input, Text } from './ui'; // Import from UI Kit
 
 function SearchHeader({
@@ -88,12 +88,8 @@ function SearchHeader({
                         />
                     </View>
 
-                    {/* Logo */}
-                    <Image
-                        source={require('../../assets/images/logo_premium.jpg')}
-                        style={styles.logoImage}
-                        resizeMode="contain"
-                    />
+                    {/* Brand Name */}
+                    <Text style={styles.brandText}>KATARAA</Text>
 
                     {/* Right Side Actions */}
                     <View style={styles.rightActions}>
@@ -172,10 +168,11 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
         gap: tokens.spacing.xs,
         width: 80, // Fixed width for center alignment of logo
     },
-    logoImage: {
-        width: 110,
-        height: 48,
-        // tintColor removed - maintaining original logo colors
+    brandText: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: tokens.colors.primary,
+        letterSpacing: 3,
     },
     rightActions: {
         flexDirection: 'row',

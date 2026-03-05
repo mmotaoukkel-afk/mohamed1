@@ -2,25 +2,28 @@
  * RelatedProducts - Horizontal carousel of similar items
  */
 
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-    View,
+    Dimensions,
     FlatList,
-    TouchableOpacity,
     Image,
     StyleSheet,
-    Dimensions,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Surface, Text } from './ui';
+import { useTranslation } from '../hooks/useTranslation';
 import api from '../services/api';
+import currencyService from '../services/currencyService';
+import { Surface, Text } from './ui';
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width * 0.4;
 
 export default function RelatedProducts({ productId, category, tokens }) {
     const router = useRouter();
+    const { t } = useTranslation();
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -50,7 +53,7 @@ export default function RelatedProducts({ productId, category, tokens }) {
     };
 
     const formatPrice = (price) => {
-        return `${parseFloat(price || 0).toFixed(3)} MAD`;
+        return currencyService.formatPrice(price);
     };
 
     const renderProduct = ({ item }) => {
@@ -114,7 +117,7 @@ export default function RelatedProducts({ productId, category, tokens }) {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text variant="title" style={{ color: tokens.colors.text }}>
-                    You might also like
+                    {t('relatedProducts')}
                 </Text>
                 <Ionicons name="sparkles" size={20} color={tokens.colors.primary} />
             </View>

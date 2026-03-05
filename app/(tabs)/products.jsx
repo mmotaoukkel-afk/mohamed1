@@ -35,8 +35,10 @@ import { ProductSkeleton } from '../../src/components/SkeletonLoader';
 
 import { useCategories, useInfiniteProducts } from '../../src/hooks/useProducts';
 import { useTranslation } from '../../src/hooks/useTranslation';
+import api from '../../src/services/api';
+import { formatForState } from '../../src/utils/productUtils';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // Real categories from kataraa.com - Using English Slugs for Firestore filtering
 const REAL_CATEGORIES = [
@@ -154,6 +156,7 @@ export default function ProductsScreen() {
 
     const handleRefresh = React.useCallback(async () => {
         setRefreshing(true);
+        api.clearCache(); // Clear WooCommerce cache to get fresh data from website
         await refetchProducts();
         setRefreshing(false);
     }, [refetchProducts]);
@@ -182,46 +185,38 @@ export default function ProductsScreen() {
     }, [router]);
 
     const handleAddToCart = React.useCallback((item, ref) => {
+        const productData = formatForState(item);
+
         if (ref?.current) {
             ref.current.measureInWindow((x, y, btnWidth, btnHeight) => {
-                triggerAddToCart({
-                    id: item.id,
-                    name: item.name,
-                    price: item.sale_price || item.price,
-                    image: item.image || (item.images?.length > 0 ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].src) : null),
-                    quantity: 1,
-                }, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
+                triggerAddToCart(productData, { x: x + btnWidth / 2, y: y + btnHeight / 2 });
             });
         } else {
-            triggerAddToCart({
-                id: item.id,
-                name: item.name,
-                price: item.sale_price || item.price,
-                image: item.image || (item.images?.length > 0 ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].src) : null),
-                quantity: 1,
-            });
+            triggerAddToCart(productData);
         }
     }, [triggerAddToCart]);
 
     const handleFavorite = React.useCallback((item) => {
-        toggleFavorite({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            image: item.images?.[0]?.src,
-        });
+        toggleFavorite(formatForState(item));
     }, [toggleFavorite]);
 
     // Group products by category for brand view
     const getProductsByCategory = () => {
         const grouped = {};
-        categories.slice(0, 5).forEach(cat => {
-            grouped[cat.id] = {
-                name: cat.name,
-                products: products.filter(p =>
-                    p.categories?.some(c => c.id === cat.id)
-                ).slice(0, 6)
-            };
+        REAL_CATEGORIES.forEach(cat => {
+            const matchedProducts = products.filter(p =>
+                p.categories?.some(c =>
+                    c.name === cat.name ||
+                    c.slug === cat.slug ||
+                    c.id?.toString() === cat.id
+                )
+            ).slice(0, 6);
+            if (matchedProducts.length > 0) {
+                grouped[cat.id] = {
+                    name: cat.name,
+                    products: matchedProducts
+                };
+            }
         });
         return grouped;
     };
@@ -456,6 +451,9 @@ export default function ProductsScreen() {
 
     return (
         <View style={styles.container}>
+            {/* ✨ Cosmic Background Elements */}
+
+
             {/* Header with Search */}
             <SearchHeader
                 title={t('productsTitle')}
@@ -547,6 +545,38 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.background,
+    },
+
+    // ✨ Premium Background Pattern
+    bgOrb1: {
+        position: 'absolute',
+        top: -100,
+        right: -80,
+        width: 350,
+        height: 350,
+        borderRadius: 175,
+        backgroundColor: isDark ? 'rgba(102, 126, 234, 0.25)' : 'rgba(102, 126, 234, 0.35)',
+        zIndex: 0,
+    },
+    bgOrb2: {
+        position: 'absolute',
+        bottom: 50,
+        left: -80,
+        width: 300,
+        height: 300,
+        borderRadius: 150,
+        backgroundColor: isDark ? 'rgba(212, 175, 118, 0.20)' : 'rgba(212, 175, 118, 0.30)',
+        zIndex: 0,
+    },
+    bgOrb3: {
+        position: 'absolute',
+        top: height * 0.4,
+        right: -50,
+        width: 200,
+        height: 200,
+        borderRadius: 100,
+        backgroundColor: isDark ? 'rgba(138, 104, 148, 0.15)' : 'rgba(184, 146, 79, 0.25)',
+        zIndex: 0,
     },
     // ... existing styles ...
     filterBtn: {

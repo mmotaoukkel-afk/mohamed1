@@ -3,34 +3,34 @@
  * Clean, list-based layout matching the "Charlotte King" reference
  */
 
-import React, { useState, useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import { useState } from "react";
 import {
-  View,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  StyleSheet,
   ActivityIndicator,
   Alert,
   I18nManager,
-  Switch
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
-import { useAuth } from "../../src/context/AuthContext";
-import { useTheme } from "../../src/context/ThemeContext";
-import { useSettings } from "../../src/context/SettingsContext";
-import { useFavorites } from "../../src/context/FavoritesContext";
-import { useCheckout } from "../../src/context/CheckoutContext";
-import { useTranslation } from "../../src/hooks/useTranslation";
-import { BlurView } from "expo-blur";
-import { Text, Surface, Button, IconButton } from "../../src/components/ui";
 import EditProfileModal from "../../src/components/EditProfileModal";
-import SavedAddresses from "../../src/components/SavedAddresses";
 import PaymentMethods from "../../src/components/PaymentMethods";
+import SavedAddresses from "../../src/components/SavedAddresses";
 import { ProfileSkeleton } from "../../src/components/SkeletonLoader";
+import { Button, Text } from "../../src/components/ui";
+import { useAuth } from "../../src/context/AuthContext";
+import { useCheckout } from "../../src/context/CheckoutContext";
+import { useFavorites } from "../../src/context/FavoritesContext";
+import { useSettings } from "../../src/context/SettingsContext";
+import { useTheme } from "../../src/context/ThemeContext";
+import { useTranslation } from "../../src/hooks/useTranslation";
 
 const Profile = () => {
   const router = useRouter();
@@ -146,7 +146,7 @@ const Profile = () => {
     },
     ...(isAdmin ? [{
       id: 'admin',
-      label: language === 'ar' ? 'لوحة التحكم' : 'Admin Dashboard',
+      label: t('adminDashboard') || (language === 'ar' ? 'لوحة التحكم' : 'Admin Dashboard'),
       icon: 'shield-checkmark-outline',
       onPress: () => router.push('/admin/overview'),
       showChevron: true,
@@ -204,6 +204,9 @@ const Profile = () => {
 
   return (
     <View style={styles.container}>
+      {/* ✨ Cosmic Background Elements */}
+
+
       {/* Header */}
       <View style={styles.header}>
         <Text variant="title" style={styles.headerTitle}>
@@ -303,6 +306,38 @@ const getStyles = (theme, isDark) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.background,
+  },
+
+  // ✨ Premium Background Pattern
+  bgOrb1: {
+    position: 'absolute',
+    top: -100,
+    right: -80,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: isDark ? 'rgba(102, 126, 234, 0.25)' : 'rgba(102, 126, 234, 0.35)',
+    zIndex: 0,
+  },
+  bgOrb2: {
+    position: 'absolute',
+    bottom: 50,
+    left: -80,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: isDark ? 'rgba(212, 175, 118, 0.20)' : 'rgba(212, 175, 118, 0.30)',
+    zIndex: 0,
+  },
+  bgOrb3: {
+    position: 'absolute',
+    top: 400,
+    right: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: isDark ? 'rgba(138, 104, 148, 0.15)' : 'rgba(184, 146, 79, 0.25)',
+    zIndex: 0,
   },
   guestContent: {
     flex: 1,

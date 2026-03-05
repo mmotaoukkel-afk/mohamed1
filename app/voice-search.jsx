@@ -134,7 +134,11 @@ export default function VoiceSearchScreen() {
     });
 
     useSpeechRecognitionEvent("error", (event) => {
-        console.error("Speech recognition error:", event.error, event.message);
+        if (event.error === 'no-speech') {
+            setState('idle');
+            return;
+        }
+        console.warn("Speech recognition error:", event.error, event.message);
         setState('error');
     });
 
@@ -153,7 +157,13 @@ export default function VoiceSearchScreen() {
                 lang: "ar-SA", // Standard Arabic
                 interimResults: true,
                 maxAlternatives: 1,
-                continuous: true, // Enable continuous to prevent early cut-off
+                // continuous: true causes 'network' error on many Android devices
+                continuous: false,
+                // Android-specific options to improve stability
+                androidIntentOptions: {
+                    EXTRA_LANGUAGE_MODEL: 'free_form',
+                    EXTRA_PARTIAL_RESULTS: true,
+                }
             });
         } catch (e) {
             console.error(e);

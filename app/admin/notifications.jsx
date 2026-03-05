@@ -1,250 +1,365 @@
 /**
  * Admin Notifications - Kataraa
- * Business operations alerts and updates
+ * Push Notification Campaign Manager
  * 🔐 Protected by RequireAdmin
  */
 
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useNotifications } from '../../src/context/NotificationContext';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+    ADMIN_COLORS,
+    ADMIN_SHADOWS,
+    BORDER_RADIUS
+} from '../../src/constants/adminDesignTokens';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useTranslation } from '../../src/hooks/useTranslation';
+import { getCampaignHistory, sendCampaign } from '../../src/services/adminNotificationService';
+
+const { width } = Dimensions.get('window');
 
 export default function AdminNotifications() {
-    const { theme, isDark } = useTheme();
-    const { adminNotifications, markAsRead, markAllAsRead, clearNotifications, loading } = useNotifications();
     const router = useRouter();
+    const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const styles = getStyles(theme, isDark);
 
-    const onRefresh = () => {
-        // Handled by context automatically usually, but could trigger a reload if needed
+    const [loading, setLoading] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(true);
+    const [history, setHistory] = useState([]);
+
+    // Form State
+    const [title, setTitle] = useState('');
+    const [body, setBody] = useState('');
+    const [target, setTarget] = useState('all_users');
+    const [showTargetOptions, setShowTargetOptions] = useState(false);
+
+    const loadHistory = async () => {
+        setHistoryLoading(true);
+        const data = await getCampaignHistory();
+        setHistory(data);
+        setHistoryLoading(false);
     };
 
-    const renderNotification = ({ item }) => {
-        const isUnread = !item.read;
-        const config = getNotificationConfig(item.type, theme);
+    useEffect(() => {
+        loadHistory();
+    }, []);
 
-        return (
-            <TouchableOpacity
-                style={[
-                    styles.notificationCard,
-                    { backgroundColor: theme.backgroundCard },
-                    isUnread && styles.unreadCard
-                ]}
-                onPress={() => {
-                    markAsRead(item.id);
-                    if (item.params?.orderId) router.push(`/admin/order/${item.params.orderId}`);
-                    if (item.params?.customerId) router.push(`/admin/customers`); // Profile modal would be better but this works
-                }}
-            >
-                <View style={[styles.iconContainer, { backgroundColor: config.color + '20' }]}>
-                    <Ionicons name={config.icon} size={22} color={config.color} />
-                </View>
-                <View style={styles.notifContent}>
-                    <View style={styles.notifHeader}>
-                        <Text style={[styles.notifTitle, { color: theme.text }]}>{item.title}</Text>
-                        <Text style={[styles.notifTime, { color: theme.textSecondary }]}>
-                            {formatTime(item.time)}
-                        </Text>
-                    </View>
-                    <Text style={[styles.notifMessage, { color: theme.textSecondary }]} numberOfLines={2}>
-                        {item.message}
-                    </Text>
-                    {isUnread && <View style={[styles.unreadDot, { backgroundColor: theme.primary }]} />}
-                </View>
-            </TouchableOpacity>
+    const handleSend = async () => {
+        if (!title.trim() || !body.trim()) {
+            Alert.alert(t('error'), t('pleaseEnterTitleAndMessage'));
+            return;
+        }
+
+        Alert.alert(
+            t('confirmSend'),
+            t('confirmSendToTarget', { target: getTargetLabel(target) }),
+            [
+                { text: t('cancel'), style: 'cancel' },
+                {
+                    text: t('send'),
+                    onPress: async () => {
+                        setLoading(true);
+                        const result = await sendCampaign({
+                            title,
+                            body,
+                            target,
+                            data: { type: 'campaign' } // Basic data payload
+                        });
+
+                        if (result.success) {
+                            Alert.alert(t('success'), t('notificationSentToCount', { count: result.sent }));
+                            setTitle('');
+                            setBody('');
+                            loadHistory();
+                        } else {
+                            Alert.alert(t('sendFailed'), result.message || t('unknownError'));
+                        }
+                        setLoading(false);
+                    }
+                }
+            ]
         );
     };
 
+    const getTargetLabel = (targetKey) => {
+        switch (targetKey) {
+            case 'all_users': return t('allUsers');
+            case 'new_users': return t('newUsers7Days');
+            case 'inactive_users': return t('inactiveUsers');
+            default: return targetKey;
+        }
+    };
+
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
+        <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F8FAFC' }]}>
+            <LinearGradient
+                colors={[theme?.primary || '#D4AF76', theme?.primaryDark || '#B8924F']}
+                style={styles.header}
+            >
                 <SafeAreaView edges={['top']}>
                     <View style={styles.headerRow}>
                         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
                             <Ionicons name="arrow-back" size={24} color="#fff" />
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>تنبيهات العمليات</Text>
-                        <View style={styles.headerActions}>
-                            <TouchableOpacity style={styles.headerBtn} onPress={markAllAsRead}>
-                                <Ionicons name="checkmark-done" size={22} color="#fff" />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.headerBtn} onPress={clearNotifications}>
-                                <Ionicons name="trash-outline" size={22} color="#fff" />
-                            </TouchableOpacity>
-                        </View>
+                        <Text style={styles.headerTitle}>{t('manageNotifications')}</Text>
+                        <View style={{ width: 40 }} />
                     </View>
                 </SafeAreaView>
             </LinearGradient>
 
-            <FlatList
-                data={adminNotifications}
-                keyExtractor={(item) => item.id}
-                renderItem={renderNotification}
-                contentContainerStyle={styles.listContent}
+            <ScrollView
                 showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                        <View style={[styles.emptyIconContainer, { backgroundColor: theme.backgroundCard }]}>
-                            <Ionicons name="notifications-off-outline" size={64} color={theme.textMuted} />
+                refreshControl={<RefreshControl refreshing={historyLoading} onRefresh={loadHistory} tintColor={theme.primary} />}
+            >
+                {/* Compose Section */}
+                <View style={[styles.card, { backgroundColor: theme.backgroundCard }]}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('sendNewNotification')}</Text>
+
+                    <Text style={[styles.label, { color: theme.textSecondary }]}>{t('title')}</Text>
+                    <TextInput
+                        style={[styles.input, { borderColor: theme.border, color: theme.text, backgroundColor: theme.background }]}
+                        placeholder={t('titlePlaceholder')}
+                        placeholderTextColor={theme.textMuted}
+                        value={title}
+                        onChangeText={setTitle}
+                    />
+
+                    <Text style={[styles.label, { color: theme.textSecondary }]}>{t('message')}</Text>
+                    <TextInput
+                        style={[styles.input, { borderColor: theme.border, color: theme.text, backgroundColor: theme.background, height: 100, textAlignVertical: 'top' }]}
+                        placeholder={t('messagePlaceholder')}
+                        placeholderTextColor={theme.textMuted}
+                        multiline
+                        value={body}
+                        onChangeText={setBody}
+                    />
+
+                    <Text style={[styles.label, { color: theme.textSecondary }]}>{t('targetAudience')}</Text>
+                    <TouchableOpacity
+                        style={[styles.dropdown, { borderColor: theme.border, backgroundColor: theme.background }]}
+                        onPress={() => setShowTargetOptions(!showTargetOptions)}
+                    >
+                        <Text style={{ color: theme.text }}>{getTargetLabel(target)}</Text>
+                        <Ionicons name="chevron-down" size={20} color={theme.textSecondary} />
+                    </TouchableOpacity>
+
+                    {showTargetOptions && (
+                        <View style={[styles.optionsContainer, { borderColor: theme.border, backgroundColor: theme.backgroundCard }]}>
+                            {['all_users', 'new_users'].map((t) => (
+                                <TouchableOpacity
+                                    key={t}
+                                    style={[styles.optionItem, target === t && { backgroundColor: theme.primary + '20' }]}
+                                    onPress={() => { setTarget(t); setShowTargetOptions(false); }}
+                                >
+                                    <Text style={{ color: theme.text }}>{getTargetLabel(t)}</Text>
+                                    {target === t && <Ionicons name="checkmark" size={18} color={theme.primary} />}
+                                </TouchableOpacity>
+                            ))}
                         </View>
-                        <Text style={[styles.emptyTitle, { color: theme.text }]}>لا توجد تنبيهات</Text>
-                        <Text style={[styles.emptySub, { color: theme.textSecondary }]}>
-                            ستظهر هنا التنبيهات المتعلقة بالطلبات والزبائن والمخزون.
-                        </Text>
-                    </View>
-                }
-                refreshControl={
-                    <RefreshControl refreshing={false} onRefresh={onRefresh} tintColor={theme.primary} />
-                }
-            />
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.sendBtn, { backgroundColor: theme.primary }]}
+                        onPress={handleSend}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Ionicons name="paper-plane" size={20} color="#fff" style={{ marginRight: 8 }} />
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('sendNow')}</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                </View>
+
+                {/* Integration Info */}
+                <View style={[styles.infoBox, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                    <Ionicons name="information-circle" size={24} color="#3B82F6" />
+                    <Text style={{ flex: 1, marginLeft: 10, color: '#1E40AF', fontSize: 13 }}>
+                        {t('expoNotificationInfo')}
+                    </Text>
+                </View>
+
+                {/* History Section */}
+                <View style={{ paddingHorizontal: 16, marginTop: 24, marginBottom: 100 }}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('sendingHistory')}</Text>
+
+                    {history.length === 0 ? (
+                        <Text style={{ textAlign: 'center', color: theme.textSecondary, marginTop: 20 }}>{t('noPreviousHistory')}</Text>
+                    ) : (
+                        history.map((item) => (
+                            <View key={item.id} style={[styles.historyItem, { backgroundColor: theme.backgroundCard, borderColor: theme.border }]}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.historyTitle, { color: theme.text }]}>{item.title}</Text>
+                                    <Text style={[styles.historyBody, { color: theme.textSecondary }]} numberOfLines={2}>{item.body}</Text>
+                                    <Text style={[styles.historyMeta, { color: theme.textMuted }]}>
+                                        {item.sentAt?.toLocaleDateString ? item.sentAt.toLocaleDateString(locale === 'ar' ? 'ar-MA' : 'en-US') : t('justNow')} • {getTargetLabel(item.target)}
+                                    </Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <View style={[styles.badge, { backgroundColor: '#DCFCE7' }]}>
+                                        <Text style={{ color: '#166534', fontSize: 10, fontWeight: 'bold' }}>{t('sentCount', { count: item.totalSent })}</Text>
+                                    </View>
+                                    {item.totalFailed > 0 && (
+                                        <View style={[styles.badge, { backgroundColor: '#FEE2E2', marginTop: 4 }]}>
+                                            <Text style={{ color: '#991B1B', fontSize: 10 }}>{t('failedCount', { count: item.totalFailed })}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+                        ))
+                    )}
+                </View>
+            </ScrollView>
         </View>
     );
 }
 
-const getNotificationConfig = (type, theme) => {
-    switch (type) {
-        case 'order':
-            return { icon: 'cart', color: '#6366F1' };
-        case 'customer':
-            return { icon: 'person-add', color: '#F59E0B' };
-        case 'stock':
-            return { icon: 'warning', color: '#EF4444' };
-        case 'review':
-            return { icon: 'star', color: '#10B981' };
-        default:
-            return { icon: 'notifications', color: theme.primary };
-    }
-};
-
-const formatTime = (timeStr) => {
-    const date = new Date(timeStr);
-    const now = new Date();
-    const diff = now - date;
-    const mins = Math.floor(diff / 60000);
-    const hours = Math.floor(mins / 60);
-    const days = Math.floor(hours / 24);
-
-    if (mins < 1) return 'الآن';
-    if (mins < 60) return `منذ ${mins} دق`;
-    if (hours < 24) return `منذ ${hours} سا`;
-    return `منذ ${days} يو`;
-};
-
 const getStyles = (theme, isDark) => StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: isDark ? ADMIN_COLORS.neutral[900] : ADMIN_COLORS.neutral[50],
     },
     header: {
-        paddingBottom: 16,
+        paddingBottom: 24,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
+        ...ADMIN_SHADOWS.md,
     },
     headerRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 8,
+        paddingHorizontal: 20,
+        marginBottom: 16,
+        paddingTop: 10,
     },
     backBtn: {
         width: 40,
         height: 40,
-        borderRadius: 20,
+        borderRadius: BORDER_RADIUS.full,
         backgroundColor: 'rgba(255,255,255,0.2)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#fff',
     },
-    headerActions: {
-        flexDirection: 'row',
-        gap: 8,
+    card: {
+        margin: 16,
+        borderRadius: BORDER_RADIUS.xl,
+        padding: 24,
+        paddingBottom: 30,
+        backgroundColor: isDark ? ADMIN_COLORS.neutral[800] : '#fff',
+        ...ADMIN_SHADOWS.md,
     },
-    headerBtn: {
-        padding: 8,
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 20,
+        textAlign: 'right', // Align right for Arabic
     },
-    listContent: {
-        padding: 16,
-        paddingBottom: 40,
+    label: {
+        fontSize: 14,
+        marginBottom: 8,
+        marginTop: 12,
+        fontWeight: '600',
+        textAlign: 'right', // Align right for Arabic
     },
-    notificationCard: {
-        flexDirection: 'row',
-        padding: 16,
-        borderRadius: 20,
-        marginBottom: 12,
-        alignItems: 'center',
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
+    input: {
+        borderWidth: 1,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: 14,
+        fontSize: 15,
+        textAlign: 'right', // RTL input
     },
-    unreadCard: {
-        borderLeftWidth: 4,
-        borderLeftColor: '#6366F1', // Indigo for admin unread
-    },
-    iconContainer: {
-        width: 50,
-        height: 50,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    notifContent: {
-        flex: 1,
-        marginLeft: 16,
-    },
-    notifHeader: {
-        flexDirection: 'row',
+    dropdown: {
+        borderWidth: 1,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: 14,
+        flexDirection: 'row-reverse', // RTL dropdown
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 4,
     },
-    notifTitle: {
-        fontSize: 15,
-        fontWeight: 'bold',
-    },
-    notifTime: {
-        fontSize: 11,
-    },
-    notifMessage: {
-        fontSize: 13,
-        lineHeight: 18,
-    },
-    unreadDot: {
-        position: 'absolute',
-        right: -8,
-        top: '50%',
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+    optionsContainer: {
+        borderWidth: 1,
+        borderTopWidth: 0,
+        borderBottomLeftRadius: BORDER_RADIUS.lg,
+        borderBottomRightRadius: BORDER_RADIUS.lg,
+        overflow: 'hidden',
         marginTop: -4,
+        zIndex: 10,
     },
-    emptyState: {
+    optionItem: {
+        padding: 14,
+        flexDirection: 'row-reverse', // RTL option
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: isDark ? ADMIN_COLORS.neutral[700] : ADMIN_COLORS.neutral[200],
+    },
+    sendBtn: {
+        marginTop: 24,
+        padding: 16,
+        borderRadius: BORDER_RADIUS.lg,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 100,
-        paddingHorizontal: 40,
+        ...ADMIN_SHADOWS.sm,
     },
-    emptyIconContainer: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        justifyContent: 'center',
+    infoBox: {
+        marginHorizontal: 16,
+        padding: 16,
+        borderRadius: BORDER_RADIUS.lg,
+        flexDirection: 'row-reverse', // RTL info
         alignItems: 'center',
-        marginBottom: 20,
+        borderWidth: 1,
     },
-    emptyTitle: {
-        fontSize: 20,
+    historyItem: {
+        flexDirection: 'row-reverse', // RTL history item
+        padding: 16,
+        marginBottom: 12,
+        borderRadius: BORDER_RADIUS.xl,
+        borderWidth: 1,
+        ...ADMIN_SHADOWS.sm,
+    },
+    historyTitle: {
+        fontSize: 16,
         fontWeight: 'bold',
-        marginBottom: 8,
+        marginBottom: 4,
+        textAlign: 'right',
     },
-    emptySub: {
-        fontSize: 14,
-        textAlign: 'center',
-        lineHeight: 20,
+    historyBody: {
+        fontSize: 13,
+        marginBottom: 8,
+        textAlign: 'right',
+    },
+    historyMeta: {
+        fontSize: 11,
+        textAlign: 'right',
+    },
+    badge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: BORDER_RADIUS.sm,
+        alignItems: 'center',
     },
 });

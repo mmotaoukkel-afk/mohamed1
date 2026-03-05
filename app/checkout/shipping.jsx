@@ -1,26 +1,27 @@
 /**
  * Shipping Screen - Kataraa
- * Fixed version with inline dropdown instead of Modal
+ * Dynamic version using Admin Shipping Service
  */
-import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
   ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
-  Animated,
-  Dimensions
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useCheckout } from '../../src/context/CheckoutContext';
 import { useCart } from '../../src/context/CartContext';
-import { kuwaitGovernorates, getCitiesByGovernorate, calculateShipping } from '../../src/data/kuwaitLocations';
+import { useCheckout } from '../../src/context/CheckoutContext';
+import { getShippingZones } from '../../src/services/adminShippingService';
+import currencyService from '../../src/services/currencyService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -29,38 +30,48 @@ export default function ShippingScreen() {
   const { shippingInfo, setShippingInfo, setShippingFee } = useCheckout();
   const { getCartTotal } = useCart();
 
-  const [showGovDropdown, setShowGovDropdown] = useState(false);
-  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [zones, setZones] = useState([]);
+  const [showZoneDropdown, setShowZoneDropdown] = useState(false);
   const [errors, setErrors] = useState({});
 
   const cartTotal = getCartTotal();
-  const cities = getCitiesByGovernorate(shippingInfo.governorate);
-  const shipping = calculateShipping(shippingInfo.governorate, cartTotal, shippingInfo.city);
+
+  useEffect(() => {
+    loadZones();
+  }, []);
+
+  const loadZones = async () => {
+    try {
+      const data = await getShippingZones();
+      // Filter only active zones
+      const activeZones = data.filter(z => z.active);
+      setZones(activeZones);
+    } catch (error) {
+      console.error('Failed to load shipping zones:', error);
+      Alert.alert('خطأ', 'فشل تحميل مناطق التوصيل');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const updateField = (field, value) => {
     setShippingInfo(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
   };
 
-  const selectGovernorate = (gov) => {
-    // Update both fields at once to avoid stale state
+  const selectZone = (zone) => {
     setShippingInfo(prev => ({
       ...prev,
-      governorate: gov.id,
-      city: ''
+      governorate: zone.id, // We store Zone ID as governorate for consistency
+      city: zone.name, // City name
+      shippingFee: zone.fee
     }));
-    // Reset shipping fee until city is selected
-    setShippingFee(0);
-    setShowGovDropdown(false);
-    if (errors.governorate) setErrors(prev => ({ ...prev, governorate: null }));
-  };
 
-  const selectCity = (city) => {
-    setShippingInfo(prev => ({ ...prev, city: city }));
-    // Calculate shipping based on city
-    const newShipping = calculateShipping(shippingInfo.governorate, cartTotal, city);
-    setShippingFee(newShipping.fee);
-    setShowCityDropdown(false);
+    // Update shipping fee in context
+    setShippingFee(zone.fee);
+
+    setShowZoneDropdown(false);
     if (errors.city) setErrors(prev => ({ ...prev, city: null }));
   };
 
@@ -68,17 +79,11 @@ export default function ShippingScreen() {
     const e = {};
     if (!shippingInfo.fullName?.trim()) e.fullName = 'مطلوب';
     if (!shippingInfo.phone?.trim()) e.phone = 'مطلوب';
-    if (!shippingInfo.governorate) e.governorate = 'مطلوب';
-    if (!shippingInfo.city) e.city = 'مطلوب';
+    if (!shippingInfo.city) e.city = 'مطلوب'; // City represents Zone/Region now
     if (!shippingInfo.block?.trim()) e.block = 'مطلوب';
     if (!shippingInfo.street?.trim()) e.street = 'مطلوب';
     setErrors(e);
     return Object.keys(e).length === 0;
-  };
-
-  const getGovName = () => {
-    const gov = kuwaitGovernorates.find(g => g.id === shippingInfo.governorate);
-    return gov ? gov.name : 'اختر المحافظة';
   };
 
   const handleContinue = () => {
@@ -86,6 +91,10 @@ export default function ShippingScreen() {
       router.push('/checkout/payment');
     }
   };
+
+  // Helper to find selected zone object
+  const selectedZone = zones.find(z => z.name === shippingInfo.city) || null;
+  const currentFee = selectedZone ? selectedZone.fee : 0;
 
   return (
     <View style={styles.container}>
@@ -107,26 +116,15 @@ export default function ShippingScreen() {
         keyboardShouldPersistTaps="always"
         nestedScrollEnabled={true}
       >
-        {/* Shipping Banner - Only show when city is selected */}
-        {shippingInfo.city ? (
-          <View style={[styles.banner, shipping.fee === 0 && styles.freeBanner, shipping.fee === 5 && styles.specialBanner]}>
-            <Ionicons
-              name={shipping.fee === 0 ? 'gift' : 'car'}
-              size={22}
-              color={shipping.fee === 0 ? '#4CAF50' : shipping.fee === 5 ? '#E91E63' : '#FF9800'}
-            />
-            <Text style={[styles.bannerText, { color: shipping.fee === 0 ? '#4CAF50' : shipping.fee === 5 ? '#E91E63' : '#FF9800' }]}>
-              {shipping.message}
+        {/* Shipping Banner */}
+        {selectedZone && (
+          <View style={styles.banner}>
+            <Ionicons name="car" size={22} color="#667eea" />
+            <Text style={styles.bannerText}>
+              رسوم التوصيل لـ {selectedZone.name}: {currencyService.formatKWD(currentFee)}
             </Text>
           </View>
-        ) : cartTotal >= 25 ? (
-          <View style={[styles.banner, styles.freeBanner]}>
-            <Ionicons name="gift" size={22} color="#4CAF50" />
-            <Text style={[styles.bannerText, { color: '#4CAF50' }]}>
-              طلبك مؤهل للشحن المجاني! 🎉
-            </Text>
-          </View>
-        ) : null}
+        )}
 
         {/* Form */}
         <View style={styles.form}>
@@ -153,100 +151,52 @@ export default function ShippingScreen() {
             textAlign="right"
           />
 
-          {/* Governorate Dropdown */}
-          <Text style={styles.label}>المحافظة *</Text>
+          {/* Zone/City Selection */}
+          <Text style={styles.label}>المنطقة / المدينة *</Text>
           <TouchableOpacity
-            style={[styles.select, errors.governorate && styles.inputErr, showGovDropdown && styles.selectOpen]}
-            onPress={() => {
-              setShowGovDropdown(!showGovDropdown);
-              setShowCityDropdown(false);
-            }}
+            style={[styles.select, errors.city && styles.inputErr, showZoneDropdown && styles.selectOpen]}
+            onPress={() => setShowZoneDropdown(!showZoneDropdown)}
           >
-            <Ionicons name={showGovDropdown ? "chevron-up" : "chevron-down"} size={20} color="#667eea" />
-            <Text style={[styles.selectText, !shippingInfo.governorate && styles.placeholder]}>
-              {getGovName()}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Governorate List */}
-          {showGovDropdown && (
-            <View style={styles.dropdown}>
-              <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
-                {kuwaitGovernorates.map((gov) => (
-                  <TouchableOpacity
-                    key={gov.id}
-                    style={[
-                      styles.dropdownItem,
-                      shippingInfo.governorate === gov.id && styles.dropdownItemSelected
-                    ]}
-                    onPress={() => selectGovernorate(gov)}
-                  >
-                    <View style={styles.dropdownItemContent}>
-                      <Text style={[
-                        styles.dropdownText,
-                        shippingInfo.governorate === gov.id && styles.dropdownTextSelected
-                      ]}>
-                        {gov.name}
-                      </Text>
-                      <Text style={styles.dropdownSubText}>{gov.nameEn}</Text>
-                    </View>
-                    {shippingInfo.governorate === gov.id && (
-                      <Ionicons name="checkmark-circle" size={20} color="#667eea" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* City Dropdown */}
-          <Text style={styles.label}>المنطقة *</Text>
-          <TouchableOpacity
-            style={[
-              styles.select,
-              errors.city && styles.inputErr,
-              !shippingInfo.governorate && styles.selectDisabled,
-              showCityDropdown && styles.selectOpen
-            ]}
-            onPress={() => {
-              if (shippingInfo.governorate) {
-                setShowCityDropdown(!showCityDropdown);
-                setShowGovDropdown(false);
-              }
-            }}
-            disabled={!shippingInfo.governorate}
-          >
-            <Ionicons name={showCityDropdown ? "chevron-up" : "chevron-down"} size={20} color="#667eea" />
+            <Ionicons name={showZoneDropdown ? "chevron-up" : "chevron-down"} size={20} color="#667eea" />
             <Text style={[styles.selectText, !shippingInfo.city && styles.placeholder]}>
               {shippingInfo.city || 'اختر المنطقة'}
             </Text>
           </TouchableOpacity>
 
-          {/* City List */}
-          {showCityDropdown && cities.length > 0 && (
-            <View style={[styles.dropdown, styles.cityDropdown]}>
-              <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled={true}>
-                {cities.map((city, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      shippingInfo.city === city && styles.dropdownItemSelected
-                    ]}
-                    onPress={() => selectCity(city)}
-                  >
-                    <Text style={[
-                      styles.dropdownText,
-                      shippingInfo.city === city && styles.dropdownTextSelected
-                    ]}>
-                      {city}
-                    </Text>
-                    {shippingInfo.city === city && (
-                      <Ionicons name="checkmark-circle" size={20} color="#667eea" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+          {/* Zone List Dropdown */}
+          {showZoneDropdown && (
+            <View style={styles.dropdown}>
+              {loading ? (
+                <ActivityIndicator size="small" color="#667eea" style={{ padding: 20 }} />
+              ) : (
+                <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled={true}>
+                  {zones.map((zone) => (
+                    <TouchableOpacity
+                      key={zone.id}
+                      style={[
+                        styles.dropdownItem,
+                        shippingInfo.city === zone.name && styles.dropdownItemSelected
+                      ]}
+                      onPress={() => selectZone(zone)}
+                    >
+                      <View style={styles.dropdownItemContent}>
+                        <Text style={[
+                          styles.dropdownText,
+                          shippingInfo.city === zone.name && styles.dropdownTextSelected
+                        ]}>
+                          {zone.name}
+                        </Text>
+                        <Text style={styles.dropdownSubText}>
+                          {zone.nameEn} - {currencyService.formatKWD(zone.fee)}
+                        </Text>
+                      </View>
+                      {shippingInfo.city === zone.name && (
+                        <Ionicons name="checkmark-circle" size={20} color="#667eea" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
             </View>
           )}
 
@@ -352,19 +302,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 14,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,152,0,0.1)',
+    backgroundColor: 'rgba(102,126,234,0.1)',
     marginBottom: 16
-  },
-  freeBanner: {
-    backgroundColor: 'rgba(76,175,80,0.1)'
-  },
-  specialBanner: {
-    backgroundColor: 'rgba(233,30,99,0.1)'
   },
   bannerText: {
     marginLeft: 8,
     fontWeight: '600',
     fontSize: 14,
+    color: '#667eea'
   },
   form: {
     backgroundColor: '#fff',
@@ -417,10 +362,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
   },
-  selectDisabled: {
-    opacity: 0.5,
-    backgroundColor: '#f0f0f0',
-  },
   selectText: {
     fontSize: 15,
     color: '#333',
@@ -440,9 +381,6 @@ const styles = StyleSheet.create({
     marginTop: -1,
     maxHeight: 250,
     overflow: 'hidden',
-  },
-  cityDropdown: {
-    maxHeight: 200,
   },
   dropdownItem: {
     padding: 14,

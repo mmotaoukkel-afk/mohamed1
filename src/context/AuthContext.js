@@ -1,11 +1,11 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential } from 'firebase/auth';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { auth as firebaseAuth } from '../services/firebaseConfig';
-import { GoogleAuthProvider, signInWithCredential, sendPasswordResetEmail } from 'firebase/auth';
+import { ensureUserDocument, getUserRole, updateProfileInFirestore, USER_ROLES } from '../services/userService';
 import { storage } from '../utils/storage';
 import { useNotifications } from './NotificationContext';
-import { getUserRole, ensureUserDocument, USER_ROLES, updateProfileInFirestore } from '../services/userService';
 
 const AuthContext = createContext();
 
@@ -23,44 +23,85 @@ export const AuthProvider = ({ children }) => {
     // Computed: is current user an admin?
     const isAdmin = role !== USER_ROLES.CUSTOMER;
 
+    const { addNotification } = useNotifications();
+
     useEffect(() => {
-        checkUser();
-        // Initialize Google Sign-In only if native module is available
+        // Initialize Google Sign-In
         if (GoogleSignin) {
             GoogleSignin.configure({
-                webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1076765269610-u5to0vkmrfc2b82f8hvjbg6jfaog3oom.apps.googleusercontent.com', // Extracted from google-services.json (type 3)
+                webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1076765269610-u5to0vkmrfc2b82f8hvjbg6jfaog3oom.apps.googleusercontent.com',
                 offlineAccess: true,
             });
         } else {
             console.warn('Google Sign-In native module not found. Social login will be disabled.');
         }
+
+        // 🔐 Listen for Firebase Auth state changes
+        const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
+            try {
+                if (firebaseUser) {
+                    // User is signed in
+                    console.log('✅ Auth State: Signed In', firebaseUser.uid);
+
+                    // Force token refresh to ensure valid claims if needed
+                    await firebaseUser.getIdToken(true);
+
+                    const userData = {
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email,
+                        displayName: firebaseUser.displayName,
+                        photoURL: firebaseUser.photoURL,
+                        provider: firebaseUser.providerData[0]?.providerId
+                    };
+
+                    // Load extra profile data (e.g. usage preferences) from storage
+                    const existingProfile = await getStoredProfile(userData.email);
+                    const finalUser = existingProfile ? { ...userData, ...existingProfile } : userData;
+
+                    setUser(finalUser);
+                    await storage.setItem('user', finalUser);
+
+                    // 🔐 Fetch Role from Firestore
+                    // ensureUserDocument might fail if rules are strict and user doesn't exist, but we try anyway
+                    await ensureUserDocument(finalUser);
+                    const userRole = await getUserRole(finalUser.uid);
+                    setRole(userRole);
+                    console.log('👤 Role Loaded:', userRole);
+                } else {
+                    // User is signed out
+                    console.log('💤 Auth State: Signed Out');
+                    setUser(null);
+                    setRole(USER_ROLES.CUSTOMER);
+                    await storage.removeItem('user');
+                }
+            } catch (error) {
+                console.error('Auth State Change Error:', error);
+                // Fallback: try to load from storage if auth fails randomly (offline)
+                checkLocalFallback();
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const checkUser = async () => {
+    // Fallback for offline support if Firebase Auth fails to initialize
+    const checkLocalFallback = async () => {
         try {
-            // Load last active session
             const savedUser = await storage.getItem('user');
             if (savedUser) {
                 setUser(savedUser);
-
-                // 🔐 Restore user role from Firestore
-                if (savedUser.uid) {
-                    const userRole = await getUserRole(savedUser.uid);
-                    setRole(userRole);
-                    console.log('Session restored with role:', userRole);
-                }
+                console.log('⚠️ Restored from local storage (Offline Mode)');
             }
         } catch (e) {
-            // Silent fail for session restore
-            console.error('Error restoring session:', e);
-        } finally {
-            setLoading(false);
+            console.error('Local fallback failed:', e);
         }
     };
 
-    const { addNotification } = useNotifications();
-
+    // Helper to get stored profile
     const getStoredProfile = async (email) => {
+        if (!email) return null;
         try {
             const profiles = await storage.getItem('user_profiles') || {};
             return profiles[email.toLowerCase()];

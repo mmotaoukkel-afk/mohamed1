@@ -3,37 +3,29 @@
  * Horizontal scrolling category selector with smooth animations
  */
 
-import React from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-    View,
+    Dimensions,
+    ScrollView,
     StyleSheet,
     Text,
-    ScrollView,
     TouchableOpacity,
-    Dimensions,
+    View
 } from 'react-native';
 import Animated, {
-    useSharedValue,
     useAnimatedStyle,
+    useSharedValue,
     withSpring,
 } from 'react-native-reanimated';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
-// Kataraa Blush Pink Theme
-const COLORS = {
-    primary: '#F5B5C8',
-    secondary: '#FFDAB9',
-    accent: '#B76E79',
-    background: '#FFF9F5',
-    textPrimary: '#3D2314',
-    textSecondary: '#A67B7B',
-};
+import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from '../hooks/useTranslation';
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-const CategoryPill = ({ item, isActive, onPress, index }) => {
+const CategoryPill = ({ item, isActive, onPress, index, tokens }) => {
     const scale = useSharedValue(1);
 
     const handlePressIn = () => {
@@ -46,13 +38,14 @@ const CategoryPill = ({ item, isActive, onPress, index }) => {
 
     const pillStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
+        backgroundColor: isActive ? tokens.colors.primary : tokens.colors.backgroundCard,
+        borderColor: isActive ? tokens.colors.primary : tokens.colors.borderLight,
     }));
 
     return (
         <AnimatedTouchable
             style={[
                 styles.pill,
-                isActive && styles.pillActive,
                 pillStyle,
             ]}
             onPress={onPress}
@@ -60,18 +53,18 @@ const CategoryPill = ({ item, isActive, onPress, index }) => {
             onPressOut={handlePressOut}
             activeOpacity={1}
         >
-            <View style={[styles.iconContainer, isActive && styles.iconContainerActive]}>
+            <View style={[styles.iconContainer, { backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : tokens.colors.primary + '20' }]}>
                 {item.iconType === 'material' ? (
                     <MaterialCommunityIcons
                         name={item.icon}
                         size={22}
-                        color={isActive ? '#fff' : COLORS.accent}
+                        color={isActive ? '#fff' : tokens.colors.primary}
                     />
                 ) : (
                     <Text style={styles.emoji}>{item.icon}</Text>
                 )}
             </View>
-            <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
+            <Text style={[styles.pillText, { color: isActive ? '#fff' : tokens.colors.text }]}>
                 {item.label}
             </Text>
         </AnimatedTouchable>
@@ -79,13 +72,16 @@ const CategoryPill = ({ item, isActive, onPress, index }) => {
 };
 
 export default function CategoryPillsSection({ activeCategory, onCategoryChange }) {
+    const { tokens, isDark } = useTheme();
+    const { t } = useTranslation();
+
     const categories = [
-        { id: 'all', label: 'الكل', icon: '✨', iconType: 'emoji' },
-        { id: 'lips', label: 'الشفاه', icon: '💄', iconType: 'emoji' },
-        { id: 'eyes', label: 'العيون', icon: '👁️', iconType: 'emoji' },
-        { id: 'skincare', label: 'العناية', icon: '🧴', iconType: 'emoji' },
-        { id: 'fragrance', label: 'العطور', icon: '🌸', iconType: 'emoji' },
-        { id: 'hair', label: 'الشعر', icon: 'hair-dryer', iconType: 'material' },
+        { id: 'all', label: t('all'), icon: '✨', iconType: 'emoji' },
+        { id: 'lips', label: t('lips'), icon: '💄', iconType: 'emoji' },
+        { id: 'eyes', label: t('eyes'), icon: '👁️', iconType: 'emoji' },
+        { id: 'skincare', label: t('skincare'), icon: '🧴', iconType: 'emoji' },
+        { id: 'fragrance', label: t('fragrance'), icon: '🌸', iconType: 'emoji' },
+        { id: 'hair', label: t('hair'), icon: 'hair-dryer', iconType: 'material' },
     ];
 
     return (
@@ -104,6 +100,7 @@ export default function CategoryPillsSection({ activeCategory, onCategoryChange 
                         index={index}
                         isActive={activeCategory === item.id}
                         onPress={() => onCategoryChange(item.id)}
+                        tokens={tokens}
                     />
                 ))}
             </ScrollView>
@@ -125,41 +122,21 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 16,
         borderRadius: 25,
-        backgroundColor: '#fff',
         borderWidth: 1.5,
-        borderColor: 'rgba(245, 181, 200, 0.3)',
         gap: 8,
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
         elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
     },
-    pillActive: {
-        backgroundColor: COLORS.primary,
-        borderColor: COLORS.primary,
-        shadowOpacity: 0.35,
-    },
-    iconContainer: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        backgroundColor: 'rgba(245, 181, 200, 0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    iconContainerActive: {
-        backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    },
+
+
     emoji: {
         fontSize: 18,
     },
     pillText: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.textPrimary,
-    },
-    pillTextActive: {
-        color: '#fff',
     },
 });

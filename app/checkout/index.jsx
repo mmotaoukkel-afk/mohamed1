@@ -7,16 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    View
-} from 'react-native';
+import { Alert, I18nManager, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../src/context/AuthContext';
@@ -24,9 +15,9 @@ import { useCart } from '../../src/context/CartContext';
 import { useCheckout } from '../../src/context/CheckoutContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { countriesData, getCitiesByGovernorate, getGovernoratesByCountry } from '../../src/data/gccSyriaLocations';
-import { calculateShipping as calculateKuwaitShipping } from '../../src/data/kuwaitLocations';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { ARAB_COUNTRIES, getAllCountries, getAllCoupons, getDeliveryPrice, updateCouponUsage, validateCoupon } from '../../src/services/adminSettingsService';
+import * as adminShippingService from '../../src/services/adminShippingService';
 import api from '../../src/services/api';
 import {
     formatCardNumber,
@@ -83,16 +74,20 @@ export default function CheckoutScreen() {
     const [activeZones, setActiveZones] = useState([]);
     const [showCountryDropdown, setShowCountryDropdown] = useState(false);
     const [suggestedCities, setSuggestedCities] = useState([]);
+    const [shippingRules, setShippingRules] = useState([]);
 
     // Initial data loading
     useEffect(() => {
         const loadInitialData = async () => {
             try {
-                const [couponsData, countriesData] = await Promise.all([
+                console.log('🔍 Debug: Calling getShippingZones from', adminShippingService);
+                const [couponsData, countriesData, shippingData] = await Promise.all([
                     getAllCoupons(),
-                    getAllCountries()
+                    getAllCountries(),
+                    adminShippingService.getShippingZones()
                 ]);
                 setCoupons(couponsData);
+                setShippingRules(shippingData);
 
                 // Merge Firestore countries with Arab suggestions
                 if (countriesData && countriesData.length > 0) {
@@ -122,10 +117,21 @@ export default function CheckoutScreen() {
     const useSavedAddress = (address) => {
         setShippingInfo({ ...address.data });
         setSaveAddressChecked(false);
-        // If it's Kuwait, recalculate shipping
-        if (address.data.country === 'kuwait' || address.data.country === 'KW') {
-            const res = calculateKuwaitShipping(address.data.governorate, cartTotal, address.data.city);
-            setShippingFee(res.fee);
+        // Recalculate shipping using new rules
+        const country = allCountries.find(c => c.id === address.data.country || c.code === address.data.country);
+        const countryCode = country?.code || 'KW';
+
+        const rule = shippingRules.find(r =>
+            r.country === countryCode &&
+            r.active &&
+            (r.name === address.data.city || r.nameEn === address.data.city)
+        );
+
+        if (rule) {
+            setShippingFee(rule.fee);
+        } else {
+            // Fallback for Kuwait if not found in rules (e.g. 2 KWD default)
+            setShippingFee(countryCode === 'KW' ? 2 : 0);
         }
     };
 
@@ -143,14 +149,23 @@ export default function CheckoutScreen() {
     // Shipping calculation
     const getShippingFee = () => {
         if (appliedCoupon?.type === 'free_shipping') return 0;
+        if (cartTotal >= 25) return 0; // Global Free Shipping rule
 
-        // Specialized logic for Kuwait
-        if (shippingInfo.country === 'kuwait' || shippingInfo.country === 'KW') {
-            const res = calculateKuwaitShipping(shippingInfo.governorate, cartTotal, shippingInfo.city);
-            return res.fee;
-        }
+        const country = allCountries.find(c => c.id === shippingInfo.country || c.code === shippingInfo.country);
+        const countryCode = country?.code || 'KW';
 
-        // Firestore dynamic zones
+        const rule = shippingRules.find(r =>
+            r.country === countryCode &&
+            r.active &&
+            (r.name === shippingInfo.city || r.nameEn === shippingInfo.city)
+        );
+
+        if (rule) return rule.fee;
+
+        // Fallback defaults
+        if (countryCode === 'KW') return 2;
+
+        // Firestore dynamic zones (legacy or alternate)
         const res = getDeliveryPrice(shippingInfo.city, cartTotal, activeZones);
         return res?.price || 0;
     };
@@ -281,15 +296,15 @@ export default function CheckoutScreen() {
         const cleanCVV = cardInfo.cvv?.trim() || '';
 
         if (!cleanNumber || !validateLuhn(cleanNumber)) {
-            e.number = t('invalidCardNumber') || 'رقم بطاقة غير صالح';
+            e.number = t('invalidCardNumber') || (I18nManager.isRTL ? 'رقم بطاقة غير صالح' : 'Invalid card number');
         }
 
         if (!cleanExpiry || !validateExpiry(cleanExpiry)) {
-            e.expiry = t('invalidExpiry') || 'تاريخ غير صالح';
+            e.expiry = t('invalidExpiry') || (I18nManager.isRTL ? 'تاريخ غير صالح' : 'Invalid expiry');
         }
 
         if (!cleanCVV || !validateCVV(cleanCVV, cardType?.label)) {
-            e.cvv = t('invalidCVV') || 'رمز غير صالح';
+            e.cvv = t('invalidCVV') || (I18nManager.isRTL ? 'رمز غير صالح' : 'Invalid CVV');
         }
 
         console.log('🛡️ [CardValidation] Errors:', Object.keys(e).length, e);
@@ -405,7 +420,10 @@ export default function CheckoutScreen() {
                 await addOrder({ ...result, id: orderId.toString(), items: [...cartItems], date: new Date().toISOString() });
                 clearCart();
                 setIsProcessing(false);
-                router.replace('/checkout/success');
+                router.replace({
+                    pathname: '/checkout/success',
+                    params: { orderId: result.orderNumber || orderId.toString() }
+                });
             } else {
                 // 3. Initiate Payment for Card/KNET
                 const paymentData = {
@@ -446,7 +464,7 @@ export default function CheckoutScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <IconButton
-                        icon="arrow-back"
+                        icon={I18nManager.isRTL ? "arrow-forward" : "arrow-back"}
                         variant="ghost"
                         onPress={() => router.back()}
                     />
@@ -572,6 +590,7 @@ export default function CheckoutScreen() {
                                         onChangeText={v => updateField('fullName', v)}
                                         error={errors.fullName}
                                         icon={<Ionicons name="person-outline" size={18} color={tokens.colors.primary} />}
+                                        style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}
                                     />
 
                                     <View style={{ height: 24 }} />
@@ -584,6 +603,7 @@ export default function CheckoutScreen() {
                                         keyboardType="phone-pad"
                                         error={errors.phone}
                                         icon={<Ionicons name="call-outline" size={18} color={tokens.colors.primary} />}
+                                        style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}
                                     />
                                 </Surface>
 
@@ -647,27 +667,30 @@ export default function CheckoutScreen() {
                                         onChangeText={v => updateField('city', v)}
                                         error={errors.city}
                                         icon={<Ionicons name="location-outline" size={18} color={tokens.colors.primary} />}
+                                        style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}
                                     />
 
                                     <View style={{ height: 24 }} />
 
                                     <View style={styles.row}>
-                                        <View style={[styles.halfInput, { marginRight: 8 }]}>
+                                        <View style={[styles.halfInput, { [I18nManager.isRTL ? 'marginLeft' : 'marginRight']: 8 }]}>
                                             <Input
                                                 label={t('block') || 'القطعة'}
                                                 placeholder="1"
                                                 value={shippingInfo.block}
                                                 onChangeText={v => updateField('block', v)}
                                                 error={errors.block}
+                                                style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}
                                             />
                                         </View>
-                                        <View style={[styles.halfInput, { marginLeft: 8 }]}>
+                                        <View style={[styles.halfInput, { [I18nManager.isRTL ? 'marginRight' : 'marginLeft']: 8 }]}>
                                             <Input
                                                 label={t('street') || 'الشارع'}
                                                 placeholder="Street Name"
                                                 value={shippingInfo.street}
                                                 onChangeText={v => updateField('street', v)}
                                                 error={errors.street}
+                                                style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}
                                             />
                                         </View>
                                     </View>
@@ -865,7 +888,7 @@ export default function CheckoutScreen() {
                                             icon={<Ionicons name={cardType?.icon || "card-outline"} size={20} color={tokens.colors.primary} />}
                                         />
                                         <View style={styles.row}>
-                                            <View style={[styles.halfInput, { marginRight: 8 }]}>
+                                            <View style={[styles.halfInput, { [I18nManager.isRTL ? 'marginLeft' : 'marginRight']: 8 }]}>
                                                 <Input
                                                     label={t('expiryDate')}
                                                     placeholder="MM/YY"
@@ -877,9 +900,10 @@ export default function CheckoutScreen() {
                                                     }}
                                                     maxLength={5}
                                                     error={cardErrors.expiry}
+                                                    style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}
                                                 />
                                             </View>
-                                            <View style={[styles.halfInput, { marginLeft: 8 }]}>
+                                            <View style={[styles.halfInput, { [I18nManager.isRTL ? 'marginRight' : 'marginLeft']: 8 }]}>
                                                 <Input
                                                     label={t('cvv')}
                                                     placeholder="123"
@@ -891,6 +915,7 @@ export default function CheckoutScreen() {
                                                     keyboardType="numeric"
                                                     maxLength={cardType?.label === 'American Express' ? 4 : 3}
                                                     error={cardErrors.cvv}
+                                                    style={{ textAlign: I18nManager.isRTL ? 'right' : 'left' }}
                                                 />
                                             </View>
                                         </View>
