@@ -5,7 +5,6 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -22,7 +21,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import AdminPageHeader, { PAGE_GRADIENTS } from '../../src/components/admin/AdminPageHeader';
 import {
     ADMIN_COLORS,
     ADMIN_SHADOWS,
@@ -178,20 +177,13 @@ export default function AdminDiscounts() {
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F8FAFC' }]}>
-            <LinearGradient
-                colors={[theme?.primary || '#D4AF76', theme?.primaryDark || '#B8924F']}
-                style={styles.header}
-            >
-                <SafeAreaView edges={['top']}>
-                    <View style={styles.headerRow}>
-                        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{t('manageCoupons')}</Text>
-                        <View style={{ width: 40 }} />
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <AdminPageHeader
+                title={t('manageCoupons')}
+                gradient={PAGE_GRADIENTS.discounts}
+                onBack={() => router.back()}
+                rightIcon="add"
+                onRightPress={() => setModalVisible(true)}
+            />
 
             <FlatList
                 data={coupons}
@@ -305,33 +297,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: isDark ? ADMIN_COLORS.neutral[900] : ADMIN_COLORS.neutral[50],
-    },
-    header: {
-        paddingBottom: 24,
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
-        ...ADMIN_SHADOWS.md,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        marginBottom: 16,
-        paddingTop: 10,
-    },
-    backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: BORDER_RADIUS.full,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
     },
     card: {
         marginHorizontal: 8,

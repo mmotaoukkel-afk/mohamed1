@@ -198,7 +198,7 @@ export default function CartScreen() {
 const getStyles = (tokens, isDark, insets) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
+    backgroundColor: "transparent",
   },
   orb: {
     position: 'absolute',

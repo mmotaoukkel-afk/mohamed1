@@ -422,7 +422,7 @@ export default function ProductDetailsScreen() {
 const getStyles = (tokens, isDark, width) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
+    backgroundColor: "transparent",
   },
   bgOrb1: {
     position: 'absolute',

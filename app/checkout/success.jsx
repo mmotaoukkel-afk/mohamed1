@@ -315,7 +315,7 @@ export default function OrderSuccessScreen() {
 const getStyles = (tokens, isDark) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: tokens.colors.background,
+        backgroundColor: "transparent",
     },
     orb: {
         position: 'absolute',

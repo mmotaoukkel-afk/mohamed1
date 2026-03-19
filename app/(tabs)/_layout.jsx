@@ -16,6 +16,7 @@ export default function TabsLayout() {
         freezeOnBlur: true,
         animation: 'none',
       }}
+      sceneContainerStyle={{ backgroundColor: 'transparent' }}
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="products" />

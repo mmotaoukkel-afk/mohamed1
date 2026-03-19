@@ -43,6 +43,7 @@ import ProductCardSoko from '../../src/components/ProductCardSoko'; // Use Stand
 import SearchHeader from '../../src/components/SearchHeader';
 import { BannerSkeleton, CategorySkeleton, ProductSkeleton } from '../../src/components/SkeletonLoader';
 import { Text } from '../../src/components/ui'; // UI Kit
+import AppBackground from '../../src/components/ui/AppBackground';
 import { formatForState } from '../../src/utils/productUtils';
 
 
@@ -469,7 +470,7 @@ export default function HomeScreen() {
       <StatusBar style={isDark ? "light" : "dark"} />
 
       {/* ✨ Cosmic Background Elements - hidden */}
-      {/* bgOrb1, bgOrb2, bgOrb3 removed */}
+      <AppBackground />
 
       {/* Drawer Menu */}
       <DrawerMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -651,7 +652,7 @@ export default function HomeScreen() {
 const getStyles = (tokens, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
+    backgroundColor: "transparent",
   },
 
   // ✨ Premium Background Pattern - HIGHLY VISIBLE

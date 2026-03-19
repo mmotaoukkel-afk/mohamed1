@@ -82,7 +82,7 @@ export default function NotificationsScreen() {
 const getStyles = (theme, isDark, locale) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.background,
+        backgroundColor: "transparent",
     },
     header: {
         flexDirection: 'row',

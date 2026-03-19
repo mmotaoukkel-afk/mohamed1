@@ -20,11 +20,12 @@ import {
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AdminPageHeader, { PAGE_GRADIENTS } from '../../src/components/admin/AdminPageHeader';
+import AdminSearchBar from '../../src/components/admin/AdminSearchBar';
 import {
     ADMIN_COLORS,
     ADMIN_GRADIENTS,
@@ -389,34 +390,17 @@ export default function AdminCustomers() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {/* Header */}
-            <LinearGradient colors={ADMIN_GRADIENTS.tech} style={styles.header}>
-                <SafeAreaView edges={['top']}>
-                    <View style={styles.headerRow}>
-                        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{t('customers')}</Text>
-                        <TouchableOpacity style={styles.exportBtn}>
-                            <Ionicons name="download-outline" size={22} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Search Bar Embedded in Header */}
-                    <View style={styles.searchContainer}>
-                        <View style={[styles.osSearch, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                            <Ionicons name="search" size={20} color="#fff" />
-                            <TextInput
-                                style={styles.osInput}
-                                placeholder={t('searchCustomerPlaceholder')}
-                                placeholderTextColor="rgba(255,255,255,0.6)"
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                            />
-                        </View>
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <AdminPageHeader
+                title={t('customers')}
+                gradient={PAGE_GRADIENTS.customers}
+                onBack={() => router.back()}
+            />
+            {/* Search Bar */}
+            <AdminSearchBar
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder={t('searchCustomerPlaceholder')}
+            />
 
             <View style={{ flex: 1 }}>
                 {renderHeader()}
@@ -822,6 +806,11 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     contactText: {
         fontSize: 15,
         fontWeight: '500',
+    },
+    statValue: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#fff',
     },
     recItem: {
         flexDirection: 'row',

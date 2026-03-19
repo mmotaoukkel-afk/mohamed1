@@ -5,7 +5,6 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -20,7 +19,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import AdminPageHeader, { PAGE_GRADIENTS } from '../../src/components/admin/AdminPageHeader';
 import {
     ADMIN_COLORS,
     ADMIN_SHADOWS,
@@ -35,7 +34,7 @@ const { width } = Dimensions.get('window');
 export default function AdminNotifications() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
     const styles = getStyles(theme, isDark);
 
     const [loading, setLoading] = useState(false);
@@ -107,20 +106,11 @@ export default function AdminNotifications() {
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F8FAFC' }]}>
-            <LinearGradient
-                colors={[theme?.primary || '#D4AF76', theme?.primaryDark || '#B8924F']}
-                style={styles.header}
-            >
-                <SafeAreaView edges={['top']}>
-                    <View style={styles.headerRow}>
-                        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{t('manageNotifications')}</Text>
-                        <View style={{ width: 40 }} />
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <AdminPageHeader
+                title={t('manageNotifications')}
+                gradient={PAGE_GRADIENTS.notifications}
+                onBack={() => router.back()}
+            />
 
             <ScrollView
                 showsVerticalScrollIndicator={false}

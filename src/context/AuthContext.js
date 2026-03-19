@@ -54,9 +54,10 @@ export const AuthProvider = ({ children }) => {
                         provider: firebaseUser.providerData[0]?.providerId
                     };
 
-                    // Load extra profile data (e.g. usage preferences) from storage
+                    // Load extra profile data (e.g. custom photo) from storage
+                    // IMPORTANT: Firebase Auth data (uid, email) always takes priority
                     const existingProfile = await getStoredProfile(userData.email);
-                    const finalUser = existingProfile ? { ...userData, ...existingProfile } : userData;
+                    const finalUser = existingProfile ? { ...existingProfile, ...userData } : userData;
 
                     setUser(finalUser);
                     await storage.setItem('user', finalUser);
@@ -122,8 +123,8 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (userData) => {
         const existingProfile = await getStoredProfile(userData.email);
-        // Prioritize existingProfile data (custom photos, names) over fresh userData from provider
-        const finalUser = existingProfile ? { ...userData, ...existingProfile } : userData;
+        // Merge: stored profile provides custom fields, but Firebase Auth data always wins
+        const finalUser = existingProfile ? { ...existingProfile, ...userData } : userData;
         setUser(finalUser);
         await storage.setItem('user', finalUser);
         await saveToProfiles(finalUser);
@@ -209,8 +210,21 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
+        try {
+            // 🔐 Sign out from Firebase Auth (clears the persisted session!)
+            await firebaseAuth.signOut();
+            
+            // Also sign out from Google if it was used
+            if (GoogleSignin) {
+                try { await GoogleSignin.signOut(); } catch (_) {}
+            }
+        } catch (error) {
+            console.warn('Error during Firebase sign out:', error);
+        }
+        
+        // Clear local state
         setUser(null);
-        setRole(USER_ROLES.CUSTOMER); // Reset role on logout
+        setRole(USER_ROLES.CUSTOMER);
         await storage.removeItem('user');
     };
 

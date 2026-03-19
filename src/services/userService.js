@@ -105,14 +105,22 @@ export const updateProfileInFirestore = async (uid, updates) => {
 export const ensureUserDocument = async (userData) => {
     if (!userData?.uid) return;
 
+    const userRef = doc(db, 'users', userData.uid);
+
+    // Step 1: Try to read user document
+    let userDoc;
     try {
-        const userRef = doc(db, 'users', userData.uid);
-        const userDoc = await getDoc(userRef);
+        userDoc = await getDoc(userRef);
+        console.log('✅ ensureUser: Read OK, exists:', userDoc.exists());
+    } catch (readError) {
+        console.warn('⚠️ ensureUser: Read failed, skipping:', readError.message);
+        return; // Can't read = can't proceed, but don't crash login
+    }
 
-        if (!userDoc.exists()) {
-            // Create new user document with default role
-            const role = userData.email === 'admin@kataraa.com' ? USER_ROLES.SUPER_ADMIN : USER_ROLES.CUSTOMER;
-
+    if (!userDoc.exists()) {
+        // Step 2a: Create new user document
+        const role = userData.email === 'admin@kataraa.com' ? USER_ROLES.SUPER_ADMIN : USER_ROLES.CUSTOMER;
+        try {
             await setDoc(userRef, {
                 email: userData.email || '',
                 displayName: userData.displayName || '',
@@ -122,16 +130,17 @@ export const ensureUserDocument = async (userData) => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             });
-            console.log(`Created new user document for: ${userData.email} with role: ${role}`);
-        } else {
-            // Update last login
-            await updateDoc(userRef, {
-                lastLoginAt: new Date().toISOString(),
-            });
+            console.log(`✅ ensureUser: Created for ${userData.email} role: ${role}`);
+        } catch (createError) {
+            console.warn('⚠️ ensureUser: Create failed:', createError.message);
         }
-    } catch (error) {
-        console.error('Error ensuring user document:', error);
-        // Don't throw - allow login even if Firestore fails
+    } else {
+        // Step 2b: Update last login (non-critical — silently skip if fails)
+        try {
+            await setDoc(userRef, { lastLoginAt: new Date().toISOString() }, { merge: true });
+        } catch (_) {
+            // Silently skip — lastLogin is non-critical
+        }
     }
 };
 // ==========================================

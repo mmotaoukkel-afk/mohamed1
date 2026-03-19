@@ -7,7 +7,6 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -22,10 +21,10 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import AdminPageHeader, { PAGE_GRADIENTS } from '../../src/components/admin/AdminPageHeader';
+import AdminSearchBar from '../../src/components/admin/AdminSearchBar';
 import {
     ADMIN_COLORS,
-    ADMIN_GRADIENTS,
     ADMIN_SHADOWS,
     BORDER_RADIUS
 } from '../../src/constants/adminDesignTokens';
@@ -231,10 +230,17 @@ export default function AdminSettings() {
             {
                 text: 'حذف', style: 'destructive', onPress: async () => {
                     try {
-                        const success = await removeAdmin(adminId);
+                        let success = true;
+                        // Avoid hitting Firebase if it's a mock admin
+                        if (!String(adminId).startsWith('admin_')) {
+                            success = await removeAdmin(adminId);
+                        }
+
                         if (success) {
                             setAdmins(prev => prev.filter(a => a.id !== adminId));
                             Alert.alert('✅ تم', 'تمت إزالة صلاحيات المشرف بنجاح');
+                        } else {
+                            Alert.alert('خطأ', 'فشل في إزالة المشرف');
                         }
                     } catch (error) {
                         console.error('Error removing admin:', error);
@@ -605,16 +611,12 @@ export default function AdminSettings() {
                     </View>
 
                     {/* Admin Search Bar */}
-                    <View style={[styles.searchBarContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                        <Ionicons name="search" size={18} color={theme.textMuted} />
-                        <TextInput
-                            style={[styles.searchBarInput, { color: theme.text }]}
-                            placeholder="بحث عن مشرف بالاسم أو البريد..."
-                            placeholderTextColor={theme.textMuted}
-                            value={adminSearch}
-                            onChangeText={setAdminSearch}
-                        />
-                    </View>
+                    <AdminSearchBar
+                        value={adminSearch}
+                        onChangeText={setAdminSearch}
+                        placeholder="بحث عن مشرف بالاسم أو البريد..."
+                        containerStyle={{ paddingHorizontal: 0, paddingBottom: 16 }}
+                    />
 
                     {filteredAdminsList.length === 0 ? (
                         <Text style={{ color: theme.textMuted, textAlign: 'center', marginVertical: 20 }}>
@@ -692,16 +694,12 @@ export default function AdminSettings() {
 
                     {/* Coupon Search Bar */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                        <View style={[styles.searchBarContainer, { backgroundColor: theme.background, borderColor: theme.border, marginBottom: 0, flex: 1 }]}>
-                            <Ionicons name="search" size={18} color={theme.textMuted} />
-                            <TextInput
-                                style={[styles.searchBarInput, { color: theme.text }]}
-                                placeholder="بحث بكود الكوبون..."
-                                placeholderTextColor={theme.textMuted}
-                                value={couponSearch}
-                                onChangeText={setCouponSearch}
-                            />
-                        </View>
+                        <AdminSearchBar
+                            value={couponSearch}
+                            onChangeText={setCouponSearch}
+                            placeholder="بحث بكود الكوبون..."
+                            containerStyle={{ flex: 1, paddingHorizontal: 0, paddingVertical: 0 }}
+                        />
                         <TouchableOpacity
                             style={[styles.syncBtn, { backgroundColor: theme.primary + '15' }]}
                             onPress={async () => {
@@ -1086,17 +1084,11 @@ export default function AdminSettings() {
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             {/* 1. Header Area with Tabs included in the same vertical flow to prevent large gaps */}
             <View style={{ zIndex: 10 }}>
-                <LinearGradient colors={ADMIN_GRADIENTS.primary} style={styles.header}>
-                    <SafeAreaView edges={['top']}>
-                        <View style={styles.headerRow}>
-                            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                                <Ionicons name="arrow-back" size={24} color="#fff" />
-                            </TouchableOpacity>
-                            <Text style={styles.headerTitle}>الإعدادات</Text>
-                            <View style={styles.placeholder} />
-                        </View>
-                    </SafeAreaView>
-                </LinearGradient>
+                <AdminPageHeader
+                    title="الإعدادات"
+                    gradient={PAGE_GRADIENTS.settings}
+                    onBack={() => router.back()}
+                />
 
                 {/* Tabs directly under header (visually merged) */}
                 <View style={[styles.tabsWrapper, { backgroundColor: theme.background }]}>
@@ -1836,21 +1828,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     },
     bottomPadding: {
         height: 100,
-    },
-    searchBarContainer: {
-        flexDirection: 'row-reverse',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: BORDER_RADIUS.lg,
-        borderWidth: 1,
-        marginBottom: 16,
-        gap: 8,
-    },
-    searchBarInput: {
-        flex: 1,
-        fontSize: 14,
-        textAlign: 'right',
     },
     syncBtn: {
         width: 46,

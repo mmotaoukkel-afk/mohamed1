@@ -18,11 +18,11 @@ import {
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import AdminPageHeader, { PAGE_GRADIENTS } from '../../src/components/admin/AdminPageHeader';
+import AdminSearchBar from '../../src/components/admin/AdminSearchBar';
 import {
     ADMIN_COLORS,
     ADMIN_SHADOWS,
@@ -374,41 +374,19 @@ export default function AdminOrders() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
-                <SafeAreaView edges={['top']}>
-                    <View style={styles.headerRow}>
-                        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{t('orderCenter')}</Text>
+            <AdminPageHeader
+                title={t('orderCenter')}
+                gradient={PAGE_GRADIENTS.orders}
+                onBack={() => router.back()}
+                rightIcon={showStats ? 'stats-chart' : 'stats-chart-outline'}
+                onRightPress={() => setShowStats(!showStats)}
+            />
 
-                        <TouchableOpacity
-                            style={styles.statsToggleBtn}
-                            onPress={() => setShowStats(!showStats)}
-                        >
-                            <Ionicons name={showStats ? "stats-chart" : "stats-chart-outline"} size={22} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
-
-            <View style={styles.searchContainer}>
-                <View style={[styles.searchBox, { backgroundColor: theme.backgroundCard }]}>
-                    <Ionicons name="search" size={20} color={theme.textMuted} />
-                    <TextInput
-                        style={[styles.searchInput, { color: theme.text }]}
-                        placeholder={t('searchOrdersPlaceholder')}
-                        placeholderTextColor={theme.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                    {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearchQuery('')}>
-                            <Ionicons name="close-circle" size={18} color={theme.textMuted} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </View>
+            <AdminSearchBar
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder={t('searchOrdersPlaceholder')}
+            />
 
             <View style={{ height: 50 }}>
                 <FlatList
@@ -499,56 +477,6 @@ const getTimeAgo = (dateString, t) => {
 };
 
 const getStyles = (theme, isDark) => StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        paddingBottom: 16,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 8,
-    },
-    backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    statsToggleBtn: {
-        padding: 8,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        marginLeft: 8,
-    },
-    searchContainer: {
-        padding: 16,
-    },
-    searchBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        height: 50,
-        borderRadius: 15,
-        borderWidth: 1,
-        borderColor: 'transparent',
-    },
-    searchInput: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 14,
-        textAlign: 'right',
-    },
     filtersContainer: {
         paddingHorizontal: 16,
         paddingBottom: 12,

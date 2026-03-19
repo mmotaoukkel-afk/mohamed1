@@ -50,9 +50,12 @@ const wooCommerceApi = {
         try {
             console.log(`🛒 Fetching products from WooCommerce (Page: ${page})`, { category, ...options });
 
+            // Clamp per_page to max 100 to avoid API errors
+            const safePerPage = Math.min(Math.max(1, perPage || 20), 100);
+
             const params = {
                 page,
-                per_page: perPage,
+                per_page: safePerPage,
                 status: 'publish',
             };
 
@@ -206,11 +209,15 @@ const wooCommerceApi = {
     async searchProducts(query, page = 1, perPage = 20) {
         try {
             console.log(`🔍 Searching WooCommerce: "${query}"`);
+
+            // Clamp per_page to max 100 to avoid API errors
+            const safePerPage = Math.min(Math.max(1, perPage || 20), 100);
+
             const response = await wooCommerceClient.get('/products', {
                 params: {
                     search: query,
                     page,
-                    per_page: perPage,
+                    per_page: safePerPage,
                     status: 'publish',
                 },
             });

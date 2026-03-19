@@ -1150,6 +1150,17 @@ const translations = {
         notificationCenter: 'مركز الإشعارات',
         justNow: 'الآن',
 
+        // Missing keys causing English fallback
+        products: 'المنتجات',
+        settings: 'الإعدادات',
+        shipping: 'التوصيل',
+        expenses: 'المصاريف',
+        week: 'أسبوع',
+        month: 'شهر',
+        year: 'سنة',
+        add: 'إضافة',
+        save: 'حفظ',
+
         // إشعار توفر المنتج
         notifyMe: 'أعلمني عند التوفر',
         outOfStockMessage: 'هذا المنتج غير متوفر حالياً. سجّلي لتلقي إشعار عند توفره.',

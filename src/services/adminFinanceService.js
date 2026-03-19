@@ -94,8 +94,8 @@ export const getNetProfitStats = async (revenueData) => {
         // Let's assume 'revenueData' has 'totalRevenueKWD'.
         // We need to fetch orders to calculate COGS accurately if 'purchasePrice' exists in items.
 
-        // Placeholder COGS logic (assuming 30% of revenue if no data)
-        // TODO: Update this to use real product cost from inventory
+        // Placeholder COGS logic: Average COGS in cosmetics/skincare industry is around 30%.
+        // TODO: Replace this 30% estimate with real tracked product costs from inventory when implemented.
         const estimatedCOGS = revenueData.totalRevenueKWD * 0.3;
 
         const netProfit = revenueData.totalRevenueKWD - estimatedCOGS - totalExpenses;

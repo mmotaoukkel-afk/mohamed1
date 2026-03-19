@@ -65,8 +65,15 @@ export async function getDashboardStats() {
         };
 
     } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
-        return null;
+        console.error('Error fetching dashboard stats (Permissions?):', error.message);
+        // Fallback gracefully for users without admin permissions
+        return {
+            customers: { value: '0', change: '---', isPositive: true },
+            orders: { value: '0', change: '---', isPositive: true },
+            revenue: { value: currencyService.formatKWD(0), change: '---', isPositive: true },
+            products: { value: '0', change: '---', isPositive: true },
+            profit: { value: currencyService.formatKWD(0), change: '---', isPositive: true }
+        };
     }
 }
 
@@ -102,7 +109,7 @@ export async function getRecentOrders() {
             };
         });
     } catch (error) {
-        console.error('Error fetching recent orders:', error);
+        console.error('Error fetching recent orders (Permissions?):', error.message);
         return [];
     }
 }
@@ -160,7 +167,7 @@ export async function getWeeklyRevenue() {
         return weeklyData;
 
     } catch (error) {
-        console.error('Error fetching weekly revenue:', error);
+        console.error('Error fetching weekly revenue (Permissions?):', error.message);
         // Return placeholder on error to prevent crash
         return [
             { day: 'سبت', value: 0 }, { day: 'أحد', value: 0 }, { day: 'إثن', value: 0 },
@@ -229,7 +236,7 @@ export async function getCategorySales() {
         }));
 
     } catch (error) {
-        console.error('Error fetching category sales:', error);
+        console.error('Error fetching category sales (Permissions?):', error.message);
         return [];
     }
 }

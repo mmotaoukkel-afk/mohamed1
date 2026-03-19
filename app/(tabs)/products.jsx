@@ -32,6 +32,7 @@ import BrandSection from '../../src/components/BrandSection';
 import ProductCardSoko from '../../src/components/ProductCardSoko';
 import SearchHeader from '../../src/components/SearchHeader';
 import { ProductSkeleton } from '../../src/components/SkeletonLoader';
+import AppBackground from '../../src/components/ui/AppBackground';
 
 import { useCategories, useInfiniteProducts } from '../../src/hooks/useProducts';
 import { useTranslation } from '../../src/hooks/useTranslation';
@@ -452,7 +453,7 @@ export default function ProductsScreen() {
     return (
         <View style={styles.container}>
             {/* ✨ Cosmic Background Elements */}
-
+            <AppBackground />
 
             {/* Header with Search */}
             <SearchHeader
@@ -544,7 +545,7 @@ export default function ProductsScreen() {
 const getStyles = (theme, isDark) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.background,
+        backgroundColor: "transparent",
     },
 
     // ✨ Premium Background Pattern

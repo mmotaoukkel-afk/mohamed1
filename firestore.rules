@@ -18,29 +18,26 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Get user's role from the users collection
-    function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+
+    // Check if the current user has the master admin email
+    function isMasterAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'admin@kataraa.com';
     }
     
-    // Check if user is admin
-    function isAdmin() {
-      return isAuthenticated() && getUserRole() == 'admin';
-    }
-    
-    // Check if user is super admin
+    // Check if user is super admin (master email OR role == super_admin in Firestore)
     function isSuperAdmin() {
-      return isAuthenticated() && getUserRole() == 'super_admin';
+      return isMasterAdmin() || 
+             (isAuthenticated() && 
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin');
     }
     
     // Check if user is any type of staff (admin, super_admin, manager, support)
     function hasAdminAccess() {
-      return isAuthenticated() && 
-             (getUserRole() == 'admin' || 
-              getUserRole() == 'super_admin' || 
-              getUserRole() == 'manager' || 
-              getUserRole() == 'support');
+      return isMasterAdmin() || 
+             (isAuthenticated() && 
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin', 'manager', 'support']);
     }
     
     // Check if user owns this document
@@ -58,19 +55,14 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════════════════
     
     match /users/{userId} {
-      // Users can read their own document
-      // Admins can read all user documents
+      // Users can read their own document, admins can read all
       allow read: if isOwner(userId) || hasAdminAccess();
       
-      // Users can create their own document (during signup)
-      allow create: if isOwner(userId) && 
-                       request.resource.data.role == 'customer'; // Can only create as customer
+      // Users can create their own document, master admin can create any
+      allow create: if isOwner(userId) || isMasterAdmin();
       
-      // Users can update their own non-role fields
-      // Only super_admin can change roles
-      allow update: if (isOwner(userId) && 
-                       (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])))
-                    || isSuperAdmin(); // Super admin can change anything
+      // Users can update their own document, super admin can update any
+      allow update: if isOwner(userId) || isSuperAdmin();
       
       // Only super admin can delete users
       allow delete: if isSuperAdmin();
@@ -111,10 +103,9 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════════════════
     
     match /orders/{orderId} {
-      // Customers can read their own orders
-      // Admins can read all orders
-      allow read: if isAuthenticated() && 
-                    (resource.data.customerId == request.auth.uid || hasAdminAccess());
+      // Admins can read all orders, authenticated users can read their own
+      allow read: if hasAdminAccess() || 
+                    (isAuthenticated() && resource.data.customerId == request.auth.uid);
       
       // Anyone can create orders (to support guest checkout)
       allow create: if hasRequiredFields(['billing', 'shipping', 'line_items', 'status']);

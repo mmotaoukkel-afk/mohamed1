@@ -5,7 +5,6 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
@@ -18,7 +17,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import AdminPageHeader, { PAGE_GRADIENTS } from '../../src/components/admin/AdminPageHeader';
 import {
     ADMIN_COLORS,
     ADMIN_SHADOWS,
@@ -119,17 +118,11 @@ export default function AdminReviews() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
-                <SafeAreaView edges={['top']}>
-                    <View style={styles.headerRow}>
-                        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{t('manageReviews')}</Text>
-                        <View style={{ width: 40 }} />
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <AdminPageHeader
+                title={t('manageReviews')}
+                gradient={PAGE_GRADIENTS.reviews}
+                onBack={() => router.back()}
+            />
 
             <FlatList
                 data={reviews}
@@ -153,33 +146,6 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: isDark ? ADMIN_COLORS.neutral[900] : ADMIN_COLORS.neutral[50],
-    },
-    header: {
-        paddingBottom: 24,
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
-        ...ADMIN_SHADOWS.md,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        marginBottom: 16,
-        paddingTop: 10,
-    },
-    backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: BORDER_RADIUS.full,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
     },
     list: {
         padding: 16,

@@ -20,6 +20,7 @@ import { FavoritesProvider } from '../src/context/FavoritesContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
 import { SettingsProvider } from '../src/context/SettingsContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
+import AppBackground from '../src/components/ui/AppBackground';
 import '../src/services/firebaseConfig';
 
 
@@ -130,13 +131,13 @@ function AppNavigator() {
       <StatusBar style={theme.isDark ? "light" : "dark"} />
 
       {/* ✨ Premium Background Pattern - Logo Colors (Global) */}
-
+      <AppBackground />
 
       <Stack screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
         gestureEnabled: true,
-        contentStyle: { backgroundColor: theme.background },
+        contentStyle: { backgroundColor: 'transparent' },
       }}>
         <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
         <Stack.Screen name="product/[id]" />

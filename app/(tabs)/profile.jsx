@@ -305,7 +305,7 @@ const Profile = () => {
 const getStyles = (theme, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: "transparent",
   },
 
   // ✨ Premium Background Pattern

@@ -6,7 +6,6 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
@@ -14,17 +13,17 @@ import {
     FlatList,
     Image,
     RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AddProductModal from '../../src/components/admin/AddProductModal';
+import AdminPageHeader, { PAGE_GRADIENTS } from '../../src/components/admin/AdminPageHeader';
+import AdminSearchBar from '../../src/components/admin/AdminSearchBar';
 import {
     ADMIN_COLORS,
-    ADMIN_GRADIENTS,
     ADMIN_SHADOWS,
     BORDER_RADIUS
 } from '../../src/constants/adminDesignTokens';
@@ -255,39 +254,20 @@ export default function AdminProducts() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {/* Header */}
-            <LinearGradient colors={ADMIN_GRADIENTS.primary} style={styles.header}>
-                <SafeAreaView edges={['top']}>
-                    <View style={styles.headerRow}>
-                        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>{t('productsManagement')}</Text>
-                        <TouchableOpacity style={styles.addBtn} onPress={handleAddProduct}>
-                            <Ionicons name="add" size={24} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <AdminPageHeader
+                title={t('productsManagement')}
+                gradient={PAGE_GRADIENTS.products}
+                onBack={() => router.back()}
+                rightIcon="add"
+                onRightPress={handleAddProduct}
+            />
 
             {/* Search */}
-            <View style={styles.searchContainer}>
-                <View style={[styles.searchBox, { backgroundColor: theme.backgroundCard }]}>
-                    <Ionicons name="search" size={20} color={theme.textMuted} />
-                    <TextInput
-                        style={[styles.searchInput, { color: theme.text }]}
-                        placeholder={t('searchProduct')}
-                        placeholderTextColor={theme.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                    {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearchQuery('')}>
-                            <Ionicons name="close-circle" size={18} color={theme.textMuted} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </View>
+            <AdminSearchBar
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder={t('searchProduct')}
+            />
 
             {/* Category Filters */}
             <View style={{ transform: [{ scaleX: -1 }] }}>
@@ -327,23 +307,39 @@ export default function AdminProducts() {
             </View>
 
             {/* Stats Bar */}
-            <View style={styles.statsBar}>
-                <View style={[styles.statItem, { backgroundColor: isDark ? ADMIN_COLORS.neutral[800] : '#FFFFFF' }]}>
-                    <Text style={[styles.statValue, { color: isDark ? '#FFF' : ADMIN_COLORS.neutral[900] }]}>{stats.total}</Text>
-                    <Text style={[styles.statLabel, { color: isDark ? ADMIN_COLORS.neutral[400] : ADMIN_COLORS.neutral[600] }]}>{t('total')}</Text>
-                </View>
-                <View style={[styles.statItem, { backgroundColor: ADMIN_COLORS.success.light + '20' }]}>
-                    <Text style={[styles.statValue, { color: ADMIN_COLORS.success.main }]}>{stats.active}</Text>
-                    <Text style={[styles.statLabel, { color: ADMIN_COLORS.success.dark }]}>{t('available')}</Text>
-                </View>
-                <View style={[styles.statItem, { backgroundColor: ADMIN_COLORS.warning.light + '20' }]}>
-                    <Text style={[styles.statValue, { color: ADMIN_COLORS.warning.main }]}>{stats.lowStock}</Text>
-                    <Text style={[styles.statLabel, { color: ADMIN_COLORS.warning.dark }]}>{t('lowStock')}</Text>
-                </View>
-                <View style={[styles.statItem, { backgroundColor: ADMIN_COLORS.error.light + '20' }]}>
-                    <Text style={[styles.statValue, { color: ADMIN_COLORS.error.main }]}>{stats.outOfStock}</Text>
-                    <Text style={[styles.statLabel, { color: ADMIN_COLORS.error.dark }]}>{t('outOfStock')}</Text>
-                </View>
+            <View style={{ marginBottom: 16 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }} style={{ transform: [{ scaleX: -1 }] }}>
+                    <View style={{ transform: [{ scaleX: -1 }], flexDirection: 'row' }}>
+                        <View style={[styles.miniStat, { backgroundColor: theme.backgroundCard, borderLeftWidth: 3, borderLeftColor: ADMIN_COLORS.primary.main }]}>
+                            <View style={[styles.miniStatIcon, { backgroundColor: ADMIN_COLORS.primary.main + '15' }]}>
+                                <Ionicons name="cube" size={16} color={ADMIN_COLORS.primary.main} />
+                            </View>
+                            <Text style={[styles.miniStatValue, { color: ADMIN_COLORS.primary.main }]}>{stats.total}</Text>
+                            <Text style={styles.miniStatLabel}>{t('total')}</Text>
+                        </View>
+                        <View style={[styles.miniStat, { backgroundColor: theme.backgroundCard, borderLeftWidth: 3, borderLeftColor: ADMIN_COLORS.success.main }]}>
+                            <View style={[styles.miniStatIcon, { backgroundColor: ADMIN_COLORS.success.main + '15' }]}>
+                                <Ionicons name="checkmark-circle" size={16} color={ADMIN_COLORS.success.main} />
+                            </View>
+                            <Text style={[styles.miniStatValue, { color: ADMIN_COLORS.success.main }]}>{stats.active}</Text>
+                            <Text style={styles.miniStatLabel}>{t('available')}</Text>
+                        </View>
+                        <View style={[styles.miniStat, { backgroundColor: theme.backgroundCard, borderLeftWidth: 3, borderLeftColor: ADMIN_COLORS.warning.main }]}>
+                            <View style={[styles.miniStatIcon, { backgroundColor: ADMIN_COLORS.warning.main + '15' }]}>
+                                <Ionicons name="warning" size={16} color={ADMIN_COLORS.warning.main} />
+                            </View>
+                            <Text style={[styles.miniStatValue, { color: ADMIN_COLORS.warning.main }]}>{stats.lowStock}</Text>
+                            <Text style={styles.miniStatLabel}>{t('lowStock')}</Text>
+                        </View>
+                        <View style={[styles.miniStat, { backgroundColor: theme.backgroundCard, borderLeftWidth: 3, borderLeftColor: ADMIN_COLORS.error.main }]}>
+                            <View style={[styles.miniStatIcon, { backgroundColor: ADMIN_COLORS.error.main + '15' }]}>
+                                <Ionicons name="alert-circle" size={16} color={ADMIN_COLORS.error.main} />
+                            </View>
+                            <Text style={[styles.miniStatValue, { color: ADMIN_COLORS.error.main }]}>{stats.outOfStock}</Text>
+                            <Text style={styles.miniStatLabel}>{t('outOfStock')}</Text>
+                        </View>
+                    </View>
+                </ScrollView>
             </View>
 
             {/* Low Stock Alert */}
@@ -388,54 +384,11 @@ const getStyles = (theme, isDark) => StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        paddingBottom: 16,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 8,
-    },
-    backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    addBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    searchContainer: {
-        padding: 16,
-        paddingBottom: 8,
-    },
-    searchBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        borderRadius: 12,
-        gap: 10,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 15,
-        textAlign: 'right',
-    },
     categoriesContainer: {
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+    },
+    statsContainer: {
         paddingHorizontal: 16,
         paddingBottom: 12,
     },
@@ -460,26 +413,33 @@ const getStyles = (theme, isDark) => StyleSheet.create({
         fontWeight: '600',
         paddingRight: 4,
     },
-    statsBar: {
-        flexDirection: 'row',
+    miniStat: {
         paddingHorizontal: 16,
-        gap: 8,
-        marginBottom: 12,
-    },
-    statItem: {
-        flex: 1,
-        padding: 10,
+        paddingVertical: 14,
         borderRadius: BORDER_RADIUS.lg,
+        marginRight: 12,
         alignItems: 'center',
-        ...ADMIN_SHADOWS.sm,
+        minWidth: 100,
+        backgroundColor: isDark ? ADMIN_COLORS.neutral[800] : '#fff',
+        ...ADMIN_SHADOWS.md,
     },
-    statValue: {
-        fontSize: 18,
+    miniStatIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    miniStatValue: {
+        fontSize: 22,
         fontWeight: 'bold',
     },
-    statLabel: {
-        fontSize: 10,
-        marginTop: 2,
+    miniStatLabel: {
+        fontSize: 11,
+        fontWeight: '500',
+        color: isDark ? ADMIN_COLORS.neutral[400] : ADMIN_COLORS.neutral[500],
+        marginTop: 4,
     },
     alertBanner: {
         flexDirection: 'row',

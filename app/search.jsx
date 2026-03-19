@@ -270,7 +270,7 @@ export default function SearchScreen() {
 const getStyles = (theme, isDark) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.background,
+        backgroundColor: "transparent",
     },
     bgOrb1: {
         position: 'absolute',
