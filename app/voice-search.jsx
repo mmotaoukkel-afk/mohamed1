@@ -366,10 +366,7 @@ export default function VoiceSearchScreen() {
     const [keywords, setKeywords] = useState(null);
     const [inputQuery, setInputQuery] = useState('');
 
-    useEffect(() => {
-        const { voiceSearchBridge } = require('../src/utils/voiceSearchBridge');
-        voiceSearchBridge.postMessage?.(JSON.stringify({ type: 'state', value: state }));
-    }, [state]);
+
 
     const scale = useSharedValue(1);
     const pulseScale = useSharedValue(1);
