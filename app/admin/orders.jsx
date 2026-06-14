@@ -38,7 +38,9 @@ import {
     getDailyPerformance,
     getOrdersByCity,
     getWhatsAppLink,
-    updateOrderStatus
+    updateOrderStatus,
+    subscribeToOrders,
+    getOrderStats
 } from '../../src/services/adminOrderService';
 import { getAllProducts } from '../../src/services/adminProductService';
 import currencyService from '../../src/services/currencyService';
@@ -82,17 +84,19 @@ export default function AdminOrders() {
     const [refreshing, setRefreshing] = useState(false);
     const [showStats, setShowStats] = useState(true);
     const [productsMap, setProductsMap] = useState({});
+    const [limitCount, setLimitCount] = useState(50);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     const fetchData = useCallback(async (isRefresh = false) => {
         try {
             if (isRefresh) setRefreshing(true);
             else setDashboardData(prev => ({ ...prev, loading: true }));
 
-            const [ordersData, cityData, performanceData, allProducts] = await Promise.all([
-                getAllOrders({ limitCount: 200 }),
+            const [cityData, performanceData, allProducts, summaryStats] = await Promise.all([
                 getOrdersByCity(),
                 getDailyPerformance(),
                 getAllProducts({ limitCount: 100 }),
+                getOrderStats(),
             ]);
 
             // Build products map for fast lookup
@@ -101,35 +105,43 @@ export default function AdminOrders() {
                 pMap[p.id] = p;
             });
             setProductsMap(pMap);
+            setStats(summaryStats);
 
-            // Calculate quick stats
-            const newStats = {
-                total: ordersData.length,
-                pending: ordersData.filter(o => o.status === 'pending').length,
-                processing: ordersData.filter(o => o.status === 'processing').length,
-                shipping: ordersData.filter(o => o.status === 'shipped').length,
-                completed: ordersData.filter(o => o.status === 'delivered').length,
-            };
-
-            setStats(newStats);
-            setOrders(ordersData);
             setDashboardData({
                 cityDistribution: cityData,
                 dailyPerformance: performanceData,
                 loading: false
             });
         } catch (error) {
-            console.error('Error fetching orders data:', error);
-            Alert.alert(t('error'), t('failedToLoadOrders'));
+            console.error('Error fetching dashboard stats:', error);
+            // Alert.alert(t('error'), t('failedToLoadData'));
         } finally {
             setRefreshing(false);
             setDashboardData(prev => ({ ...prev, loading: false }));
         }
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+        
+        // Setup real-time subscription for orders
+        const unsubscribe = subscribeToOrders({ limitCount }, (data) => {
+            setOrders(data.orders || []);
+            setIsLoadingMore(false);
+            setRefreshing(false);
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [fetchData, limitCount]);
+
+    const handleLoadMore = () => {
+        if (!isLoadingMore && orders.length >= limitCount) {
+            setIsLoadingMore(true);
+            setLimitCount(prev => prev + 50);
+        }
+    };
 
     const onRefresh = () => fetchData(true);
 
@@ -446,6 +458,15 @@ export default function AdminOrders() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+                }
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                    isLoadingMore ? (
+                        <View style={{ padding: 20, alignItems: 'center' }}>
+                            <Text style={{ color: theme.textSecondary }}>{t('loadingData')}...</Text>
+                        </View>
+                    ) : null
                 }
                 ListHeaderComponent={renderStatsHeader}
                 ListEmptyComponent={

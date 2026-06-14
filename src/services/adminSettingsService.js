@@ -203,7 +203,7 @@ export async function getAllCoupons() {
         return coupons;
     } catch (error) {
         console.error('Error fetching coupons:', error);
-        return MOCK_COUPONS; // Fallback to mock data
+        return []; // Fallback to empty list to avoid stale data
     }
 }
 
@@ -324,28 +324,28 @@ export async function initializeCoupons(force = false) {
  * @param {Array} coupons - Array of coupons from Firestore
  * @returns {Object}
  */
-export const validateCoupon = (code, orderTotal, coupons = []) => {
+export const validateCoupon = (code, orderTotal, coupons = [], t = (key, fallback, params) => fallback) => {
     const coupon = coupons.find(c => c.code === code.toUpperCase()) ||
         MOCK_COUPONS.find(c => c.code === code.toUpperCase());
 
     if (!coupon) {
-        return { valid: false, error: 'كود غير صالح' };
+        return { valid: false, error: t('couponInvalid', 'كود غير صالح') };
     }
 
     if (coupon.status !== 'active') {
-        return { valid: false, error: 'انتهت صلاحية هذا الكود' };
+        return { valid: false, error: t('couponExpired', 'انتهت صلاحية هذا الكود') };
     }
 
     if (coupon.validUntil && new Date(coupon.validUntil) < new Date()) {
-        return { valid: false, error: 'انتهت صلاحية هذا الكود' };
+        return { valid: false, error: t('couponExpired', 'انتهت صلاحية هذا الكود') };
     }
 
     if (coupon.usedCount >= coupon.maxUses) {
-        return { valid: false, error: 'تم استخدام الحد الأقصى لهذا الكود' };
+        return { valid: false, error: t('couponMaxUses', 'تم استخدام الحد الأقصى لهذا الكود') };
     }
 
     if (orderTotal < coupon.minOrder) {
-        return { valid: false, error: `الحد الأدنى للطلب ${coupon.minOrder} MAD` };
+        return { valid: false, error: t('couponMinOrder', `الحد الأدنى للطلب ${coupon.minOrder} KWD`, { minOrder: coupon.minOrder }) };
     }
 
     // Calculate discount

@@ -38,9 +38,8 @@ const Profile = () => {
   const { theme, isDark, toggleTheme } = useTheme();
   const { t } = useTranslation();
   const { language, changeLanguage } = useSettings();
-  const { savedAddresses } = useCheckout();
+  const { savedAddresses, savedPaymentMethods } = useCheckout();
   const { favorites } = useFavorites();
-  const { savedPaymentMethods } = useCheckout();
 
   const [loadingImage, setLoadingImage] = useState(false);
   const [showAddresses, setShowAddresses] = useState(false);

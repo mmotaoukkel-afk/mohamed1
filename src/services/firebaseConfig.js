@@ -1,7 +1,8 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { initializeAuth, getAuth, browserLocalPersistence } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const firebaseConfig = {
     apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'AIzaSyDuC19qSlFLQrzl4NGHEulOidbPgt_xXm8',
@@ -24,15 +25,52 @@ if (!firebaseConfig.apiKey) {
     );
 }
 
-console.log('Firebase initialized with Project ID:', firebaseConfig.projectId);
+// ----------------------------------------------------------------------
+// ⚡ HMR-Safe Initialization
+// ----------------------------------------------------------------------
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Initialize Firebase App
+let app;
+if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+    console.log('Firebase initialized with Project ID:', firebaseConfig.projectId);
+} else {
+    app = getApp();
+    console.log('Firebase reused existing app instance');
+}
+
+// Initialize Firestore
+let db;
+try {
+    db = getFirestore(app);
+} catch (error) {
+    console.warn(`Firestore initialization warning: ${error.message}, falling back to getFirestore()`);
+    db = getFirestore(app);
+}
+export { db };
 
 // Initialize Auth with AsyncStorage persistence
-export const auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(ReactNativeAsyncStorage)
-});
+let auth;
+try {
+    if (Platform.OS === 'web') {
+        auth = initializeAuth(app, {
+            persistence: browserLocalPersistence
+        });
+    } else {
+        const { getReactNativePersistence } = require('firebase/auth');
+        auth = initializeAuth(app, {
+            persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+        });
+    }
+} catch (error) {
+    if (error.code === 'auth/already-initialized') {
+        // Safe to ignore in development during HMR
+        auth = getAuth(app);
+    } else {
+        console.error('Firebase Auth Initialization Error:', error);
+        throw error;
+    }
+}
+export { auth };
 
 export default app;

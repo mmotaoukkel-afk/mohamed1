@@ -37,6 +37,9 @@ export default function AdminLayout() {
                 {/* Settings & Shipping */}
                 <Stack.Screen name="settings" />
                 <Stack.Screen name="shipping" />
+
+                {/* Audit Trail */}
+                <Stack.Screen name="activity-logs" />
             </Stack>
         </RequireAdmin>
     );

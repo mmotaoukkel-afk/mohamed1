@@ -28,8 +28,8 @@ export default function NotificationsScreen() {
                 />
             </View>
             <View style={styles.content}>
-                <Text style={styles.title}>{t(item.title)}</Text>
-                <Text style={styles.message}>{t(item.message, item.params || {})}</Text>
+                <Text style={styles.title}>{item.titleKey ? t(item.titleKey) : item.title}</Text>
+                <Text style={styles.message}>{item.messageKey ? t(item.messageKey, item.params || {}) : item.message}</Text>
                 <Text style={styles.time}>
                     {new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>

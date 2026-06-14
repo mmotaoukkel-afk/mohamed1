@@ -98,7 +98,7 @@ const getCategoryUI = (item, t) => {
 export default function ProductsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
-    const { cartItems, addToCart, triggerAddToCart } = useCart();
+    const { cartItems, triggerAddToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
@@ -209,7 +209,9 @@ export default function ProductsScreen() {
                 p.categories?.some(c =>
                     c.name === cat.name ||
                     c.slug === cat.slug ||
-                    c.id?.toString() === cat.id
+                    c.id?.toString() === cat.id ||
+                    c.name?.includes(cat.name) ||
+                    cat.name?.includes(c.name)
                 )
             ).slice(0, 6);
             if (matchedProducts.length > 0) {

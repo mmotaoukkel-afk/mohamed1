@@ -30,7 +30,8 @@ export async function getDashboardStats() {
         // For MVP, we fetch all orders (be careful with reads if > 1000 orders)
         // Optimization: Fetch only orders from this month/year if needed.
         const ordersColl = collection(db, COLLECTIONS.ORDERS);
-        const ordersSnapshot = await getDocs(ordersColl); // Getting all for revenue calc
+        const ordersQuery = query(ordersColl, limit(500));
+        const ordersSnapshot = await getDocs(ordersQuery); // Limited to 500 for performance
 
         let totalRevenueKWD = 0;
         let pendingOrders = 0;
@@ -247,7 +248,7 @@ export async function getCategorySales() {
 export async function getRevenueStats(timeframe = 'this_month') {
     try {
         const ordersColl = collection(db, COLLECTIONS.ORDERS);
-        const snapshot = await getDocs(ordersColl);
+        const snapshot = await getDocs(query(ordersColl, limit(500)));
 
         let totalRevenueKWD = 0;
         let orderCount = 0;

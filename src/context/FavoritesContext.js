@@ -21,6 +21,43 @@ export const FavoritesProvider = ({ children }) => {
 
   // Load favorites when user changes
   useEffect(() => {
+    const loadFavorites = async () => {
+      if (!user?.uid) {
+        setFavorites([]);
+        setLoadedUserEmail(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setFavorites([]); // Clear immediately to avoid flash
+
+      try {
+        // 1. Try Cloud first
+        const cloudFavs = await userProfileService.getUserFavorites(user.uid);
+
+        if (cloudFavs.length > 0) {
+          setFavorites(cloudFavs);
+        } else {
+          // 2. Fallback to Local
+          const key = `@kataraa_favorites_${user.email.toLowerCase()}`;
+          const saved = await AsyncStorage.getItem(key);
+          if (saved) {
+            const localFavs = JSON.parse(saved);
+            setFavorites(localFavs);
+            // Sync local to cloud if cloud was empty
+            await userProfileService.saveUserFavorites(user.uid, localFavs);
+          } else {
+            setFavorites([]);
+          }
+        }
+        setLoadedUserEmail(user.email);
+      } catch (error) {
+        console.error('Error loading favorites:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     loadFavorites();
   }, [user]);
 
@@ -38,44 +75,6 @@ export const FavoritesProvider = ({ children }) => {
       return () => clearTimeout(handler);
     }
   }, [favorites, loading, user, loadedUserEmail]);
-
-  const loadFavorites = async () => {
-    if (!user?.uid) {
-      setFavorites([]);
-      setLoadedUserEmail(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setFavorites([]); // Clear immediately to avoid flash
-
-    try {
-      // 1. Try Cloud first
-      const cloudFavs = await userProfileService.getUserFavorites(user.uid);
-
-      if (cloudFavs.length > 0) {
-        setFavorites(cloudFavs);
-      } else {
-        // 2. Fallback to Local
-        const key = `@kataraa_favorites_${user.email.toLowerCase()}`;
-        const saved = await AsyncStorage.getItem(key);
-        if (saved) {
-          const localFavs = JSON.parse(saved);
-          setFavorites(localFavs);
-          // Sync local to cloud if cloud was empty
-          await userProfileService.saveUserFavorites(user.uid, localFavs);
-        } else {
-          setFavorites([]);
-        }
-      }
-      setLoadedUserEmail(user.email);
-    } catch (error) {
-      console.error('Error loading favorites:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const toggleFavorite = React.useCallback((product) => {
     setFavorites(prev => {

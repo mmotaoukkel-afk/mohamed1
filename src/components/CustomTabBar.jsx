@@ -44,6 +44,11 @@ export default function CustomTabBar({ state, descriptors, navigation }) {
     const { t } = useTranslation();
     const { cartItems, animationState } = useCart();
 
+    const focusedOptions = descriptors[state.routes[state.index].key].options;
+    if (focusedOptions?.tabBarStyle?.display === 'none') {
+        return null;
+    }
+
     const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
     const tabs = [

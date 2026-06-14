@@ -14,6 +14,7 @@ import {
     serverTimestamp,
     updateDoc
 } from 'firebase/firestore';
+import { LOG_ACTIONS, logAdminActivity } from './activityLogService';
 import { db } from './firebaseConfig';
 
 const SHIPPING_ZONES_COLLECTION = 'shipping_zones';
@@ -97,6 +98,13 @@ export const addShippingZone = async (zoneData) => {
             updatedAt: serverTimestamp(),
             active: true
         });
+        // 📋 Log activity
+        logAdminActivity(LOG_ACTIONS.SHIPPING_ZONE_ADDED, {
+            zoneName: zoneData.name,
+            country: zoneData.country,
+            fee: zoneData.fee,
+        });
+
         return { id: docRef.id, ...zoneData };
     } catch (error) {
         console.error('Error adding shipping zone:', error);
@@ -116,6 +124,12 @@ export const updateShippingZone = async (id, updates) => {
             ...updates,
             updatedAt: serverTimestamp()
         });
+        // 📋 Log activity
+        logAdminActivity(LOG_ACTIONS.SHIPPING_ZONE_UPDATED, {
+            zoneId: id,
+            updatedFields: Object.keys(updates),
+        });
+
         return { id, ...updates };
     } catch (error) {
         console.error('Error updating shipping zone:', error);
@@ -130,6 +144,10 @@ export const updateShippingZone = async (id, updates) => {
 export const deleteShippingZone = async (id) => {
     try {
         await deleteDoc(doc(db, SHIPPING_ZONES_COLLECTION, id));
+
+        // 📋 Log activity
+        logAdminActivity(LOG_ACTIONS.SHIPPING_ZONE_DELETED, { zoneId: id });
+
         return true;
     } catch (error) {
         console.error('Error deleting shipping zone:', error);

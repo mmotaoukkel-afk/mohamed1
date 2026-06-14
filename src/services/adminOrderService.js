@@ -10,12 +10,14 @@ import {
     getDoc,
     getDocs,
     limit,
+    onSnapshot,
     orderBy,
     query,
     serverTimestamp,
     updateDoc,
     where
 } from 'firebase/firestore';
+import { LOG_ACTIONS, logAdminActivity } from './activityLogService';
 import { db } from './firebaseConfig';
 
 const ORDERS_COLLECTION = 'orders';
@@ -171,6 +173,53 @@ export const getAllOrders = async (options = {}) => {
 };
 
 /**
+ * Subscribe to orders in real-time
+ * @param {Object} options - Query options
+ * @param {Function} callback - Callback function receiving orders array
+ * @returns {Function} - Unsubscribe function
+ */
+export const subscribeToOrders = (options = {}, callback) => {
+    try {
+        const { status, limitCount = 50 } = options;
+
+        let q = collection(db, ORDERS_COLLECTION);
+        const constraints = [];
+
+        if (status && status !== 'all') {
+            constraints.push(where('status', '==', status));
+        }
+
+        constraints.push(orderBy('createdAt', 'desc'));
+        constraints.push(limit(limitCount));
+
+        q = query(q, ...constraints);
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const ordersList = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    customerName: extractCustomerName(data),
+                    customerPhone: data.customerPhone || data.shippingAddress?.phone || data.billing?.phone || data.phone || '',
+                    customerImage: data.customer?.photoURL || data.user?.photoURL || data.photoURL || null,
+                    shippingCity: data.shippingAddress?.city || data.shipping?.city || data.city || '',
+                    total: parseFloat(data.total || data.amount || 0),
+                };
+            });
+            callback({ orders: ordersList, lastVisible: snapshot.docs[snapshot.docs.length - 1] });
+        }, (error) => {
+            console.error('Error in orders real-time subscription:', error);
+        });
+
+        return unsubscribe;
+    } catch (error) {
+        console.error('Error setting up orders subscription:', error);
+        throw error;
+    }
+};
+
+/**
  * Get order by ID
  * @param {string} orderId
  * @returns {Promise<Object|null>}
@@ -216,6 +265,13 @@ export const updateOrderStatus = async (orderId, newStatus, note = '') => {
             status: newStatus,
             statusHistory,
             updatedAt: serverTimestamp(),
+        });
+
+        // 📋 Log activity
+        logAdminActivity(LOG_ACTIONS.ORDER_STATUS_UPDATED, {
+            orderId,
+            newStatus,
+            note,
         });
 
         return { id: orderId, status: newStatus, statusHistory };

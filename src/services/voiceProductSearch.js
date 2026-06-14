@@ -20,7 +20,32 @@ export async function searchByVoice(transcript) {
         const searchQuery = buildSearchQuery(keywords);
 
         // 3. Search products using API
-        let results = await api.searchProducts(searchQuery);
+        // let results = await api.searchProducts(searchQuery);
+        
+        // --- DUMMY PRODUCTS FOR BOT TRAINING ---
+        const DUMMY_PRODUCTS = [
+            { id: 101, name: 'سيروم فيتامين سي للتفتيح', price: '150', sale_price: '120', description: 'سيروم مرطب يعطي نضارة وإشراقة للبشرة، مناسب للتفتيح', tags: [{name: 'تفتيح'}, {name: 'إشراقة'}], images: [{src: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=500'}] },
+            { id: 102, name: 'غسول حمض الساليسيليك للبشرة الدهنية', price: '90', sale_price: '85', description: 'غسول ينظف المسام بعمق ويقلل الإفرازات الدهنية وحب الشباب', tags: [{name: 'حب الشباب'}, {name: 'دهنية'}], images: [{src: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=500'}] },
+            { id: 103, name: 'كريم ليلي بالريتينول للتجاعيد', price: '250', sale_price: '200', description: 'يحتوي على الريتينول لشد البشرة ومحاربة التجاعيد والخطوط الدقيقة', tags: [{name: 'تجاعيد'}, {name: 'ريتينول'}], images: [{src: 'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=500'}] },
+            { id: 104, name: 'مرطب مهدئ للبشرة الحساسة', price: '180', sale_price: '150', description: 'مرطب لطيف لتهدئة الاحمرار، مناسب للبشرة الجافة والحساسة', tags: [{name: 'حساسة'}, {name: 'جافة'}], images: [{src: 'https://images.unsplash.com/photo-1611078489935-0cb964de46d6?w=500'}] },
+            { id: 105, name: 'كريم الهالات السوداء', price: '120', sale_price: '100', description: 'كريم حول العين يقلل من الهالات السوداء والانتفاخات', tags: [{name: 'هالات'}, {name: 'عين'}], images: [{src: 'https://images.unsplash.com/photo-1571781526291-c477ebfd024b?w=500'}] }
+        ];
+
+        // Basic matching logic for dummy products
+        let results = DUMMY_PRODUCTS.filter(p => {
+            const query = (searchQuery || transcript).toLowerCase();
+            if (!query) return true;
+            return p.name.includes(query) || 
+                   p.description.includes(query) || 
+                   p.tags.some(t => query.includes(t.name)) ||
+                   (keywords.concern && p.tags.some(t => t.name.includes(keywords.concern))) ||
+                   (keywords.skinType && p.tags.some(t => t.name.includes(keywords.skinType)));
+        });
+        
+        // If no strict matches but we extracted keywords, return some products randomly to keep conversation flowing
+        if (results.length === 0 && (keywords.concern || keywords.skinType || keywords.productType)) {
+             results = [DUMMY_PRODUCTS[Math.floor(Math.random() * DUMMY_PRODUCTS.length)]];
+        }
 
         // 4. Filter results based on extracted criteria
         // WARNING: We relaxed the strict filtering because keywords are often in English (e.g. 'oily')

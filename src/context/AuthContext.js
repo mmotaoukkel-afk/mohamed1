@@ -1,6 +1,12 @@
 
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential } from 'firebase/auth';
+let GoogleSignin = null;
+try {
+    const googleModule = require('@react-native-google-signin/google-signin');
+    GoogleSignin = googleModule.GoogleSignin;
+} catch (error) {
+    console.warn('Google Sign-In is not supported in this environment (Expo Go).', error.message);
+}
+import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { auth as firebaseAuth } from '../services/firebaseConfig';
 import { ensureUserDocument, getUserRole, updateProfileInFirestore, USER_ROLES } from '../services/userService';
@@ -121,39 +127,44 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const login = async (userData) => {
-        const existingProfile = await getStoredProfile(userData.email);
-        // Merge: stored profile provides custom fields, but Firebase Auth data always wins
-        const finalUser = existingProfile ? { ...existingProfile, ...userData } : userData;
-        setUser(finalUser);
-        await storage.setItem('user', finalUser);
-        await saveToProfiles(finalUser);
+    const login = async (email, password) => {
+        const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+        const firebaseUser = userCredential.user;
 
-        // 🔐 Fetch and set user role from Firestore
-        let userRole = USER_ROLES.CUSTOMER;
-        if (finalUser.uid) {
-            await ensureUserDocument(finalUser);
-            userRole = await getUserRole(finalUser.uid);
-            setRole(userRole);
-            console.log('User role loaded:', userRole);
-        }
+        // Force token refresh to ensure claims are up to date
+        await firebaseUser.getIdToken(true);
 
-        addNotification('notifWelcomeBackTitle', 'notifWelcomeBackMsg', 'info', { name: finalUser.displayName || finalUser.email });
+        // Fetch user role
+        await ensureUserDocument(firebaseUser);
+        const userRole = await getUserRole(firebaseUser.uid);
+
+        addNotification('notifWelcomeBackTitle', 'notifWelcomeBackMsg', 'info', { name: firebaseUser.displayName || email.split('@')[0] });
         return userRole;
     };
 
-    const signup = async (userData) => {
-        setUser(userData);
-        await storage.setItem('user', userData);
-        await saveToProfiles(userData);
+    const signup = async (email, password, name, phone) => {
+        const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+        const firebaseUser = userCredential.user;
 
-        // 🔐 Create user document with default customer role
-        if (userData.uid) {
-            await ensureUserDocument(userData);
-            setRole(USER_ROLES.CUSTOMER); // New users are always customers
+        // Update Firebase Auth profile
+        try {
+            await updateProfile(firebaseUser, { displayName: name });
+        } catch (e) {
+            console.warn('Failed to update auth profile:', e);
         }
 
-        addNotification('notifWelcomeNewTitle', 'notifWelcomeNewMsg', 'success', { name: userData.displayName });
+        const userData = {
+            uid: firebaseUser.uid,
+            email: email,
+            displayName: name,
+            phone: phone || '',
+            provider: 'password'
+        };
+
+        // Create user document with Customer role
+        await ensureUserDocument(userData);
+        
+        addNotification('notifWelcomeNewTitle', 'notifWelcomeNewMsg', 'success', { name: name });
     };
 
     const signInWithGoogle = async () => {
@@ -201,7 +212,10 @@ export const AuthProvider = ({ children }) => {
                 provider: 'google'
             };
 
-            await login(userData);
+            await ensureUserDocument(userData);
+            const userRole = await getUserRole(userData.uid);
+            
+            addNotification('notifWelcomeBackTitle', 'notifWelcomeBackMsg', 'info', { name: userData.displayName || userData.email.split('@')[0] });
             return userData;
         } catch (error) {
             console.error('Google Sign-In Error:', error);

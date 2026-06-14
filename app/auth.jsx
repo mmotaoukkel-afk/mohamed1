@@ -53,24 +53,15 @@ export default function AuthScreen() {
 
         setLoading(true);
         try {
-            const userData = {
-                email: email.trim().toLowerCase(),
-                displayName: name || email.split("@")[0],
-                phone: phone,
-                photoURL: null,
-                id: Date.now().toString(),
-                uid: `local_${Date.now().toString()}`,
-            };
-
             if (isLogin) {
-                const role = await login(userData);
-                if (role === 'admin') {
+                const role = await login(email.trim().toLowerCase(), password);
+                if (role === 'admin' || role === 'manager' || role === 'super_admin') {
                     router.replace('/admin/analytics-dashboard');
                 } else {
                     router.back();
                 }
             } else {
-                await signup(userData);
+                await signup(email.trim().toLowerCase(), password, name || email.split("@")[0], phone);
                 router.back();
             }
         } catch (e) {

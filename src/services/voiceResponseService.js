@@ -156,7 +156,14 @@ export function generateResponse(products, keywords, searchQuery = null, userNam
         }
     } else {
         // Zero results but polite fallback
-        parts.push(RESPONSES.foundProducts(0));
+        // ONLY say we didn't find products if they actually asked for something, not just a greeting
+        if (!isGreeting && !isGratitude && !isQuestion) {
+            parts.push(RESPONSES.foundProducts(0));
+        } else if (isGreeting) {
+            parts.push('كيف يمكنني مساعدتك اليوم في العناية بجمالك؟');
+        } else if (isQuestion) {
+            parts.push('تفضلي، أنا أسمعك.');
+        }
     }
 
     // 3. Add Educational/Advice context if relevant

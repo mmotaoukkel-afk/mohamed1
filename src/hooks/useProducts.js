@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 
 /**
@@ -9,7 +9,7 @@ export const useProducts = (page = 1, perPage = 20, category = null, sortBy = nu
     return useQuery({
         queryKey: ['products_wc', page, perPage, category, sortBy, skin],
         queryFn: () => api.getProducts(page, perPage, category, { sortBy, skin }),
-        keepPreviousData: true,
+        placeholderData: keepPreviousData,
         staleTime: 1000 * 60 * 5, // 5 minutes
     });
 };

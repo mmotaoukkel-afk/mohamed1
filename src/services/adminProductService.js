@@ -11,6 +11,7 @@ import {
     query,
     where
 } from 'firebase/firestore';
+import { LOG_ACTIONS, logAdminActivity } from './activityLogService';
 import { notifyBackInStock } from './adminNotificationService';
 import api from './api';
 import { db } from './firebaseConfig';
@@ -127,6 +128,13 @@ export const createProduct = async (productData) => {
         };
 
         const result = await wooCommerceApi.createProduct(wcData);
+
+        // 📋 Log activity (safe — never breaks the operation)
+        logAdminActivity(LOG_ACTIONS.PRODUCT_CREATED, {
+            productId: result?.id,
+            productName: productData.name,
+        });
+
         return result;
     } catch (error) {
         console.error('Error creating product on WooCommerce:', error);
@@ -166,6 +174,13 @@ export const updateProduct = async (productId, updates, options = {}) => {
             );
         }
 
+        // 📋 Log activity
+        logAdminActivity(LOG_ACTIONS.PRODUCT_UPDATED, {
+            productId,
+            productName: updates.name || result?.name,
+            updatedFields: Object.keys(updates),
+        });
+
         return { id: productId, ...result };
     } catch (error) {
         console.error('Error updating product on WooCommerce:', error);
@@ -180,6 +195,10 @@ export const deleteProduct = async (productId) => {
     try {
         console.log(`📊 Admin: Deleting product ${productId} from WooCommerce...`);
         await wooCommerceApi.deleteProduct(productId);
+
+        // 📋 Log activity
+        logAdminActivity(LOG_ACTIONS.PRODUCT_DELETED, { productId });
+
         return true;
     } catch (error) {
         console.error('Error deleting product from WooCommerce:', error);

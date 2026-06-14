@@ -2,6 +2,7 @@ import {
     collection,
     getCountFromServer,
     getDocs,
+    limit,
     orderBy,
     query,
     Timestamp,
@@ -401,17 +402,18 @@ export const getNewCustomersToday = async () => {
  * @param {number} limit - Number of orders to fetch
  * @returns {Promise<Array>}
  */
-export const getRecentOrders = async (limit = 10) => {
+export const getRecentOrders = async (maxOrders = 10) => {
     try {
         const ordersRef = collection(db, 'orders');
         const q = query(
             ordersRef,
             orderBy('createdAt', 'desc'),
-            where('createdAt', '>=', Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)))
+            where('createdAt', '>=', Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))),
+            limit(maxOrders)
         );
 
         const snapshot = await getDocs(q);
-        return snapshot.docs.slice(0, limit).map(doc => ({
+        return snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             customer: doc.data().customerName || doc.data().shippingDetails?.name || 'زبون',

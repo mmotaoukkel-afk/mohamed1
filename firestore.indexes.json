@@ -1,4 +1,13 @@
 {
-    "indexes": [],
+    "indexes": [
+        {
+            "collectionGroup": "products",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "manage_stock", "order": "ASCENDING" },
+                { "fieldPath": "stock_quantity", "order": "ASCENDING" }
+            ]
+        }
+    ],
     "fieldOverrides": []
 }

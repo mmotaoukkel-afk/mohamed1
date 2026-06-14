@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { I18nManager } from 'react-native';
 import * as Updates from 'expo-updates';
+import i18n from '../i18n';
 import { storage } from '../utils/storage';
 
 const SettingsContext = createContext();
@@ -53,6 +54,9 @@ export const SettingsProvider = ({ children }) => {
     const changeLanguage = async (lang) => {
         setLanguage(lang);
         await storage.setItem('language', lang);
+
+        // Sync with i18next
+        i18n.changeLanguage(lang);
 
         // Handle RTL Layout changes if necessary
         const isRTL = lang === 'ar';

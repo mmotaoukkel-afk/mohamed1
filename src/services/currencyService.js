@@ -49,12 +49,12 @@ class CurrencyService {
     }
 
     /**
-     * Convert amount from base currency (MAD) to target currency
+     * Convert amount from base currency (KWD) to target currency
      */
-    convert(amountInMad, targetCurrency) {
-        if (!amountInMad) return 0;
+    convert(amountInKwd, targetCurrency) {
+        if (!amountInKwd) return 0;
         const rate = EXCHANGE_RATES[targetCurrency] || 1;
-        return amountInMad * rate;
+        return amountInKwd * rate;
     }
 
     /**

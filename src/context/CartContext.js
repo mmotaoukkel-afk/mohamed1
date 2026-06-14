@@ -22,8 +22,37 @@ export const CartProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [loadedUserEmail, setLoadedUserEmail] = useState(null);
 
+  const [animationState, setAnimationState] = useState(null);
+
   // Load cart when user changes
   useEffect(() => {
+    const loadCart = async () => {
+      if (!user?.email) {
+        setCartItems([]);
+        setLoadedUserEmail(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setCartItems([]); // Clear immediately
+
+      try {
+        const key = `@kataraa_cart_${user.email.toLowerCase()}`;
+        const saved = await AsyncStorage.getItem(key);
+        if (saved) {
+          setCartItems(JSON.parse(saved));
+        } else {
+          setCartItems([]);
+        }
+        setLoadedUserEmail(user.email);
+      } catch (error) {
+        console.error('Error loading cart:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (user) {
       loadCart();
     } else {
@@ -43,30 +72,6 @@ export const CartProvider = ({ children }) => {
       return () => clearTimeout(handler);
     }
   }, [cartItems, loading, user, loadedUserEmail]);
-
-  const [animationState, setAnimationState] = useState(null);
-
-  const loadCart = async () => {
-    if (!user?.email) return;
-
-    setLoading(true);
-    setCartItems([]); // Clear immediately
-
-    try {
-      const key = `@kataraa_cart_${user.email.toLowerCase()}`;
-      const saved = await AsyncStorage.getItem(key);
-      if (saved) {
-        setCartItems(JSON.parse(saved));
-      } else {
-        setCartItems([]);
-      }
-      setLoadedUserEmail(user.email);
-    } catch (error) {
-      console.error('Error loading cart:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const addToCart = (product) => {
     setCartItems(prev => {

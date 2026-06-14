@@ -20,9 +20,10 @@ import {
     getDashboardStats,
     getNewCustomersToday,
     getOrderStatusTrends,
-    getRecentOrders,
     getWeeklyRevenue
 } from '../../src/services/adminAnalyticsService';
+    
+import { subscribeToOrders } from '../../src/services/adminOrderService';
 import { notifyAdmins } from '../../src/services/adminNotificationService';
 import currencyService from '../../src/services/currencyService';
 
@@ -74,16 +75,14 @@ export default function AdminOverview() {
 
     const loadData = useCallback(async () => {
         try {
-            const [kpiData, ordersData, revenueData, catSalesData, newCustomers, trends] = await Promise.all([
+            const [kpiData, revenueData, catSalesData, newCustomers, trends] = await Promise.all([
                 getDashboardStats(),
-                getRecentOrders(),
                 getWeeklyRevenue(),
                 getCategorySales(),
                 getNewCustomersToday(),
                 getOrderStatusTrends()
             ]);
             if (kpiData) setStats(kpiData);
-            if (ordersData) setRecentOrders(ordersData);
             if (revenueData) setWeeklyRevenue(revenueData);
             if (catSalesData) setCategorySales(catSalesData);
             setNewCustomersToday(newCustomers || 0);
@@ -97,6 +96,15 @@ export default function AdminOverview() {
     }, []);
 
     useEffect(() => { loadData(); }, [loadData]);
+
+    useEffect(() => {
+        const unsubscribe = subscribeToOrders({ limitCount: 5 }, (data) => {
+            setRecentOrders(data.orders || []);
+        });
+        return () => {
+            if (unsubscribe) unsubscribe();
+        }
+    }, []);
 
     useEffect(() => {
         if (adminUnreadCount > 0) loadData();
@@ -121,6 +129,7 @@ export default function AdminOverview() {
         { key: 'shipping', icon: 'map', gradient: ['#06B6D4', '#0891B2'], route: '/admin/shipping' },
         { key: 'notifications', icon: 'notifications', gradient: ['#EC4899', '#DB2777'], route: '/admin/notifications' },
         { key: 'coupons', icon: 'pricetag', gradient: ['#F97316', '#EA580C'], route: '/admin/discounts' },
+        { key: 'activityLogs', icon: 'document-text', gradient: ['#64748B', '#334155'], route: '/admin/activity-logs' },
     ];
 
     return (
@@ -462,7 +471,9 @@ export default function AdminOverview() {
 
                                             <View style={styles.orderInfo}>
                                                 <Text style={[styles.orderId, { color: '#4F46E5' }]}>#{order.id?.slice(-6) || '000000'}</Text>
-                                                <Text style={[styles.orderCustomer, { color: isDark ? '#64748B' : '#94A3B8' }]}>{order.customer}</Text>
+                                                <Text style={[styles.orderCustomer, { color: isDark ? '#64748B' : '#94A3B8' }]} numberOfLines={1}>
+                                                    {typeof order.customer === 'object' ? (order.customer?.displayName || order.customer?.email || t('guest')) : (order.customer || t('guest'))}
+                                                </Text>
                                             </View>
 
                                             <View style={styles.orderMeta}>
