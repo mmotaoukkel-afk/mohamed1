@@ -14,11 +14,13 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeOut, Layout } from 'react-native-reanimated';
 import socialService from '../services/socialService';
+import { useAssistantContext } from '../assistant/context/AssistantProvider';
 
 /**
  * ReviewSection - Premium Social Integration with Likes & Delete
  */
 const ReviewSection = ({ productId, user, theme, isDark, t }) => {
+    const { activeContext, setActiveContext } = useAssistantContext();
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
     const [rating, setRating] = useState(5);
@@ -40,6 +42,81 @@ const ReviewSection = ({ productId, user, theme, isDark, t }) => {
         });
         return () => unsubscribe();
     }, [productId]);
+
+    // 🤖 استماع لأوامر المساعد الذكي لتحديث التقييم أو التعليقات
+    useEffect(() => {
+        const interaction = activeContext?.pendingInteraction;
+        if (!interaction) return;
+
+        // 1. مهارة كتابة التعليق
+        if (interaction.type === 'comment') {
+            const payloadText = interaction.payload?.text;
+            if (interaction.status === 'injected' && payloadText !== undefined) {
+                setNewComment(payloadText);
+                setActiveContext(prev => ({ ...prev, pendingInteraction: undefined }));
+            } else if (interaction.status === 'submitted') {
+                const textToSubmit = payloadText !== undefined ? payloadText : newComment;
+                if (textToSubmit.trim()) {
+                    setNewComment('');
+                    setActiveContext(prev => ({ ...prev, pendingInteraction: undefined }));
+                    
+                    if (!user || !user.uid) {
+                        Alert.alert(t('loginRequired'), t('pleaseLoginToReview'));
+                        return;
+                    }
+                    
+                    const tempId = `temp_${Date.now()}`;
+                    const optimisticComment = {
+                        id: tempId,
+                        productId: productId.toString(),
+                        userId: user.uid,
+                        userName: user.displayName || user.email?.split('@')[0] || 'User',
+                        userPhoto: user.photoURL || null,
+                        text: textToSubmit.trim(),
+                        rating: rating,
+                        timestamp: new Date(),
+                    };
+
+                    setComments(prev => [optimisticComment, ...prev]);
+                    setSubmitting(true);
+
+                    socialService.addComment(productId, user, optimisticComment.text, rating)
+                        .catch(err => {
+                            console.error(err);
+                            setComments(prev => prev.filter(c => c.id !== tempId));
+                        })
+                        .finally(() => setSubmitting(false));
+                }
+            }
+        }
+
+        // 2. مهارة التقييم بالنجوم
+        if (interaction.type === 'rating') {
+            const payloadRating = interaction.payload?.rating;
+            if (interaction.status === 'done' && payloadRating !== undefined) {
+                setRating(payloadRating);
+                setActiveContext(prev => ({ ...prev, pendingInteraction: undefined }));
+            } else if (interaction.status === 'submitted' && interaction.payload?.action === 'delete') {
+                setActiveContext(prev => ({ ...prev, pendingInteraction: undefined }));
+                if (user && user.uid) {
+                    const userReview = comments.find(c => c.userId === user.uid);
+                    if (userReview) {
+                        const isOwner = user.uid === userReview.userId;
+                        const isAdmin = user.email === 'admin@kataraa.com' || user.isAdmin;
+                        if (!isOwner && !isAdmin) {
+                            Alert.alert('Error', t('deleteReviewPermissionError') || 'You can only delete your own reviews');
+                            return;
+                        }
+                        socialService.deleteComment(userReview.id)
+                            .catch(err => {
+                                console.error('Error deleting comment:', err);
+                                Alert.alert('Error', t('failedToDeleteReview') || 'Failed to delete review');
+                            });
+                    }
+                }
+            }
+        }
+    }, [activeContext?.pendingInteraction, user, productId, rating, newComment, comments]);
 
     const handleSubmit = async () => {
         if (!user || !user.uid) {

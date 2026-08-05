@@ -22,6 +22,9 @@ import { SettingsProvider } from '../src/context/SettingsContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import AppBackground from '../src/components/ui/AppBackground';
 import '../src/services/firebaseConfig';
+import { AssistantProvider } from '../src/assistant/context/AssistantProvider';
+import { FloatingAssistantButton } from '../src/assistant/components/FloatingAssistantButton';
+import { AssistantOverlay } from '../src/assistant/components/AssistantOverlay';
 
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -91,7 +94,9 @@ export default function RootLayout() {
                   <CartProvider>
                     <FavoritesProvider>
                       <CheckoutProvider>
-                        <InnerApp />
+                        <AssistantProvider>
+                          <InnerApp />
+                        </AssistantProvider>
                       </CheckoutProvider>
                     </FavoritesProvider>
                   </CartProvider>
@@ -120,6 +125,9 @@ function InnerApp() {
           onComplete={endAnimation}
         />
       </View>
+      {/* Global Voice Assistant Components */}
+      <FloatingAssistantButton />
+      <AssistantOverlay />
     </>
   );
 }
@@ -151,6 +159,8 @@ function AppNavigator() {
         <Stack.Screen name="auth" options={{ animation: 'fade_from_bottom' }} />
         <Stack.Screen name="orders" />
         <Stack.Screen name="voice-search" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        {/* 🤖 AI Assistant — Phase 1 */}
+        <Stack.Screen name="assistant" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
 
 

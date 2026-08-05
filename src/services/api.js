@@ -26,12 +26,24 @@ const api = {
       // 1. Resolve Category ID if name/slug was passed
       let wcCategoryId = null;
       if (category) {
+        const catMap = {
+          'haircare': 'hair',
+          'sunscreen': 'suncare',
+          'antiaging': 'anti-aging',
+          'cleanser': 'cleansers',
+          'mask': 'masks',
+          'moisturizer': 'skincare'
+        };
+        const mappedCategory = catMap[category.toLowerCase()] || category;
+
         // If it's already a number/ID, use it. Otherwise find it.
-        if (!isNaN(category)) {
-          wcCategoryId = category;
+        if (!isNaN(mappedCategory)) {
+          wcCategoryId = mappedCategory;
         } else {
           const categories = await this.getCategories();
           const matched = categories.find(c =>
+            c.slug === mappedCategory ||
+            c.name === mappedCategory ||
             c.slug === category ||
             c.name === category
           );

@@ -36,6 +36,11 @@ import { useTranslation } from '../hooks/useTranslation';
 import { searchByVoice } from '../services/voiceProductSearch';
 import { generateResponse, speakResponse, stopSpeaking } from '../services/voiceResponseService';
 import ProductCardSoko from './ProductCardSoko';
+import { getAssistantLocale } from '../assistant/core/localeService';
+import { validateResponse } from '../assistant/engine/languageGuard';
+import { getIntentFallbackResponse } from '../assistant/engine/responseGenerator';
+import { logInteraction } from '../assistant/engine/telemetryLogger';
+import { logQuery } from '../services/voiceAnalytics';
 
 const { width, height } = Dimensions.get('window');
 
@@ -127,8 +132,9 @@ export default function VoiceSearchModal({ visible, onClose }) {
 
         stopSpeaking();
         try {
+            const locale = getAssistantLocale();
             ExpoSpeechRecognitionModule.start({
-                lang: "ar-SA",
+                lang: locale === 'ar' ? 'ar-SA' : 'en-US',
                 interimResults: true,
                 maxAlternatives: 1,
                 continuous: false,
@@ -142,6 +148,15 @@ export default function VoiceSearchModal({ visible, onClose }) {
     const stopListening = () => {
         ExpoSpeechRecognitionModule.stop();
         setState('idle');
+    };
+
+    const handleMicPress = () => {
+        if (state === 'listening') {
+            ExpoSpeechRecognitionModule.stop();
+        } else if (state === 'speaking') {
+            stopSpeaking();
+            setState('idle');
+        }
     };
 
     const handleTryAgain = () => {
@@ -164,9 +179,51 @@ export default function VoiceSearchModal({ visible, onClose }) {
             // Log search to analytics (Firestore)
             logQuery(text, result.keywords, result.products.length);
 
+            const locale = getAssistantLocale();
+
             if (result.products.length > 0) {
                 const userName = user?.displayName || (user?.email ? user.email.split('@')[0] : null);
-                const response = generateResponse(result.products, result.keywords, null, userName);
+                let response = generateResponse(result.products, result.keywords, null, userName, locale);
+                
+                const check = validateResponse(response, locale);
+                if (!check.isValid) {
+                    logInteraction(
+                        text,
+                        'PRODUCT_QUERY',
+                        'PRODUCT_SEARCH',
+                        'SEARCH_PRODUCTS',
+                        0.95,
+                        false,
+                        `Validation error: ${check.reason}`,
+                        undefined,
+                        undefined,
+                        locale,
+                        check.reason,
+                        response
+                    );
+
+                    console.warn(`[VoiceSearchModal] First response failed validation (${check.reason}). Retrying without username...`);
+                    response = generateResponse(result.products, result.keywords, null, null, locale);
+                    const check2 = validateResponse(response, locale);
+                    if (!check2.isValid) {
+                        console.warn(`[VoiceSearchModal] Retry response failed validation (${check2.reason}). Using fallback.`);
+                        response = getIntentFallbackResponse('PRODUCT_SEARCH', locale);
+                    }
+                } else {
+                    logInteraction(
+                        text,
+                        'PRODUCT_QUERY',
+                        'PRODUCT_SEARCH',
+                        'SEARCH_PRODUCTS',
+                        0.95,
+                        true,
+                        undefined,
+                        undefined,
+                        undefined,
+                        locale
+                    );
+                }
+
                 setTranscript(text);
                 setAiResponse(response);
 
@@ -176,7 +233,9 @@ export default function VoiceSearchModal({ visible, onClose }) {
                 // Talk back in background
                 await speakResponse(response);
             } else {
-                const failMsg = "عذراً، لم أجد ما تبحثين عنه. هل يمكنكِ المحاولة بكلمات أخرى؟";
+                const failMsg = locale === 'ar'
+                    ? "عذراً، لم أجد ما تبحثين عنه. هل يمكنكِ المحاولة بكلمات أخرى؟"
+                    : "Sorry, I couldn't find what you are looking for. Could you please try other words?";
                 setTranscript(failMsg);
                 setState('speaking');
                 await speakResponse(failMsg);
@@ -252,9 +311,11 @@ export default function VoiceSearchModal({ visible, onClose }) {
                     <View style={styles.content}>
                         {state === 'listening' && (
                             <View style={styles.centerContent}>
-                                <Animated.View style={[styles.micContainer, animatedMicStyle]}>
-                                    <Ionicons name="mic" size={60} color="#fff" />
-                                </Animated.View>
+                                <TouchableOpacity onPress={handleMicPress} activeOpacity={0.8}>
+                                    <Animated.View style={[styles.micContainer, animatedMicStyle]}>
+                                        <Ionicons name="mic" size={60} color="#fff" />
+                                    </Animated.View>
+                                </TouchableOpacity>
                                 <Text style={styles.stateText}>{t('listeningPrompt')}</Text>
                                 <Text style={styles.hintText}>{t('speakNow')}</Text>
                             </View>
@@ -274,9 +335,11 @@ export default function VoiceSearchModal({ visible, onClose }) {
 
                         {state === 'speaking' && (
                             <View style={styles.centerContent}>
-                                <Animated.View style={[styles.micContainer, animatedMicStyle, { backgroundColor: '#4CAF50' }]}>
-                                    <Ionicons name="volume-high" size={60} color="#fff" />
-                                </Animated.View>
+                                <TouchableOpacity onPress={handleMicPress} activeOpacity={0.8}>
+                                    <Animated.View style={[styles.micContainer, animatedMicStyle, { backgroundColor: '#4CAF50' }]}>
+                                        <Ionicons name="volume-high" size={60} color="#fff" />
+                                    </Animated.View>
+                                </TouchableOpacity>
                                 <Text style={styles.stateText}>{t('assistantSpeaking')}</Text>
                                 {aiResponse && (
                                     <View style={styles.transcriptBox}>

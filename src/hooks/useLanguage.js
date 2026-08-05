@@ -3,6 +3,15 @@ import { I18nManager } from 'react-native';
 import * as Updates from 'expo-updates';
 import i18n from '../i18n';
 
+/** إعادة تحميل التطبيق — يتم تجاوزها في وضع التطوير */
+const safeReloadAsync = async () => {
+    if (__DEV__) {
+        console.log('[Language] RTL changed — please reload the app manually in dev mode.');
+        return;
+    }
+    await Updates.reloadAsync();
+};
+
 export const useLanguage = () => {
     const [language, setLanguage] = useState(i18n.language);
     const [isRTL, setIsRTL] = useState(I18nManager.isRTL);
@@ -37,9 +46,8 @@ export const useLanguage = () => {
 
             // Reload app to apply layout changes
             try {
-                await Updates.reloadAsync();
+                await safeReloadAsync();
             } catch (error) {
-                // In development, we might not be able to reload programmatically easily
                 console.log('Please reload the app manually to apply RTL changes.');
             }
         }

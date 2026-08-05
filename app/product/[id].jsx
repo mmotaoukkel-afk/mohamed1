@@ -31,6 +31,7 @@ import api from '../../src/services/api';
 import currencyService from '../../src/services/currencyService';
 import socialService from '../../src/services/socialService';
 import { formatForState, normalizeProduct } from '../../src/utils/productUtils';
+import { useAssistantContext } from '../../src/assistant/context/AssistantProvider';
 
 // Top-level width removed to avoid ReferenceError
 
@@ -45,6 +46,7 @@ export default function ProductDetailsScreen() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { tokens, isDark } = useTheme(); // Use tokens
+  const { setActiveContext, setFocusedProduct, activeContext } = useAssistantContext();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,76 @@ export default function ProductDetailsScreen() {
   const heartScale = useSharedValue(1);
   const scrollY = useSharedValue(0);
   const imageRef = useRef(null);
+
+  // Sync with assistant context
+  useEffect(() => {
+    if (product) {
+      setActiveContext({
+        screen: 'Product',
+        focusedProduct: product,
+        // Register interactive elements so assistant can reference them by name
+        screenElements: {
+          'السلة': 'add_to_cart',
+          'add_to_cart': 'add_to_cart',
+          'المفضلة': 'toggle_favorite',
+          'المفضلات': 'toggle_favorite',
+          'favorite': 'toggle_favorite',
+          'شراء': 'buy_now',
+          'buy_now': 'buy_now',
+          'زيادة': 'increase_qty',
+          'increase_qty': 'increase_qty',
+          'تقليل': 'decrease_qty',
+          'decrease_qty': 'decrease_qty',
+          'واتساب': 'whatsapp',
+          'whatsapp': 'whatsapp',
+          'تعليق': 'comment_input',
+          'علق': 'comment_input',
+          'CommentBox': 'comment_input',
+          'ReviewInput': 'comment_input',
+          'تقييم': 'rating_input',
+          'ratingBar': 'rating_input',
+          'stars': 'rating_input',
+        },
+      });
+      setFocusedProduct(product);
+    }
+    return () => {
+      setActiveContext({ screen: 'Home' });
+      setFocusedProduct(undefined);
+    };
+  }, [product]);
+
+  // 🤖 Listen for assistant triggerAction — execute page actions on behalf of the user
+  useEffect(() => {
+    const trigger = activeContext?.triggerAction;
+    if (!trigger || !product) return;
+
+    // Clear the trigger immediately to prevent re-firing
+    setActiveContext((prev) => ({ ...prev, triggerAction: undefined }));
+
+    switch (trigger) {
+      case 'add_to_cart':
+        handleAddToCart();
+        break;
+      case 'toggle_favorite':
+        handleHeartPress();
+        break;
+      case 'buy_now':
+        handleBuyNow();
+        break;
+      case 'increase_qty':
+        setQuantity((q) => q + 1);
+        break;
+      case 'decrease_qty':
+        setQuantity((q) => Math.max(1, q - 1));
+        break;
+      case 'whatsapp':
+        handleWhatsAppOrder();
+        break;
+      default:
+        break;
+    }
+  }, [activeContext?.triggerAction]);
 
   // Parallax handlers using reanimated
   const scrollHandler = useAnimatedScrollHandler({

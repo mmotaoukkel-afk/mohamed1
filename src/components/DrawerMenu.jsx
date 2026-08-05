@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from '../hooks/useTranslation';
+import { useAssistantContext } from '../assistant/context/AssistantProvider';
 import { COLORS, SPACING, RADIUS, GRADIENTS, SHADOWS } from '../theme/colors';
 
 const { width, height } = Dimensions.get('window');
@@ -26,6 +27,7 @@ const DRAWER_WIDTH = width * 0.75;
 export default function DrawerMenu({ visible, onClose }) {
     const router = useRouter();
     const { t } = useTranslation();
+    const { triggerAssistant } = useAssistantContext();
 
     const menuItems = [
         { id: 'home', icon: 'home-outline', label: t('home'), route: '/' },
@@ -36,6 +38,8 @@ export default function DrawerMenu({ visible, onClose }) {
         { id: 'cart', icon: 'cart-outline', label: t('cart'), route: '/cart' },
         { id: 'profile', icon: 'person-outline', label: t('profile'), route: '/profile' },
         { id: 'analytics', icon: 'analytics-outline', label: t('searchAnalytics'), route: '/admin/analytics-dashboard' },
+        // 🤖 AI Assistant
+        { id: 'assistant', icon: 'sparkles-outline', label: 'مساعد الذكاء الاصطناعي', route: '/assistant' },
     ];
 
     const socialLinks = [
@@ -44,11 +48,17 @@ export default function DrawerMenu({ visible, onClose }) {
         { id: 'tiktok', icon: 'logo-tiktok', color: '#000' },
     ];
 
-    const handleNavigation = (route) => {
+    const handleNavigation = (item) => {
         onClose();
-        setTimeout(() => {
-            router.push(route);
-        }, 300);
+        if (item.id === 'assistant') {
+            setTimeout(() => {
+                triggerAssistant();
+            }, 300);
+        } else {
+            setTimeout(() => {
+                router.push(item.route);
+            }, 300);
+        }
     };
 
     return (
@@ -85,7 +95,7 @@ export default function DrawerMenu({ visible, onClose }) {
                             <TouchableOpacity
                                 key={item.id}
                                 style={styles.menuItem}
-                                onPress={() => handleNavigation(item.route)}
+                                onPress={() => handleNavigation(item)}
                             >
                                 <Ionicons name={item.icon} size={22} color={COLORS.primary} />
                                 <Text style={styles.menuLabel}>{item.label}</Text>

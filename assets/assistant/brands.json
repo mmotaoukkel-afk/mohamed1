@@ -1,0 +1,16 @@
+[
+  { "id": "samsung", "names": ["samsung", "سامسونج", "سامسونغ", "تلفاز سامسونج"] },
+  { "id": "apple", "names": ["apple", "ابل", "آبل", "ايفون", "iphone", "آيفون"] },
+  { "id": "loreal", "names": ["l'oreal", "loreal", "لوريال", "لوريال باريس"] },
+  { "id": "cerave", "names": ["cerave", "سيرافي", "سيرا في"] },
+  { "id": "the_ordinary", "names": ["the ordinary", "ordinary", "ذا اورديناري", "اورديناري"] },
+  { "id": "nivea", "names": ["nivea", "نيفيا"] },
+  { "id": "dior", "names": ["dior", "ديور"] },
+  { "id": "chanel", "names": ["chanel", "شانيل"] },
+  { "id": "la_roche_posay", "names": ["la roche posay", "la roche-posay", "لاروش بوزيه", "لاروش"] },
+  { "id": "cosrx", "names": ["cosrx", "كوسركس", "كوسركسي"] },
+  { "id": "anua", "names": ["anua", "أنوا", "انوا"] },
+  { "id": "beauty_of_joseon", "names": ["beauty of joseon", "joseon", "بيوتي اوف جيسون", "جيسون"] },
+  { "id": "vichy", "names": ["vichy", "فيشي"] },
+  { "id": "bioderma", "names": ["bioderma", "بيوديرما"] }
+]

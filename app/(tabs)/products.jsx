@@ -104,19 +104,30 @@ export default function ProductsScreen() {
     const { t } = useTranslation();
     const styles = getStyles(theme, isDark);
 
-    // Sanitize incoming category param (map Arabic to English slug if needed)
-    const initialCategory = params.category ? (
-        REAL_CATEGORIES.find(c =>
-            c.name === params.category ||
-            c.id === params.category ||
-            c.slug === params.category
-        )?.id || params.category
-    ) : null;
+    // Sanitize incoming category param (map to id used in REAL_CATEGORIES)
+    const resolveCategory = (rawParam) => {
+        if (!rawParam) return null;
+        return (
+            REAL_CATEGORIES.find(c =>
+                c.name === rawParam ||
+                c.id === rawParam ||
+                c.slug === rawParam
+            )?.id || rawParam
+        );
+    };
 
-    const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+    const [selectedCategory, setSelectedCategory] = useState(() => resolveCategory(params.category));
     const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'brand'
     const [filterModalVisible, setFilterModalVisible] = useState(false);
     const [sortBy, setSortBy] = useState('newest'); // 'newest', 'price_low', 'price_high', 'name'
+
+    // Bug fix: تابع تغييرات params.category عند التنقل من المساعد
+    // (useState لا يُعيد التهيئة إذا كانت الصفحة مفتوحة مسبقاً)
+    React.useEffect(() => {
+        const resolved = resolveCategory(params.category);
+        setSelectedCategory(resolved);
+    }, [params.category]);
+
 
     // Map sort values to API values
     const getSortOption = () => {

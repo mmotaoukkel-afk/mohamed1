@@ -2,6 +2,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { I18nManager } from 'react-native';
 import * as Updates from 'expo-updates';
+
+/** إعادة تحميل التطبيق — يتم تجاوزها في وضع التطوير */
+const safeReloadAsync = async () => {
+    if (__DEV__) {
+        console.log('[Settings] RTL changed — please reload the app manually in dev mode.');
+        return;
+    }
+    await Updates.reloadAsync();
+};
 import i18n from '../i18n';
 import { storage } from '../utils/storage';
 
@@ -28,7 +37,7 @@ export const SettingsProvider = ({ children }) => {
                 if (I18nManager.isRTL !== isRTL) {
                     I18nManager.allowRTL(isRTL);
                     I18nManager.forceRTL(isRTL);
-                    await Updates.reloadAsync();
+                    await safeReloadAsync();
                 }
             } else {
                 // First launch: force Arabic and RTL
@@ -37,7 +46,7 @@ export const SettingsProvider = ({ children }) => {
                 if (!I18nManager.isRTL) {
                     I18nManager.allowRTL(true);
                     I18nManager.forceRTL(true);
-                    await Updates.reloadAsync();
+                    await safeReloadAsync();
                 }
             }
         } catch (e) {
@@ -64,7 +73,7 @@ export const SettingsProvider = ({ children }) => {
             I18nManager.allowRTL(isRTL);
             I18nManager.forceRTL(isRTL);
             try {
-                await Updates.reloadAsync();
+                await safeReloadAsync();
             } catch (error) {
                 console.log('Reload not supported or failed:', error);
             }

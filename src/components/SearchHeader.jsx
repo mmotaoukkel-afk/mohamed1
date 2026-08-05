@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
+import { useAssistantContext } from '../assistant/context/AssistantProvider';
 import { storage } from '../utils/storage';
 import { IconButton, Input, Text } from './ui'; // Import from UI Kit
 
@@ -35,6 +36,7 @@ function SearchHeader({
     const { user } = useAuth();
     const { unreadCount } = useNotifications();
     const { t } = useTranslation();
+    const { triggerAssistant } = useAssistantContext();
     const router = useRouter();
     const styles = getStyles(tokens, isDark);
     const [searchQuery, setSearchQuery] = useState('');
@@ -85,6 +87,13 @@ function SearchHeader({
                             size="md"
                             variant="ghost"
                             onPress={() => router.push('/voice-search')}
+                        />
+                        <IconButton
+                            icon="sparkles"
+                            size="md"
+                            variant="ghost"
+                            color={tokens.colors.primary}
+                            onPress={triggerAssistant}
                         />
                     </View>
 
@@ -166,7 +175,7 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: tokens.spacing.xs,
-        width: 80, // Fixed width for center alignment of logo
+        width: 120, // Fixed width for center alignment of logo
     },
     brandText: {
         fontSize: 22,
@@ -178,7 +187,7 @@ const getStyles = (tokens, isDark) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: tokens.spacing.xs,
-        width: 80, // Fixed width for balance
+        width: 120, // Fixed width for balance
         justifyContent: 'flex-end',
     },
     profileBtn: {
